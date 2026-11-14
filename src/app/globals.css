@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * Side-by-side layouts: wide screens, or tablet-width screens held sideways.
+ * Portrait tablets keep the stacked phone layout, where columns get too thin.
+ */
+@custom-variant split {
+  @media (min-width: 64rem) {
+    @slot;
+  }
+  @media (min-width: 48rem) and (orientation: landscape) {
+    @slot;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme {
+  --color-ink: #0c0c0d;
+  --color-charcoal: #1c1b1d;
+  --color-graphite: #29282b;
+  --color-ash: #3a393d;
+  --color-smoke: #8e8c92;
+  --color-mist: #c9c7cc;
+  --color-paper: #f2f1ee;
+
+  --font-display: var(--font-anton), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+
+  --animate-rise: rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  :focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+}
+
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+/*
+ * Manga screentone: a dot grid whose tone is set by a mask, so it can fade
+ * from solid to nothing. Dot colour comes from currentColor.
+ */
+@utility screentone {
+  background-image: radial-gradient(
+    circle,
+    currentColor 1.4px,
+    transparent 1.6px
+  );
+  background-size: 7px 7px;
 }
