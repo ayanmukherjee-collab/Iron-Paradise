@@ -1,7 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("signed-out visitors", () => {
-  for (const path of ["/app", "/app/team"]) {
+  for (const path of [
+    "/app",
+    "/app/team",
+    "/app/members",
+    "/app/members/new",
+    "/app/guests",
+    "/app/audit",
+    "/app/settings",
+  ]) {
     test(`are sent from ${path} to sign in`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(
@@ -57,4 +65,15 @@ test("the app manifest is installable", async ({ request }) => {
       (icon: { purpose: string }) => icon.purpose === "maskable",
     ),
   ).toBe(true);
+});
+
+test("a claim link asks a signed-out visitor to sign in, revealing nothing", async ({
+  page,
+}) => {
+  const response = await page.goto("/claim/" + "x".repeat(43));
+  expect(response?.status()).toBe(200);
+  await expect(
+    page.getByRole("link", { name: "Sign in to continue" }),
+  ).toHaveAttribute("href", /\/sign-in\?next=%2Fclaim%2F/);
+  await expect(page.getByText(/IP-\d{4}/)).toHaveCount(0);
 });

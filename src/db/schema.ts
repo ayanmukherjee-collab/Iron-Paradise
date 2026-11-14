@@ -53,7 +53,13 @@ export const profiles = pgTable("profiles", {
 
 export const members = pgTable("members", {
   id: uuid("id").primaryKey().defaultRandom(),
-  memberCode: text("member_code").notNull().unique(),
+  // Assigned by the database from member_code_seq (IP-0001, IP-0002, …).
+  memberCode: text("member_code")
+    .notNull()
+    .unique()
+    .default(
+      sql`'IP-' || lpad(nextval('public.member_code_seq')::text, 4, '0')`,
+    ),
   fullName: text("full_name").notNull(),
   phone: text("phone").notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -68,7 +74,8 @@ export const plans = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
   durationMonths: smallint("duration_months").notNull(),
-  pricePaise: integer("price_paise").notNull(),
+  // A default that pre-fills new memberships; members pay their own agreed fee.
+  defaultFeePaise: integer("default_fee_paise").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   ...timestamps,
 });
@@ -78,14 +85,49 @@ export const memberships = pgTable("memberships", {
   memberId: uuid("member_id")
     .notNull()
     .references(() => members.id),
-  planId: uuid("plan_id")
-    .notNull()
-    .references(() => plans.id),
+  planId: uuid("plan_id").references(() => plans.id),
+  // Sets the monthly due day (brief §4.2).
   startsOn: date("starts_on").notNull(),
-  frozenFrom: date("frozen_from"),
-  frozenUntil: date("frozen_until"),
+  endedOn: date("ended_on"),
   createdBy: uuid("created_by").default(currentUser),
   ...timestamps,
+});
+
+export const membershipFees = pgTable("membership_fees", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  membershipId: uuid("membership_id")
+    .notNull()
+    .references(() => memberships.id),
+  feePaise: integer("fee_paise").notNull(),
+  effectiveFrom: date("effective_from").notNull(),
+  note: text("note"),
+  setBy: uuid("set_by").notNull().default(currentUser),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const membershipFreezes = pgTable("membership_freezes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  membershipId: uuid("membership_id")
+    .notNull()
+    .references(() => memberships.id),
+  startsOn: date("starts_on").notNull(),
+  // Last frozen day; null means frozen until further notice.
+  endsOn: date("ends_on"),
+  note: text("note"),
+  createdBy: uuid("created_by").notNull().default(currentUser),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const gymSettings = pgTable("gym_settings", {
+  id: boolean("id").primaryKey().default(true),
+  goneQuietDays: smallint("gone_quiet_days").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const payments = pgTable("payments", {

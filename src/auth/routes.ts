@@ -13,7 +13,8 @@ const publicExact = new Set([
   "/sw.js",
 ]);
 
-const publicPrefixes = ["/_next/", "/brand/", "/art/", "/icons/"];
+// Claim pages are public so a signed-out member can see what to do next.
+const publicPrefixes = ["/_next/", "/brand/", "/art/", "/icons/", "/claim/"];
 
 export function isPublicPath(pathname: string): boolean {
   return (

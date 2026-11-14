@@ -5,7 +5,11 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const publicActions = new Set(["startGoogleSignIn", "signOut"]);
+const publicActions = new Set([
+  "startGoogleSignIn",
+  "signOut",
+  "redeemClaimLink",
+]);
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

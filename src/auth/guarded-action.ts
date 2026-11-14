@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import type { Action } from "@/auth/permissions";
 import { getViewer, viewerCan, type Viewer } from "@/auth/session";
@@ -43,6 +44,8 @@ export function guardedAction<Schema extends z.ZodType, T>(options: {
     try {
       return { ok: true, data: await options.run(parsed.data, viewer) };
     } catch (error) {
+      // redirect() and notFound() work by throwing; let Next.js handle them.
+      unstable_rethrow(error);
       const message = databaseErrorMessage(error);
       if (message) return { ok: false, error: message };
       throw error;
