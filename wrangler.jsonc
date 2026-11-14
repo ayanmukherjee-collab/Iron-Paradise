@@ -1,0 +1,24 @@
+// Cloudflare Worker that serves the app (built by `npm run cf:build`).
+// Secrets are not kept here. Set them once with `npx wrangler secret put NAME`
+// (see README "Deploying"). NEXT_PUBLIC_ values are baked in at build time.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "iron-paradise",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [
+    {
+      // OpenNext calls back into its own Worker; the name must match "name" above.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "iron-paradise",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}
