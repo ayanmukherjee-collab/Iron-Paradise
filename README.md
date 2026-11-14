@@ -15,14 +15,15 @@ Open http://localhost:3000.
 
 ## Scripts
 
-| Command             | What it does          |
-| ------------------- | --------------------- |
-| `npm run dev`       | Start the dev server  |
-| `npm run build`     | Production build      |
-| `npm run lint`      | ESLint                |
-| `npm run typecheck` | TypeScript type check |
-| `npm test` | Unit tests (Vitest) |
-| `npm run format`    | Format with Prettier  |
+| Command             | What it does                                                             |
+| ------------------- | ------------------------------------------------------------------------ |
+| `npm run dev`       | Start the dev server                                                     |
+| `npm run build`     | Production build                                                         |
+| `npm run lint`      | ESLint                                                                   |
+| `npm run typecheck` | TypeScript type check                                                    |
+| `npm test`          | Unit tests (Vitest)                                                      |
+| `npm run art`       | Resize and greyscale the character art in `assets/art` into `public/art` |
+| `npm run format`    | Format with Prettier                                                     |
 
 ## Landing page content
 

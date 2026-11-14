@@ -1,16 +1,15 @@
 /**
  * Everything the public landing page says lives here, so the owner can change
- * text, prices, hours and contact details without touching any component.
+ * text, plans, hours and contact details without touching any component.
  *
  * Values marked PLACEHOLDER are stand-ins until the owner confirms the real
- * ones. Prices are integer paise (₹1 = 100 paise), matching how the app stores
- * money everywhere else.
+ * ones. Prices are deliberately not published; the plans section points
+ * people to the desk or WhatsApp instead.
  */
 
 export type Plan = {
   name: string;
   months: number;
-  pricePaise: number;
   note: string;
   featured?: boolean;
 };
@@ -29,6 +28,24 @@ export type HoursRow = {
   days: string;
   slots: string[];
 };
+
+/**
+ * Character art. `file` names the WebP files that `npm run art` writes to
+ * public/art; width and height are the 960px version's, used for aspect ratio.
+ * To swap art: drop a transparent PNG in assets/art, add it to
+ * scripts/process-art.mjs, run `npm run art`, and update the entry here.
+ */
+export type Art = {
+  file: string;
+  width: number;
+  height: number;
+};
+
+export const art = {
+  hero: { file: "goku", width: 960, height: 1830 },
+  arc: { file: "asta", width: 960, height: 948 },
+  closing: { file: "saitama", width: 960, height: 1406 },
+} satisfies Record<string, Art>;
 
 export const gym = {
   name: "Iron Paradise",
@@ -55,11 +72,9 @@ export const nav = [
 ];
 
 export const hero = {
-  kicker: "Strength & conditioning",
-  // The leading "P" is drawn by the logo mark, so the first line starts at "aradise".
-  headlineAfterMark: "aradise",
-  headlineSecondLine: "is earned.",
-  headlineSpoken: "Paradise is earned.",
+  // PLACEHOLDER: keep in step with the hours below.
+  openingLine: "Open Mon–Sat from 5:30 AM. Sunday mornings too.",
+  headline: "Paradise is earned.",
   sub: "Every body starts somewhere. Usually on a Monday, sore in places you didn't know had muscles.",
   primaryCta: { label: "Start here", href: "#plans" },
   secondaryCta: { label: "Member sign in", href: "/sign-in" },
@@ -71,7 +86,6 @@ export const statement = {
 };
 
 export const floor = {
-  eyebrow: "The floor",
   heading: "Iron, rubber mats, and people who show up.",
   body: [
     "No juice bar. No neon. Racks, plates, machines that work, and trainers who will fix your deadlift whether you asked or not.",
@@ -80,7 +94,7 @@ export const floor = {
 };
 
 export const arc = {
-  eyebrow: "Your training arc",
+  caption: "Your training arc. Results may vary. Soreness will not.",
   heading: "It goes roughly like this.",
   steps: [
     {
@@ -103,7 +117,6 @@ export const arc = {
 };
 
 export const facilities = {
-  eyebrow: "What's on the floor",
   heading: "Enough kit that you won't wait long.",
   // PLACEHOLDER: confirm the equipment list with the owner.
   items: [
@@ -138,37 +151,24 @@ export const facilities = {
 };
 
 export const plans = {
-  eyebrow: "Plans",
   heading: "Pick a length. Show up.",
-  sub: "Pay at the desk by cash or UPI. Longer plans cost less per month.",
-  // PLACEHOLDER: real plans and prices from the owner.
+  sub: "Longer plans work out cheaper per month. Ask at the desk or tap a plan to ask on WhatsApp.",
+  // PLACEHOLDER: confirm which plan lengths the gym offers.
   items: [
-    { name: "Monthly", months: 1, pricePaise: 120000, note: "Try it out" },
+    { name: "Monthly", months: 1, note: "Try it out" },
     {
       name: "Quarterly",
       months: 3,
-      pricePaise: 330000,
       note: "What most people pick",
       featured: true,
     },
-    {
-      name: "Half-yearly",
-      months: 6,
-      pricePaise: 600000,
-      note: "Past the hard part",
-    },
-    {
-      name: "Yearly",
-      months: 12,
-      pricePaise: 1080000,
-      note: "For the stubborn",
-    },
+    { name: "Half-yearly", months: 6, note: "Past the hard part" },
+    { name: "Yearly", months: 12, note: "For the stubborn" },
   ] satisfies Plan[],
-  ctaLabel: "Ask on WhatsApp",
+  footnote: "Pay at the desk by cash or UPI.",
 };
 
 export const hours = {
-  eyebrow: "Hours",
   heading: "When the doors are open.",
   // PLACEHOLDER: real timings from the owner.
   rows: [
@@ -182,7 +182,6 @@ export const hours = {
 };
 
 export const visit = {
-  eyebrow: "Find us",
   heading: "Come by. Look around.",
   sub: "Ask the desk anything. Decide after.",
 };
