@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/*
+ * Side-by-side layouts: wide screens, or tablet-width screens held sideways.
+ * Portrait tablets keep the stacked phone layout, where columns get too thin.
+ */
+@custom-variant split {
+  @media (min-width: 64rem) {
+    @slot;
+  }
+  @media (min-width: 48rem) and (orientation: landscape) {
+    @slot;
+  }
+}
+
 @theme {
   --color-ink: #0c0c0d;
   --color-charcoal: #1c1b1d;
