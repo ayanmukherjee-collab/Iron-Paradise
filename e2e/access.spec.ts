@@ -87,7 +87,11 @@ test("a made-up desk link shows no QR and no code", async ({
   page,
   request,
 }) => {
-  const token = "x".repeat(43);
+  // Not shaped like a real token, so the route turns it away before the rate
+  // limiter or the database: these tests run with neither (see the
+  // placeholder env in ci.yml). Well-formed but unknown or switched-off
+  // tokens are covered against the real SQL in src/db/attendance-rls.test.ts.
+  const token = "made-up-desk-link";
   const response = await request.get(`/desk/${token}/code`);
   expect(response.status()).toBe(404);
   expect(await response.json()).toEqual({
