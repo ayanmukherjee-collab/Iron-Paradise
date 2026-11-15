@@ -2,7 +2,11 @@
 
 Web app for Iron Paradise Gym: public landing page, member management, attendance and payment tracking. The full product brief is in [iron-paradise.md](iron-paradise.md).
 
-**Built so far (Phase 1, Foundation):** landing page, Google sign-in with a bot check and rate limits, roles and the owner's team page, database schema with row-level security and an append-only audit log, installable PWA shell, Cloudflare deploy config, CI.
+**Built so far:**
+
+- **Phase 1, Foundation:** landing page, Google sign-in with a bot check and rate limits, roles and the owner's team page, database schema with row-level security and an append-only audit log, installable PWA shell, Cloudflare deploy config, CI.
+- **Phase 2, Members:** member records with negotiated fees, freezes, claim links and QR codes, the waiting-guest list, deactivate and reactivate, "gone quiet" suggestions.
+- **Phase 3, Payments:** the payment ledger with partial and advance payments, owner-only void and correction, the month-by-month payment sheet, CSV and Excel export, due and overdue filters.
 
 ## Setup
 
@@ -79,6 +83,15 @@ The security tests in `src/db/rls.test.ts` load every migration into an in-memor
 - Every Server Action is built with `guardedAction` (`src/auth/guarded-action.ts`): session, permission, Zod validation, then the work. A test fails if a `"use server"` file exports anything else.
 - The database enforces the same rules with RLS. The server connects as a privileged role but runs every user query through `withUserContext` (`src/db/user-context.ts`), which switches to the signed-in user so their policies apply.
 - `src/proxy.ts` sends signed-out visitors away from every route not listed in `src/auth/routes.ts`, and sets a per-request nonce Content Security Policy.
+
+## How money is worked out
+
+Nothing about what a member owes is stored; it is computed from the ledger each time (`src/payments/ledger.ts`, pure and unit tested).
+
+- A membership has numbered periods. Period 0 falls due on the joining day, period _n_ on the joining date _n_ months later (the last day of shorter months), pushed back by any freezes.
+- Each period owes the agreed fee in force on its due date (`membership_fees`), so a fee change never rewrites months already due.
+- A payment names the period it starts from. It fills that period up to its fee, then flows on to the next, so a short payment is partial and a large one is an advance.
+- Payments are never edited or deleted. The owner voids a wrong entry (`payment_voids`) and, for a correction, records the right one in the same transaction.
 
 ## Landing page content
 

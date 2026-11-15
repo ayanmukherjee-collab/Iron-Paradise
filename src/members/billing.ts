@@ -31,8 +31,8 @@ export interface MembershipFacts {
 
 export type MembershipStatus = "active" | "frozen" | "free" | "inactive";
 
-// Ten years of monthly dues; far beyond any real membership.
-const maxPeriods = 120;
+// Fifty years of monthly dues; matches the check on payments.first_period.
+export const maxPeriods = 600;
 
 function freezeLength(freeze: Freeze & { endsOn: IsoDate }): number {
   return daysBetween(freeze.startsOn, freeze.endsOn) + 1;

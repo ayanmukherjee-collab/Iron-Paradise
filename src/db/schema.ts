@@ -135,11 +135,16 @@ export const payments = pgTable("payments", {
   memberId: uuid("member_id")
     .notNull()
     .references(() => members.id),
+  // Always the same member as memberId; a composite foreign key enforces it.
+  membershipId: uuid("membership_id")
+    .notNull()
+    .references(() => memberships.id),
+  // The first period this payment pays towards (0 = due on the joining day).
+  // Money beyond that period's fee flows on to the next (brief §4.4).
+  firstPeriod: smallint("first_period").notNull(),
   amountPaise: integer("amount_paise").notNull(),
   method: paymentMethod("method").notNull(),
   paidOn: date("paid_on").notNull(),
-  coversFrom: date("covers_from").notNull(),
-  coversMonths: smallint("covers_months").notNull().default(1),
   receiptNumber: text("receipt_number"),
   slipPath: text("slip_path"),
   note: text("note"),

@@ -27,6 +27,7 @@ let bob: string;
 let aliceMember: string;
 let bobMember: string;
 let bobPayment: string;
+const membershipOf = new Map<string, string>();
 
 async function rejectionMessage(attempt: Promise<unknown>): Promise<string> {
   try {
@@ -42,11 +43,19 @@ function as<T>(userId: string, run: Parameters<typeof withUserContext<T>>[2]) {
   return withUserContext(t.db, userId, run);
 }
 
+async function startMembership(memberId: string) {
+  const result = await t.client.query<{ id: string }>(
+    "insert into public.memberships (member_id, starts_on) values ($1, '2026-11-01') returning id",
+    [memberId],
+  );
+  membershipOf.set(memberId, result.rows[0].id);
+}
+
 async function insertPaymentAsOwner(memberId: string) {
   const result = await t.client.query<{ id: string }>(
-    `insert into public.payments (member_id, amount_paise, method, paid_on, covers_from, recorded_by)
-     values ($1, 150000, 'cash', '2026-11-01', '2026-11-01', $2) returning id`,
-    [memberId, owner],
+    `insert into public.payments (member_id, membership_id, first_period, amount_paise, method, paid_on, recorded_by)
+     values ($1, $2, 0, 150000, 'cash', '2026-11-01', $3) returning id`,
+    [memberId, membershipOf.get(memberId), owner],
   );
   return result.rows[0].id;
 }
@@ -61,6 +70,8 @@ beforeAll(async () => {
   bob = await t.createUser("member", "Bob");
   aliceMember = await t.createMember({ profileId: alice, name: "Alice" });
   bobMember = await t.createMember({ profileId: bob, name: "Bob" });
+  await startMembership(aliceMember);
+  await startMembership(bobMember);
   bobPayment = await insertPaymentAsOwner(bobMember);
   await t.client.query(
     "insert into public.attendance (member_id, method, marked_by) values ($1, 'manual', $2)",
@@ -105,10 +116,11 @@ describe("a trainer has no payment write access", () => {
       as(trainer, (tx) =>
         tx.insert(payments).values({
           memberId: aliceMember,
+          membershipId: membershipOf.get(aliceMember)!,
+          firstPeriod: 0,
           amountPaise: 100000,
           method: "cash",
           paidOn: "2026-11-02",
-          coversFrom: "2026-11-01",
           recordedBy: trainer,
         }),
       ),
@@ -188,10 +200,11 @@ describe("a manager cannot change roles or void payments", () => {
         .insert(payments)
         .values({
           memberId: aliceMember,
+          membershipId: membershipOf.get(aliceMember)!,
+          firstPeriod: 0,
           amountPaise: 120000,
           method: "upi",
           paidOn: "2026-11-03",
-          coversFrom: "2026-11-01",
           recordedBy: manager,
         })
         .returning({ id: payments.id }),

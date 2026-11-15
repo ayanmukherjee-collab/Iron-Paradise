@@ -21,6 +21,8 @@ import { ClaimLinkPanel } from "@/members/components/claim-link-panel";
 import { NewMembershipFields } from "@/members/components/new-membership-fields";
 import { StatusBadge } from "@/members/components/status-badge";
 import { formatMobile, whatsAppLink } from "@/members/phone";
+import { MemberPayments } from "@/payments/components/member-payments";
+import { getMemberPayments } from "@/payments/queries";
 import {
   getMemberDetail,
   listPlans,
@@ -29,8 +31,6 @@ import {
 
 export const metadata: Metadata = { title: "Member" };
 
-const methodLabels = { cash: "Cash", upi: "UPI", other: "Other" } as const;
-
 export default async function MemberPage({
   params,
 }: PageProps<"/app/members/[id]">) {
@@ -38,7 +38,12 @@ export default async function MemberPage({
   const viewer = await requirePermission("members.view", `/app/members/${id}`);
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const detail = await getMemberDetail(viewer, id);
+  const [detail, payments] = await Promise.all([
+    getMemberDetail(viewer, id),
+    viewerCan(viewer, "payments.viewSheet")
+      ? getMemberPayments(viewer, id)
+      : null,
+  ]);
   if (!detail) notFound();
 
   const { member, membership, status } = detail;
@@ -257,45 +262,35 @@ export default async function MemberPage({
         </Section>
       )}
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <Section title="Visits">
-          {detail.visits.length === 0 ? (
-            <p className="text-smoke">No visits recorded yet.</p>
-          ) : (
-            <ul className="space-y-1">
-              {detail.visits.map((visit) => (
-                <li key={visit.gymDate}>
-                  {formatDate(visit.gymDate)}
-                  <span className="text-smoke">
-                    {" "}
-                    · {visit.method === "qr" ? "QR" : "Marked by staff"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+      {payments && (
+        <Section title="Payments">
+          <MemberPayments
+            memberId={member.id}
+            data={payments}
+            canRecord={viewerCan(viewer, "payments.record")}
+            canVoid={viewerCan(viewer, "payments.void")}
+            today={today}
+          />
         </Section>
-        {viewerCan(viewer, "payments.viewSheet") && (
-          <Section title="Payments">
-            {detail.payments.length === 0 ? (
-              <p className="text-smoke">No payments recorded yet.</p>
-            ) : (
-              <ul className="space-y-1">
-                {detail.payments.map((payment) => (
-                  <li key={payment.id}>
-                    <strong>{formatPaise(payment.amountPaise)}</strong> ·{" "}
-                    {formatDate(payment.paidOn)}
-                    <span className="text-smoke">
-                      {" "}
-                      · {methodLabels[payment.method]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
+      )}
+
+      <Section title="Visits">
+        {detail.visits.length === 0 ? (
+          <p className="text-smoke">No visits recorded yet.</p>
+        ) : (
+          <ul className="space-y-1">
+            {detail.visits.map((visit) => (
+              <li key={visit.gymDate}>
+                {formatDate(visit.gymDate)}
+                <span className="text-smoke">
+                  {" "}
+                  · {visit.method === "qr" ? "QR" : "Marked by staff"}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
+      </Section>
 
       {canEdit && (
         <Section title="Details">

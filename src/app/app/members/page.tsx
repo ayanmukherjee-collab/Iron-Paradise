@@ -7,6 +7,7 @@ import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
 import { formatMobile } from "@/members/phone";
 import { listMembers, type MemberSummary } from "@/members/queries";
+import { StandingBadge } from "@/payments/components/standing-badge";
 
 export const metadata: Metadata = { title: "Members" };
 
@@ -14,6 +15,14 @@ const filters = {
   current: {
     label: "Current",
     keep: (m: MemberSummary) => m.status !== "inactive",
+  },
+  overdue: {
+    label: "Overdue",
+    keep: (m: MemberSummary) => m.standing === "overdue",
+  },
+  due: {
+    label: "Due soon",
+    keep: (m: MemberSummary) => m.standing === "due",
   },
   quiet: { label: "Gone quiet", keep: (m: MemberSummary) => m.goneQuiet },
   frozen: {
@@ -29,6 +38,9 @@ const filters = {
 } as const;
 
 type FilterKey = keyof typeof filters;
+
+// Only owners and managers see who owes what; trainers get the rest.
+const paymentFilters = new Set<FilterKey>(["overdue", "due"]);
 
 function matchesSearch(member: MemberSummary, query: string): boolean {
   if (!query) return true;
@@ -46,10 +58,15 @@ export default async function MembersPage({
 }: PageProps<"/app/members">) {
   const viewer = await requirePermission("members.view", "/app/members");
   const params = await searchParams;
+  const seesPayments = viewerCan(viewer, "payments.viewSheet");
+  const filterKeys = (Object.keys(filters) as FilterKey[]).filter(
+    (key) => seesPayments || !paymentFilters.has(key),
+  );
   const query =
     typeof params.q === "string" ? params.q.trim().slice(0, 60) : "";
   const filter: FilterKey =
-    typeof params.filter === "string" && params.filter in filters
+    typeof params.filter === "string" &&
+    filterKeys.includes(params.filter as FilterKey)
       ? (params.filter as FilterKey)
       : "current";
 
@@ -58,10 +75,7 @@ export default async function MembersPage({
     .filter(filters[filter].keep)
     .filter((member) => matchesSearch(member, query));
   const counts = Object.fromEntries(
-    (Object.keys(filters) as FilterKey[]).map((key) => [
-      key,
-      everyone.filter(filters[key].keep).length,
-    ]),
+    filterKeys.map((key) => [key, everyone.filter(filters[key].keep).length]),
   ) as Record<FilterKey, number>;
 
   return (
@@ -98,7 +112,7 @@ export default async function MembersPage({
         className="-mx-4 mt-4 [scrollbar-width:none] overflow-x-auto px-4"
       >
         <ul className="flex gap-2">
-          {(Object.keys(filters) as FilterKey[]).map((key) => (
+          {filterKeys.map((key) => (
             <li key={key}>
               <Link
                 href={{
@@ -115,6 +129,14 @@ export default async function MembersPage({
           ))}
         </ul>
       </nav>
+
+      {filter === "overdue" && (
+        <p className="mt-4 max-w-prose text-smoke">
+          A fee is past its due date and not paid in full. Overdue members are
+          the old &ldquo;expired&rdquo;: their membership stays, and recording a
+          payment clears it.
+        </p>
+      )}
 
       {filter === "quiet" && (
         <p className="mt-4 max-w-prose text-smoke">
@@ -144,6 +166,11 @@ export default async function MembersPage({
                         Gone quiet
                       </span>
                     )}
+                    {member.standing &&
+                      member.standing !== "paid" &&
+                      member.standing !== "free" && (
+                        <StandingBadge standing={member.standing} />
+                      )}
                     <StatusBadge status={member.status} />
                   </div>
                 </div>
@@ -154,6 +181,11 @@ export default async function MembersPage({
                   <span>{formatMobile(member.phone)}</span>
                   {member.feePaise !== null && member.status !== "free" && (
                     <span>{formatPaise(member.feePaise)}/month</span>
+                  )}
+                  {member.owedPaise > 0 && (
+                    <span className="font-semibold text-ink">
+                      Owes {formatPaise(member.owedPaise)}
+                    </span>
                   )}
                   {member.nextDue && (
                     <span>Next due {formatDate(member.nextDue)}</span>

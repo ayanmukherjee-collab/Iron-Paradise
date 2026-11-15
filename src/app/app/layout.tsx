@@ -31,6 +31,12 @@ const sections: Section[] = [
     icon: "members",
   },
   {
+    href: "/app/payments",
+    label: "Payments",
+    permission: "payments.viewSheet",
+    icon: "payments",
+  },
+  {
     href: "/app/guests",
     label: "Guests",
     permission: "guests.link",

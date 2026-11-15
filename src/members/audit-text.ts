@@ -53,7 +53,9 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
       }
       return `Freeze ended ${str(after, "ends_on")}`;
     case "payments":
-      return `Payment of ${money(num(after, "amount_paise"))} recorded`;
+      return after?.replaces_payment_id
+        ? `Correction of ${money(num(after, "amount_paise"))} recorded`
+        : `Payment of ${money(num(after, "amount_paise"))} recorded`;
     case "payment_voids":
       return `Payment voided: ${str(after, "reason")}`;
     case "gym_settings":

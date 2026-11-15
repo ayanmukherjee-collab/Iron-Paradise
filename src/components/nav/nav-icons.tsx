@@ -1,7 +1,7 @@
 // Square-cornered line icons to match the site's hard edges.
 import type { ReactNode } from "react";
 
-export type NavIcon = "home" | "members" | "guests" | "more";
+export type NavIcon = "home" | "members" | "payments" | "guests" | "more";
 
 const paths: Record<NavIcon, ReactNode> = {
   home: <path d="M3 11 12 3l9 8M5 9.5V21h5v-6h4v6h5V9.5" />,
@@ -9,6 +9,12 @@ const paths: Record<NavIcon, ReactNode> = {
     <>
       <rect x="5" y="3" width="8" height="8" />
       <path d="M2 21v-6h14v6M16 4h4v6h-4M22 21v-6h-3" />
+    </>
+  ),
+  payments: (
+    <>
+      <rect x="2" y="5" width="20" height="14" />
+      <path d="M2 10h20M6 15h4" />
     </>
   ),
   guests: (

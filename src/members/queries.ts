@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, max } from "drizzle-orm";
 import { can } from "@/auth/permissions";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
@@ -12,6 +12,7 @@ import {
   membershipFees,
   membershipFreezes,
   memberships,
+  paymentVoids,
   payments,
   plans,
   profiles,
@@ -24,11 +25,12 @@ import {
   isGoneQuiet,
   membershipStatus,
   nextDueDate,
-  type FeeChange,
-  type Freeze,
   type MembershipFacts,
   type MembershipStatus,
 } from "@/members/billing";
+import { loadFacts } from "@/members/facts";
+import type { Standing } from "@/payments/ledger";
+import { loadLedgers } from "@/payments/queries";
 
 export interface MemberSummary {
   id: string;
@@ -41,60 +43,9 @@ export interface MemberSummary {
   feePaise: number | null;
   nextDue: IsoDate | null;
   goneQuiet: boolean;
-}
-
-interface MembershipRow {
-  id: string;
-  memberId: string;
-  startsOn: IsoDate;
-  endedOn: IsoDate | null;
-  planId: string | null;
-}
-
-async function loadFacts(
-  tx: UserTransaction,
-  rows: MembershipRow[],
-  canSeeFees: boolean,
-): Promise<Map<string, MembershipFacts>> {
-  const ids = rows.map((row) => row.id);
-  const [feeRows, freezeRows] = ids.length
-    ? await Promise.all([
-        canSeeFees
-          ? tx
-              .select()
-              .from(membershipFees)
-              .where(inArray(membershipFees.membershipId, ids))
-          : Promise.resolve([]),
-        tx
-          .select()
-          .from(membershipFreezes)
-          .where(inArray(membershipFreezes.membershipId, ids)),
-      ])
-    : [[], []];
-
-  const facts = new Map<string, MembershipFacts>();
-  for (const row of rows) {
-    facts.set(row.id, {
-      startsOn: row.startsOn,
-      endedOn: row.endedOn,
-      fees: canSeeFees
-        ? feeRows
-            .filter((fee) => fee.membershipId === row.id)
-            .map<FeeChange>((fee) => ({
-              feePaise: fee.feePaise,
-              effectiveFrom: fee.effectiveFrom,
-              createdAt: fee.createdAt,
-            }))
-        : null,
-      freezes: freezeRows
-        .filter((freeze) => freeze.membershipId === row.id)
-        .map<Freeze>((freeze) => ({
-          startsOn: freeze.startsOn,
-          endsOn: freeze.endsOn,
-        })),
-    });
-  }
-  return facts;
+  /** Paid/due/overdue; null for inactive members or viewers without fees. */
+  standing: Standing | null;
+  owedPaise: number;
 }
 
 export async function getGoneQuietDays(viewer: Viewer): Promise<number> {
@@ -131,13 +82,17 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
           .from(attendance)
           .groupBy(attendance.memberId),
         tx
+          // A voided payment was a mistake, not a sign the member is around.
           .select({ memberId: payments.memberId, last: max(payments.paidOn) })
           .from(payments)
+          .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
+          .where(isNull(paymentVoids.paymentId))
           .groupBy(payments.memberId),
         tx.select({ days: gymSettings.goneQuietDays }).from(gymSettings),
       ]);
 
     const facts = await loadFacts(tx, openMemberships, canSeeFees);
+    const ledgers = await loadLedgers(tx, facts, today);
     const membershipByMember = new Map(
       openMemberships.map((row) => [row.memberId, row]),
     );
@@ -150,6 +105,7 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
       const fact = membership ? facts.get(membership.id)! : null;
       const status = membershipStatus(member.isActive, fact, today);
       const current = status !== "inactive" && fact;
+      const ledger = current ? ledgers.get(membership!.id) : undefined;
 
       return {
         id: member.id,
@@ -173,6 +129,8 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
             today,
             days: quietDays,
           }),
+        standing: ledger?.standing ?? null,
+        owedPaise: ledger?.owedPaise ?? 0,
       };
     });
   });
@@ -197,7 +155,7 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
       .where(eq(members.id, memberId));
     if (!member) return null;
 
-    const [history, account, visits, paymentRows, claim] = await Promise.all([
+    const [history, account, visits, claim] = await Promise.all([
       tx
         .select({
           id: memberships.id,
@@ -223,17 +181,6 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
         .where(eq(attendance.memberId, memberId))
         .orderBy(desc(attendance.gymDate))
         .limit(30),
-      tx
-        .select({
-          id: payments.id,
-          amountPaise: payments.amountPaise,
-          method: payments.method,
-          paidOn: payments.paidOn,
-        })
-        .from(payments)
-        .where(eq(payments.memberId, memberId))
-        .orderBy(desc(payments.paidOn))
-        .limit(24),
       canSeeClaims
         ? tx
             // Never select token_hash: staff have no access to it, by design.
@@ -299,7 +246,6 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
           : null,
       pastMemberships: history.filter((row) => row.endedOn !== null),
       visits,
-      payments: paymentRows,
       claimLink: claimLinkState(claim[0] ?? null),
     };
   });
@@ -428,6 +374,7 @@ export async function getOwnMembership(viewer: Viewer) {
       : null;
     const status = membershipStatus(member.isActive, fact, today);
     return {
+      memberId: member.id,
       memberCode: member.memberCode,
       fullName: member.fullName,
       status,

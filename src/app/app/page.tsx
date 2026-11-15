@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { isStaff } from "@/auth/permissions";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
-import { formatDate } from "@/lib/dates";
+import { formatDate, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
 import {
@@ -10,6 +10,8 @@ import {
   listWaitingGuests,
   type MemberSummary,
 } from "@/members/queries";
+import { PaymentHistory } from "@/payments/components/payment-history";
+import { getMemberPayments } from "@/payments/queries";
 
 export default async function AppHome() {
   const viewer = await requireViewer("/app");
@@ -68,6 +70,11 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
     ...(canManage
       ? [
           {
+            href: "/app/members?filter=overdue",
+            figure: count((member) => member.standing === "overdue"),
+            label: "Overdue",
+          },
+          {
             href: "/app/guests",
             figure: guests.length,
             label: "Waiting guests",
@@ -90,7 +97,7 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
     <section>
       <h1 className="display text-5xl">Front desk</h1>
       <div className="mt-8 border-2 border-ink bg-white">
-        <div className="grid grid-cols-2 lg:grid-cols-4">
+        <div className={`grid grid-cols-2 ${wideColumns[stats.length]}`}>
           {stats.map((stat, index) => (
             <Link
               key={stat.href}
@@ -138,7 +145,16 @@ interface Stat {
   label: string;
 }
 
-// Hard rules between cells: a 2-column grid on phones, one row of 4 on wide
+// Every stat fits on one row on wide screens. Written out in full so
+// Tailwind can see the class names.
+const wideColumns: Record<number, string> = {
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
+};
+
+// Hard rules between cells: a 2-column grid on phones, one row on wide
 // screens. Rules sit on the right of every cell but the last in a row, and
 // on the top of every cell after the first row.
 function statBorders(index: number, total: number): string {
@@ -153,6 +169,7 @@ function statBorders(index: number, total: number): string {
 
 async function MemberHome({ viewer }: { viewer: Viewer }) {
   const membership = await getOwnMembership(viewer);
+  const today = todayAtGym();
 
   if (!membership) {
     return (
@@ -164,6 +181,8 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
       </section>
     );
   }
+
+  const payments = await getMemberPayments(viewer, membership.memberId);
 
   return (
     <section className="max-w-prose">
@@ -199,9 +218,18 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
           </>
         )}
       </dl>
-      <p className="mt-8 text-smoke">
-        Your visits and payments will show here soon.
-      </p>
+      <h2 className="mt-10 mb-4 display text-3xl">Payments</h2>
+      {payments.ledger && payments.ledger.owedPaise > 0 && (
+        <p className="mb-4 border-l-4 border-ink pl-3 text-lg">
+          {formatPaise(payments.ledger.owedPaise)} is due. Pay at the front
+          desk.
+        </p>
+      )}
+      <PaymentHistory
+        history={payments.history}
+        canVoid={false}
+        today={today}
+      />
     </section>
   );
 }

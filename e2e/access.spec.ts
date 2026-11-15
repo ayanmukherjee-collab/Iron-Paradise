@@ -9,6 +9,8 @@ test.describe("signed-out visitors", () => {
     "/app/guests",
     "/app/audit",
     "/app/settings",
+    "/app/payments",
+    "/app/payments/export?format=csv",
   ]) {
     test(`are sent from ${path} to sign in`, async ({ page }) => {
       await page.goto(path);
