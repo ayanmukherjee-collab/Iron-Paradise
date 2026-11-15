@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { markAttendance } from "@/attendance/actions";
 import { requirePermission, viewerCan } from "@/auth/session";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
@@ -50,9 +51,14 @@ export default async function MemberPage({
   const canEdit = viewerCan(viewer, "members.edit");
   const canEditMembership = viewerCan(viewer, "memberships.edit");
   const canLink = viewerCan(viewer, "guests.link");
+  const canMark = viewerCan(viewer, "attendance.mark");
   const plans =
     canEdit && status === "inactive" ? await listPlans(viewer, true) : [];
   const today = todayAtGym();
+  const inToday = detail.visits.some((visit) => visit.gymDate === today);
+  const visitsThisMonth = detail.visits.filter((visit) =>
+    visit.gymDate.startsWith(today.slice(0, 7)),
+  ).length;
 
   return (
     <article className="space-y-10">
@@ -275,6 +281,23 @@ export default async function MemberPage({
       )}
 
       <Section title="Visits">
+        <div className="mb-4 space-y-3">
+          <p className="text-lg">
+            {inToday ? "In today. " : ""}
+            {visitsThisMonth} {visitsThisMonth === 1 ? "visit" : "visits"} this
+            month.
+          </p>
+          {canMark && status !== "inactive" && !inToday && (
+            <ActionForm
+              action={markAttendance}
+              submitLabel="Mark in today"
+              pendingLabel="Marking…"
+              variant="outline-dark"
+            >
+              <input type="hidden" name="memberId" value={member.id} />
+            </ActionForm>
+          )}
+        </div>
         {detail.visits.length === 0 ? (
           <p className="text-smoke">No visits recorded yet.</p>
         ) : (

@@ -38,11 +38,12 @@ const sections: Section[] = [
     icon: "payments",
   },
   {
-    href: "/app/guests",
-    label: "Guests",
-    permission: "guests.link",
-    icon: "guests",
+    href: "/app/attendance",
+    label: "Attendance",
+    permission: "attendance.view",
+    icon: "attendance",
   },
+  { href: "/app/guests", label: "Guests", permission: "guests.link" },
   { href: "/app/team", label: "Team", permission: "roles.change" },
   { href: "/app/audit", label: "Audit", permission: "audit.view" },
   { href: "/app/settings", label: "Settings", permission: "plans.edit" },
@@ -60,6 +61,11 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
         ? [{ href: link.href, label: link.label, icon: link.icon }]
         : [],
     ),
+    // Staff who also train here check in from their home screen; a member's
+    // bar has room for it.
+    ...(viewer.role === "member" && viewerCan(viewer, "self.checkIn")
+      ? [{ href: "/app/check-in", label: "Check in", icon: "checkIn" as const }]
+      : []),
   ];
   const more = links
     .filter((link) => !link.icon)

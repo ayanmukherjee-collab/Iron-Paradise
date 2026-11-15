@@ -14,7 +14,16 @@ const publicExact = new Set([
 ]);
 
 // Claim pages are public so a signed-out member can see what to do next.
-const publicPrefixes = ["/_next/", "/brand/", "/art/", "/icons/", "/claim/"];
+// Desk pages are public because the desk device holds no account; each one
+// checks its own secret link instead.
+const publicPrefixes = [
+  "/_next/",
+  "/brand/",
+  "/art/",
+  "/icons/",
+  "/claim/",
+  "/desk/",
+];
 
 export function isPublicPath(pathname: string): boolean {
   return (

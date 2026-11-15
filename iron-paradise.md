@@ -84,6 +84,12 @@ Public, fast, and indexable. Gym intro, facilities, plans and prices, timings, l
 - Staff can mark attendance manually for anyone.
 - One check-in per member per day. Views: today's list, per-member history, simple monthly counts.
 
+**Start with the printed QR.** Owner's decision, 2026-11-15. There is no desk device yet, so the printed QR is on from day one. The rotating QR works whenever a desk display is open, and the owner can switch the printed QR off once one is in place.
+
+**Overdue members are let in.** Owner's decision, 2026-11-15. Check-in always succeeds for an active member. The member sees a "fee due, pay at the desk" note, and owners and managers see the amount owed next to them on today's list. Members marked inactive cannot check in.
+
+**Desk displays use a secret link, not a staff login.** Owner's decision, 2026-11-15. The owner or a manager creates a revocable link that shows only the rotating QR, so no staff account stays signed in at the desk.
+
 ### 4.4 Payments
 
 Payments are a ledger, not a "paid" flag.
@@ -241,7 +247,8 @@ Answered:
 - Is the fee due on a fixed day each month or on each member's joining date? **Each member's joining date. See section 4.2.** (Phase 3)
 - Can memberships be frozen? **Yes, optionally, but often not recorded because members leave without notice. See section 4.2.** (Phase 2)
 
+- Is there a phone or tablet that can stay at the front desk for the rotating QR? **Not yet. Start with the printed QR; desk displays use a secret link. See section 4.3.** (Phase 4)
+
 Still open:
 
-- Is there a phone or tablet that can stay at the front desk for the rotating QR? (Phase 4)
 - What do the current paper slips contain, and can a member ID be added to them? Get sample photos. (Phase 6)

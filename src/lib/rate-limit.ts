@@ -9,6 +9,10 @@ const limits = {
   signIn: { requests: 20, window: "10 m" },
   claimLink: { requests: 10, window: "1 h" },
   slipScan: { requests: 60, window: "1 h" },
+  // Per member: a few scans a day at most, so this only stops guessing.
+  checkIn: { requests: 30, window: "1 h" },
+  // Per IP: a desk display asks for a new code about every 30 seconds.
+  deskDisplay: { requests: 600, window: "1 h" },
 } as const satisfies Record<
   string,
   { requests: number; window: `${number} ${"s" | "m" | "h"}` }

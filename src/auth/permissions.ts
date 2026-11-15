@@ -33,6 +33,7 @@ const allowedRoles = {
   "staff.deactivate": ownerOnly,
   "payments.void": ownerOnly,
   "plans.edit": ownerOnly,
+  "checkin.settings": ownerOnly,
 
   "members.edit": managers,
   "memberships.edit": managers,
@@ -41,6 +42,7 @@ const allowedRoles = {
   "payments.viewSheet": managers,
   "reminders.send": managers,
   "audit.view": managers,
+  "desk.manage": managers,
 
   "members.view": staff,
   "payments.viewStatus": staff,

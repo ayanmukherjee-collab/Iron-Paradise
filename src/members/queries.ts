@@ -180,7 +180,8 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
         .from(attendance)
         .where(eq(attendance.memberId, memberId))
         .orderBy(desc(attendance.gymDate))
-        .limit(30),
+        // One visit a day at most, so 31 always covers the current month.
+        .limit(31),
       canSeeClaims
         ? tx
             // Never select token_hash: staff have no access to it, by design.

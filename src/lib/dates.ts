@@ -93,3 +93,25 @@ const displayDateTime = new Intl.DateTimeFormat("en-IN", {
 export function formatDateTime(moment: Date): string {
   return displayDateTime.format(moment);
 }
+
+const displayTime = new Intl.DateTimeFormat("en-IN", {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "Asia/Kolkata",
+});
+
+/** "6:05 pm" in gym time. */
+export function formatTime(moment: Date): string {
+  return displayTime.format(moment);
+}
+
+const displayMonth = new Intl.DateTimeFormat("en-IN", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** "November 2026" for a "YYYY-MM" month. */
+export function formatMonth(month: string): string {
+  return displayMonth.format(new Date(`${month}-01T00:00:00Z`));
+}

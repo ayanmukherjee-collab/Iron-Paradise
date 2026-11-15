@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { getOwnAttendance, listVisitsOn } from "@/attendance/queries";
 import { isStaff } from "@/auth/permissions";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
-import { formatDate, todayAtGym } from "@/lib/dates";
+import { formatDate, formatTime, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
 import {
@@ -54,14 +55,16 @@ function WaitingForGym({ email }: { email: string | null }) {
 
 async function StaffHome({ viewer }: { viewer: Viewer }) {
   const canManage = viewerCan(viewer, "guests.link");
-  const [members, guests] = await Promise.all([
+  const [members, guests, visits] = await Promise.all([
     listMembers(viewer),
     canManage ? listWaitingGuests(viewer) : Promise.resolve([]),
+    listVisitsOn(viewer, todayAtGym()),
   ]);
   const count = (keep: (member: MemberSummary) => boolean) =>
     members.filter(keep).length;
 
   const stats: Stat[] = [
+    { href: "/app/attendance", figure: visits.length, label: "In today" },
     {
       href: "/app/members",
       figure: count((member) => member.status !== "inactive"),
@@ -152,6 +155,7 @@ const wideColumns: Record<number, string> = {
   3: "lg:grid-cols-3",
   4: "lg:grid-cols-4",
   5: "lg:grid-cols-5",
+  6: "lg:grid-cols-6",
 };
 
 // Hard rules between cells: a 2-column grid on phones, one row on wide
@@ -182,7 +186,10 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
     );
   }
 
-  const payments = await getMemberPayments(viewer, membership.memberId);
+  const [payments, visits] = await Promise.all([
+    getMemberPayments(viewer, membership.memberId),
+    getOwnAttendance(viewer, membership.memberId),
+  ]);
 
   return (
     <section className="max-w-prose">
@@ -218,6 +225,46 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
           </>
         )}
       </dl>
+      <div className="mt-8 border-2 border-ink bg-white p-5">
+        {visits.today ? (
+          <p className="text-lg">
+            <strong>Checked in today</strong> at {formatTime(visits.today)}.
+          </p>
+        ) : (
+          <>
+            <p className="text-lg">Not checked in today.</p>
+            <Link
+              href="/app/check-in"
+              className="mt-3 inline-flex min-h-12 items-center bg-ink px-6 text-sm font-bold tracking-[0.08em] text-white uppercase hover:bg-ash"
+            >
+              Check in
+            </Link>
+          </>
+        )}
+      </div>
+
+      <h2 className="mt-10 mb-4 display text-3xl">
+        Visits · {visits.thisMonth} this month
+      </h2>
+      {visits.recent.length === 0 ? (
+        <p className="text-lg text-smoke">No visits yet.</p>
+      ) : (
+        <ul className="border-t-2 border-ink">
+          {visits.recent.map((visit) => (
+            <li
+              key={visit.gymDate}
+              className="flex justify-between gap-4 border-b-2 border-ink py-2"
+            >
+              <span>{formatDate(visit.gymDate)}</span>
+              <span className="text-smoke">
+                {formatTime(visit.checkedInAt)}
+                {visit.method === "manual" ? " · marked at desk" : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <h2 className="mt-10 mb-4 display text-3xl">Payments</h2>
       {payments.ledger && payments.ledger.owedPaise > 0 && (
         <p className="mb-4 border-l-4 border-ink pl-3 text-lg">
