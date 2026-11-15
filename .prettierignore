@@ -2,3 +2,9 @@
 node_modules
 package-lock.json
 next-env.d.ts
+.open-next
+.wrangler
+public/sw.js
+supabase/.temp
+test-results
+playwright-report
