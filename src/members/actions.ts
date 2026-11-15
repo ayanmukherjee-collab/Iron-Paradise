@@ -23,7 +23,7 @@ import {
   withUserContext,
   type UserTransaction,
 } from "@/db/user-context";
-import { todayAtGym, type IsoDate } from "@/lib/dates";
+import { formatDate, todayAtGym, type IsoDate } from "@/lib/dates";
 import { publicEnv } from "@/lib/env";
 import { feeChangeEffectiveFrom } from "@/members/billing";
 import { getMembershipFacts } from "@/members/queries";
@@ -148,7 +148,7 @@ export const changeFee = guardedAction({
       },
     );
     revalidatePath(`/app/members/${memberId}`);
-    return { effectiveFrom };
+    return { message: `Saved. Applies from ${formatDate(effectiveFrom)}.` };
   },
 });
 

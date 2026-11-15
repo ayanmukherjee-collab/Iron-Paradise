@@ -138,9 +138,6 @@ export default async function MemberPage({
               <ActionForm
                 action={changeFee}
                 submitLabel="Change fee"
-                success={(data) =>
-                  `Saved. Applies from ${formatDate(data.effectiveFrom)}.`
-                }
                 className="space-y-4"
               >
                 <h3 className="text-lg font-bold">Change the agreed fee</h3>

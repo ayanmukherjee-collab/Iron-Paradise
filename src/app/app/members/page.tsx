@@ -95,7 +95,7 @@ export default async function MembersPage({
 
       <nav
         aria-label="Filter members"
-        className="-mx-4 mt-4 overflow-x-auto px-4"
+        className="-mx-4 mt-4 [scrollbar-width:none] overflow-x-auto px-4"
       >
         <ul className="flex gap-2">
           {(Object.keys(filters) as FilterKey[]).map((key) => (

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { isStaff } from "@/auth/permissions";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
 import { formatDate } from "@/lib/dates";
@@ -9,6 +8,7 @@ import {
   getOwnMembership,
   listMembers,
   listWaitingGuests,
+  type MemberSummary,
 } from "@/members/queries";
 
 export default async function AppHome() {
@@ -56,32 +56,66 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
     listMembers(viewer),
     canManage ? listWaitingGuests(viewer) : Promise.resolve([]),
   ]);
-  const current = members.filter(
-    (member) => member.status !== "inactive",
-  ).length;
-  const quiet = members.filter((member) => member.goneQuiet).length;
+  const count = (keep: (member: MemberSummary) => boolean) =>
+    members.filter(keep).length;
+
+  const stats: Stat[] = [
+    {
+      href: "/app/members",
+      figure: count((member) => member.status !== "inactive"),
+      label: "Current members",
+    },
+    ...(canManage
+      ? [
+          {
+            href: "/app/guests",
+            figure: guests.length,
+            label: "Waiting guests",
+          },
+          {
+            href: "/app/members?filter=quiet",
+            figure: count((member) => member.goneQuiet),
+            label: "Gone quiet",
+          },
+        ]
+      : []),
+    {
+      href: "/app/members?filter=frozen",
+      figure: count((member) => member.status === "frozen"),
+      label: "Frozen",
+    },
+  ];
 
   return (
     <section>
       <h1 className="display text-5xl">Front desk</h1>
-      <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Tile href="/app/members" figure={current} label="Current members" />
+      <div className="mt-8 border-2 border-ink bg-white">
+        <div className="grid grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat, index) => (
+            <Link
+              key={stat.href}
+              href={stat.href}
+              className={`block p-5 hover:bg-ink hover:text-white ${statBorders(index, stats.length)}`}
+            >
+              <span className="block min-h-10 text-sm font-bold tracking-[0.08em] uppercase">
+                {stat.label}
+              </span>
+              <span className="mt-2 block display text-5xl">{stat.figure}</span>
+            </Link>
+          ))}
+        </div>
         {canManage && (
-          <>
-            <Tile href="/app/members/new" figure="+" label="Add a member" />
-            <Tile
-              href="/app/guests"
-              figure={guests.length}
-              label="Waiting guests"
-            />
-            <Tile
-              href="/app/members?filter=quiet"
-              figure={quiet}
-              label="Gone quiet"
-            />
-          </>
+          <Link
+            href="/app/members/new"
+            className="flex min-h-14 items-center justify-between border-t-2 border-ink bg-ink px-5 text-sm font-bold tracking-[0.08em] text-white uppercase hover:bg-ash"
+          >
+            Add a member
+            <span aria-hidden="true" className="display text-3xl">
+              +
+            </span>
+          </Link>
         )}
-      </ul>
+      </div>
       {viewerCan(viewer, "roles.change") && (
         <p className="mt-8 max-w-prose text-lg">
           New staff sign in with Google first, then you give them a role on the{" "}
@@ -98,26 +132,23 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
   );
 }
 
-function Tile({
-  href,
-  figure,
-  label,
-}: {
+interface Stat {
   href: string;
-  figure: ReactNode;
+  figure: number;
   label: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="block border-2 border-ink bg-white p-5 hover:bg-ink hover:text-white"
-      >
-        <span className="block display text-5xl">{figure}</span>
-        <span className="mt-2 block font-semibold">{label}</span>
-      </Link>
-    </li>
-  );
+}
+
+// Hard rules between cells: a 2-column grid on phones, one row of 4 on wide
+// screens. Rules sit on the right of every cell but the last in a row, and
+// on the top of every cell after the first row.
+function statBorders(index: number, total: number): string {
+  const classes = [];
+  if (index % 2 === 0 && index < total - 1)
+    classes.push("border-r-2 border-ink");
+  if (index >= 2) classes.push("border-t-2 border-ink lg:border-t-0");
+  if (index % 2 === 1 && index < total - 1)
+    classes.push("lg:border-r-2 lg:border-ink");
+  return classes.join(" ");
 }
 
 async function MemberHome({ viewer }: { viewer: Viewer }) {

@@ -236,7 +236,12 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
         .limit(24),
       canSeeClaims
         ? tx
-            .select()
+            // Never select token_hash: staff have no access to it, by design.
+            .select({
+              usedAt: claimTokens.usedAt,
+              revokedAt: claimTokens.revokedAt,
+              expiresAt: claimTokens.expiresAt,
+            })
             .from(claimTokens)
             .where(eq(claimTokens.memberId, memberId))
             .orderBy(desc(claimTokens.createdAt))

@@ -44,8 +44,11 @@ export const optionalNote = z
   .optional()
   .transform((value) => value ?? null);
 
+// Missing entirely when the gym has no plans yet (the field isn't rendered),
+// or "" when staff pick "No plan". Both mean no plan.
 export const optionalPlanId = z
   .string()
+  .optional()
   .transform((value) => value || null)
   .pipe(z.uuid().nullable());
 

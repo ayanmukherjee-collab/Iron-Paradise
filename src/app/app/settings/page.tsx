@@ -135,7 +135,7 @@ function PlanFields({
           inputMode="decimal"
           required
           defaultValue={fee !== null ? paiseToInput(fee) : ""}
-          placeholder="600"
+          placeholder="e.g. 600"
           className={inputClass}
         />
       </Field>

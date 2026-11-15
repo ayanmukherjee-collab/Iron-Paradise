@@ -71,7 +71,7 @@ export function NewMembershipFields({
           required
           value={fee}
           onChange={(event) => setFee(event.target.value)}
-          placeholder="600"
+          placeholder="e.g. 600"
           className={inputClass}
         />
       </Field>
