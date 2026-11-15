@@ -30,7 +30,7 @@ import {
 } from "@/members/billing";
 import { loadFacts } from "@/members/facts";
 import type { Standing } from "@/payments/ledger";
-import { loadLedgers } from "@/payments/queries";
+import { loadFactsAndLedgers } from "@/payments/queries";
 
 export interface MemberSummary {
   id: string;
@@ -91,8 +91,12 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
         tx.select({ days: gymSettings.goneQuietDays }).from(gymSettings),
       ]);
 
-    const facts = await loadFacts(tx, openMemberships, canSeeFees);
-    const ledgers = await loadLedgers(tx, facts, today);
+    const { facts, ledgers } = await loadFactsAndLedgers(
+      tx,
+      openMemberships,
+      canSeeFees,
+      today,
+    );
     const membershipByMember = new Map(
       openMemberships.map((row) => [row.memberId, row]),
     );
@@ -149,13 +153,15 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
   const today = todayAtGym();
 
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [member] = await tx
-      .select()
-      .from(members)
-      .where(eq(members.id, memberId));
-    if (!member) return null;
-
-    const [history, account, visits, claim] = await Promise.all([
+    // Everything that needs only the member id goes in one round trip; what
+    // needs the open membership goes in a second.
+    const [[found], history, visits, claim] = await Promise.all([
+      tx
+        // Email is null for trainers, who cannot read other profiles.
+        .select({ member: members, accountEmail: profiles.email })
+        .from(members)
+        .leftJoin(profiles, eq(profiles.id, members.profileId))
+        .where(eq(members.id, memberId)),
       tx
         .select({
           id: memberships.id,
@@ -169,12 +175,6 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
         .leftJoin(plans, eq(plans.id, memberships.planId))
         .where(eq(memberships.memberId, memberId))
         .orderBy(desc(memberships.startsOn)),
-      member.profileId
-        ? tx
-            .select({ email: profiles.email })
-            .from(profiles)
-            .where(eq(profiles.id, member.profileId))
-        : Promise.resolve([]),
       tx
         .select({ gymDate: attendance.gymDate, method: attendance.method })
         .from(attendance)
@@ -195,21 +195,21 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
             .limit(1)
         : Promise.resolve([]),
     ]);
+    if (!found) return null;
+    const { member } = found;
 
-    const facts = await loadFacts(tx, history, canSeeFees);
     const open = history.find((row) => row.endedOn === null) ?? null;
-    const openFacts = open ? facts.get(open.id)! : null;
-    const status = membershipStatus(member.isActive, openFacts, today);
-    const freezeRows = open
-      ? await tx
-          .select()
-          .from(membershipFreezes)
-          .where(eq(membershipFreezes.membershipId, open.id))
-          .orderBy(desc(membershipFreezes.startsOn))
-      : [];
-    const feeRows =
+    const [facts, freezeRows, feeRows] = await Promise.all([
+      loadFacts(tx, history, canSeeFees),
+      open
+        ? tx
+            .select()
+            .from(membershipFreezes)
+            .where(eq(membershipFreezes.membershipId, open.id))
+            .orderBy(desc(membershipFreezes.startsOn))
+        : Promise.resolve([]),
       open && canSeeFees
-        ? await tx
+        ? tx
             .select({
               feePaise: membershipFees.feePaise,
               effectiveFrom: membershipFees.effectiveFrom,
@@ -222,11 +222,14 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
               desc(membershipFees.effectiveFrom),
               desc(membershipFees.createdAt),
             )
-        : [];
+        : Promise.resolve([]),
+    ]);
+    const openFacts = open ? facts.get(open.id)! : null;
+    const status = membershipStatus(member.isActive, openFacts, today);
 
     return {
       member,
-      accountEmail: account[0]?.email ?? null,
+      accountEmail: found.accountEmail ?? null,
       status,
       membership:
         open && openFacts
@@ -352,23 +355,26 @@ export async function listAuditEntries(viewer: Viewer, limit = 100) {
 export async function getOwnMembership(viewer: Viewer) {
   const today = todayAtGym();
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [member] = await tx
-      .select()
-      .from(members)
-      .where(eq(members.profileId, viewer.userId));
+    const [[member], [open]] = await Promise.all([
+      tx.select().from(members).where(eq(members.profileId, viewer.userId)),
+      tx
+        .select({
+          id: memberships.id,
+          memberId: memberships.memberId,
+          startsOn: memberships.startsOn,
+          endedOn: memberships.endedOn,
+          planId: memberships.planId,
+        })
+        .from(memberships)
+        .innerJoin(members, eq(members.id, memberships.memberId))
+        .where(
+          and(
+            eq(members.profileId, viewer.userId),
+            isNull(memberships.endedOn),
+          ),
+        ),
+    ]);
     if (!member) return null;
-    const [open] = await tx
-      .select({
-        id: memberships.id,
-        memberId: memberships.memberId,
-        startsOn: memberships.startsOn,
-        endedOn: memberships.endedOn,
-        planId: memberships.planId,
-      })
-      .from(memberships)
-      .where(
-        and(eq(memberships.memberId, member.id), isNull(memberships.endedOn)),
-      );
     const fact = open
       ? (await loadFacts(tx, [open], true)).get(open.id)!
       : null;

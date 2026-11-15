@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isProduction, publicEnv } from "@/lib/env";
@@ -59,5 +60,8 @@ export async function startGoogleSignIn(
 export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
+  // Drop every page this browser tab is holding in memory, so the next person
+  // on a shared desk tablet cannot step back into the last person's pages.
+  revalidatePath("/", "layout");
   redirect("/");
 }

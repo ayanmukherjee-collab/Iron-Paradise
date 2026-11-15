@@ -59,6 +59,8 @@ describe("the Drizzle schema matches the migrations", () => {
       "is_staff",
       "issue_claim_token",
       "link_guest_to_member",
+      "own_member_id",
+      "own_membership_ids",
       "redeem_claim_token",
       "set_user_active",
       "set_user_role",

@@ -22,10 +22,11 @@ export function withUserContext<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     const claims = JSON.stringify({ sub: userId, role: "authenticated" });
+    // One statement, one round trip. set_config('role', ..., true) is the
+    // function form of SET LOCAL ROLE.
     await tx.execute(
-      sql`select set_config('request.jwt.claims', ${claims}, true)`,
+      sql`select set_config('request.jwt.claims', ${claims}, true), set_config('role', 'authenticated', true)`,
     );
-    await tx.execute(sql`set local role authenticated`);
     return run(tx);
   });
 }

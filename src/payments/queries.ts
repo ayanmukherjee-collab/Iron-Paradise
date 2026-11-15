@@ -76,27 +76,46 @@ async function countedPayments(
 
 /**
  * The ledger of each membership the viewer can see fees for, keyed by
- * membership id. Callers pass facts they already loaded.
+ * membership id, from facts and counted payments already loaded.
  */
-export async function loadLedgers(
-  tx: UserTransaction,
+function buildLedgers(
   facts: Map<string, MembershipFacts>,
+  paid: Map<string, LedgerPayment[]>,
   today: IsoDate,
-): Promise<Map<string, Ledger>> {
-  const priced = [...facts].flatMap(([id, fact]) => {
+): Map<string, Ledger> {
+  const ledgers = new Map<string, Ledger>();
+  for (const [id, fact] of facts) {
     const membership = withFees(fact);
-    return membership ? [[id, membership] as const] : [];
-  });
-  const paid = await countedPayments(
-    tx,
-    priced.map(([id]) => id),
-  );
-  return new Map(
-    priced.map(([id, membership]) => [
-      id,
-      buildLedger(membership, paid.get(id) ?? [], today),
-    ]),
-  );
+    if (membership)
+      ledgers.set(id, buildLedger(membership, paid.get(id) ?? [], today));
+  }
+  return ledgers;
+}
+
+/**
+ * Facts and ledgers for a set of memberships. Fees, freezes and payments are
+ * fetched side by side in one round trip, not one after another. Viewers who
+ * cannot see fees (trainers) get no ledgers, and no payments are fetched.
+ */
+export async function loadFactsAndLedgers(
+  tx: UserTransaction,
+  rows: MembershipRow[],
+  canSeeFees: boolean,
+  today: IsoDate,
+): Promise<{
+  facts: Map<string, MembershipFacts>;
+  ledgers: Map<string, Ledger>;
+}> {
+  const [facts, paid] = await Promise.all([
+    loadFacts(tx, rows, canSeeFees),
+    canSeeFees
+      ? countedPayments(
+          tx,
+          rows.map((row) => row.id),
+        )
+      : new Map<string, LedgerPayment[]>(),
+  ]);
+  return { facts, ledgers: buildLedgers(facts, paid, today) };
 }
 
 export interface SheetRow {
@@ -123,8 +142,12 @@ export async function getPaymentSheet(
       tx.select().from(members).orderBy(asc(members.fullName)),
       tx.select(membershipFields).from(memberships),
     ]);
-    const facts = await loadFacts(tx, membershipRows, true);
-    const ledgers = await loadLedgers(tx, facts, today);
+    const { facts, ledgers } = await loadFactsAndLedgers(
+      tx,
+      membershipRows,
+      true,
+      today,
+    );
 
     const byMember = new Map<string, MembershipRow[]>();
     for (const row of membershipRows) {
@@ -192,33 +215,38 @@ export async function getMemberPayments(
 ): Promise<MemberPayments> {
   const today = todayAtGym();
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const membershipRows = await tx
-      .select(membershipFields)
-      .from(memberships)
-      .where(eq(memberships.memberId, memberId));
-    const facts = await loadFacts(tx, membershipRows, true);
-    const ledgers = await loadLedgers(tx, facts, today);
-
-    const rows = await tx
-      .select({
-        id: payments.id,
-        membershipId: payments.membershipId,
-        amountPaise: payments.amountPaise,
-        method: payments.method,
-        paidOn: payments.paidOn,
-        receiptNumber: payments.receiptNumber,
-        note: payments.note,
-        recordedAt: payments.createdAt,
-        recordedBy: profiles.fullName,
-        replacesPaymentId: payments.replacesPaymentId,
-        voidReason: paymentVoids.reason,
-        voidedAt: paymentVoids.voidedAt,
-      })
-      .from(payments)
-      .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
-      .leftJoin(profiles, eq(profiles.id, payments.recordedBy))
-      .where(eq(payments.memberId, memberId))
-      .orderBy(desc(payments.paidOn), desc(payments.createdAt));
+    const [membershipRows, rows] = await Promise.all([
+      tx
+        .select(membershipFields)
+        .from(memberships)
+        .where(eq(memberships.memberId, memberId)),
+      tx
+        .select({
+          id: payments.id,
+          membershipId: payments.membershipId,
+          amountPaise: payments.amountPaise,
+          method: payments.method,
+          paidOn: payments.paidOn,
+          receiptNumber: payments.receiptNumber,
+          note: payments.note,
+          recordedAt: payments.createdAt,
+          recordedBy: profiles.fullName,
+          replacesPaymentId: payments.replacesPaymentId,
+          voidReason: paymentVoids.reason,
+          voidedAt: paymentVoids.voidedAt,
+        })
+        .from(payments)
+        .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
+        .leftJoin(profiles, eq(profiles.id, payments.recordedBy))
+        .where(eq(payments.memberId, memberId))
+        .orderBy(desc(payments.paidOn), desc(payments.createdAt)),
+    ]);
+    const { ledgers } = await loadFactsAndLedgers(
+      tx,
+      membershipRows,
+      true,
+      today,
+    );
 
     const current = membershipRows.find((row) => row.endedOn === null);
     return {
@@ -251,27 +279,31 @@ export async function getPaymentForm(
 ): Promise<PaymentFormData | null> {
   const today = todayAtGym();
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [member] = await tx
-      .select({
-        id: members.id,
-        memberCode: members.memberCode,
-        fullName: members.fullName,
-      })
-      .from(members)
-      .where(eq(members.id, memberId));
-    const [current] = await tx
-      .select(membershipFields)
-      .from(memberships)
-      .where(
-        and(eq(memberships.memberId, memberId), isNull(memberships.endedOn)),
-      );
+    const [[member], [current]] = await Promise.all([
+      tx
+        .select({
+          id: members.id,
+          memberCode: members.memberCode,
+          fullName: members.fullName,
+        })
+        .from(members)
+        .where(eq(members.id, memberId)),
+      tx
+        .select(membershipFields)
+        .from(memberships)
+        .where(
+          and(eq(memberships.memberId, memberId), isNull(memberships.endedOn)),
+        ),
+    ]);
     if (!member || !current) return null;
 
-    const membership = withFees(
-      (await loadFacts(tx, [current], true)).get(current.id)!,
-    );
+    const [facts, counted] = await Promise.all([
+      loadFacts(tx, [current], true),
+      countedPayments(tx, [current.id]),
+    ]);
+    const membership = withFees(facts.get(current.id)!);
     if (!membership) return null;
-    const paid = (await countedPayments(tx, [current.id])).get(current.id);
+    const paid = counted.get(current.id);
     const ledger = buildLedger(membership, paid ?? [], today);
 
     return {
@@ -295,8 +327,8 @@ export async function ledgerInTransaction(
     .from(memberships)
     .where(eq(memberships.id, membershipId));
   if (!row) throw new MembershipNotFoundError();
-  const facts = await loadFacts(tx, [row], true);
-  const ledger = (await loadLedgers(tx, facts, today)).get(row.id);
+  const { ledgers } = await loadFactsAndLedgers(tx, [row], true, today);
+  const ledger = ledgers.get(row.id);
   if (!ledger) throw new MembershipNotFoundError();
   return { ledger, memberId: row.memberId, endedOn: row.endedOn };
 }

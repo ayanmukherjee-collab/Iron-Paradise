@@ -7,6 +7,7 @@ import { signOut } from "@/auth/sign-in-actions";
 import { LogoMark } from "@/components/brand/logo-mark";
 import { BottomNav, type NavItem } from "@/components/nav/bottom-nav";
 import type { NavIcon } from "@/components/nav/nav-icons";
+import { TopNav } from "@/components/nav/top-nav";
 import { InstallGuide } from "@/pwa/install-guide";
 
 export const metadata: Metadata = {
@@ -86,28 +87,12 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
           </form>
         </div>
         {links.length > 0 && (
-          <nav
-            aria-label="Sections"
-            className="hidden border-t border-ash sm:block"
-          >
-            <ul className="mx-auto flex max-w-5xl gap-6 px-4 text-sm font-bold tracking-[0.08em] uppercase">
-              <li>
-                <Link href="/app" className="inline-flex min-h-12 items-center">
-                  Home
-                </Link>
-              </li>
-              {links.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="inline-flex min-h-12 items-center"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <TopNav
+            links={[
+              { href: "/app", label: "Home" },
+              ...links.map(({ href, label }) => ({ href, label })),
+            ]}
+          />
         )}
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">

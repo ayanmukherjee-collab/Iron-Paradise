@@ -5,7 +5,6 @@ import { cache } from "react";
 import { can, type Action, type Role } from "@/auth/permissions";
 import { getDb } from "@/db/client";
 import { profiles } from "@/db/schema";
-import { withUserContext } from "@/db/user-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface Viewer {
@@ -27,17 +26,19 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   const userId = data?.claims?.sub;
   if (typeof userId !== "string") return null;
 
-  const [profile] = await withUserContext(getDb(), userId, (tx) =>
-    tx
-      .select({
-        fullName: profiles.fullName,
-        email: profiles.email,
-        role: profiles.role,
-        isActive: profiles.isActive,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, userId)),
-  );
+  // The one query that skips withUserContext, because it runs on every page
+  // and a transaction costs three extra round trips. It is safe: the id comes
+  // from the signature-checked JWT above, never from the request, and the row
+  // read is the caller's own profile, which RLS lets them read anyway.
+  const [profile] = await getDb()
+    .select({
+      fullName: profiles.fullName,
+      email: profiles.email,
+      role: profiles.role,
+      isActive: profiles.isActive,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, userId));
   if (!profile) return null;
 
   return { userId, ...profile };

@@ -38,8 +38,14 @@ export function appOrigin(
  * crafted ?next= cannot bounce someone to another site.
  */
 export function safeReturnPath(value: unknown, fallback = "/app"): string {
-  if (typeof value !== "string") return fallback;
+  if (typeof value !== "string" || value.length > 2048) return fallback;
+  // URL parsers silently drop tabs and newlines, so "/\t/evil.example" would
+  // become "//evil.example": another site. Refuse any control character.
+  if (/[\u0000-\u001f\u007f]/.test(value)) return fallback;
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\"))
     return fallback;
+  // Belt and braces: whatever a browser makes of it must stay on this site.
+  const base = "https://same-site.invalid";
+  if (new URL(value, base).origin !== base) return fallback;
   return value;
 }
