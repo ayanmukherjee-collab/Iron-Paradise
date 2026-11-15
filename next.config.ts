@@ -16,6 +16,9 @@ const securityHeaders = [
     value: "camera=(self), microphone=(), geolocation=(), payment=()",
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // Other sites may not embed our responses (pages, exports, images).
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
 ];
 
 const nextConfig: NextConfig = {
@@ -23,6 +26,14 @@ const nextConfig: NextConfig = {
   // per-request CSP nonce, and the strict CSP is a hard requirement.
   reactCompiler: true,
   poweredByHeader: false,
+  experimental: {
+    // Keep pages the person has just seen in the browser's memory for 30s,
+    // so flicking between tabs is instant instead of a server round trip
+    // each time. Every Server Action that changes data calls revalidatePath,
+    // which clears this cache, and so does signing out. Memory only: nothing
+    // is written to the device.
+    staleTimes: { dynamic: 30 },
+  },
   // Lets a phone on the same Wi-Fi open the dev server by its LAN address
   // (e.g. http://10.32.243.57:3000). Development only; production ignores it.
   allowedDevOrigins: ["10.*.*.*", "192.168.*.*", "172.*.*.*"],

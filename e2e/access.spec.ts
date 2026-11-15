@@ -11,6 +11,9 @@ test.describe("signed-out visitors", () => {
     "/app/settings",
     "/app/payments",
     "/app/payments/export?format=csv",
+    "/app/attendance",
+    "/app/attendance/setup",
+    "/app/check-in",
   ]) {
     test(`are sent from ${path} to sign in`, async ({ page }) => {
       await page.goto(path);
@@ -78,4 +81,24 @@ test("a claim link asks a signed-out visitor to sign in, revealing nothing", asy
     page.getByRole("link", { name: "Sign in to continue" }),
   ).toHaveAttribute("href", /\/sign-in\?next=%2Fclaim%2F/);
   await expect(page.getByText(/IP-\d{4}/)).toHaveCount(0);
+});
+
+test("a made-up desk link shows no QR and no code", async ({
+  page,
+  request,
+}) => {
+  // Not shaped like a real token, so the route turns it away before the rate
+  // limiter or the database: these tests run with neither (see the
+  // placeholder env in ci.yml). Well-formed but unknown or switched-off
+  // tokens are covered against the real SQL in src/db/attendance-rls.test.ts.
+  const token = "made-up-desk-link";
+  const response = await request.get(`/desk/${token}/code`);
+  expect(response.status()).toBe(404);
+  expect(await response.json()).toEqual({
+    error: "This desk link is switched off. Ask the owner for a new one.",
+  });
+
+  await page.goto(`/desk/${token}`);
+  await expect(page.getByText(/switched off/)).toBeVisible();
+  await expect(page.getByRole("img", { name: /Check-in QR/ })).toHaveCount(0);
 });

@@ -110,6 +110,17 @@ All landing page text, plans, timings and contact details live in `src/content/l
 3. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
 4. `npm run cf:deploy`
 
+### Deploying from GitHub (Workers Builds)
+
+If Cloudflare builds the repo for you (Workers & Pages → the Worker → Settings → Build), set:
+
+| Setting        | Value                 |
+| -------------- | --------------------- |
+| Build command  | `npm run cf:build`    |
+| Deploy command | `npx wrangler deploy` |
+
+Do not use `npm run build` as the build command. It only runs `next build`, so the deploy step fails with "Could not find compiled Open Next config". Add the `NEXT_PUBLIC_` values under **Build variables and secrets** (they are read at build time), and the server secrets under the Worker's **Variables and Secrets**.
+
 Before the first real deploy, also set up nightly backups: [docs/backup-and-restore.md](docs/backup-and-restore.md).
 
 ## GitHub settings to switch on

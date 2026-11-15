@@ -125,6 +125,7 @@ export const membershipFreezes = pgTable("membership_freezes", {
 export const gymSettings = pgTable("gym_settings", {
   id: boolean("id").primaryKey().default(true),
   goneQuietDays: smallint("gone_quiet_days").notNull().default(30),
+  printedQrEnabled: boolean("printed_qr_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -174,7 +175,10 @@ export const attendance = pgTable("attendance", {
   checkedInAt: timestamp("checked_in_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  gymDate: date("gym_date").notNull(),
+  // Filled in by the database: the gym's local day (Asia/Kolkata).
+  gymDate: date("gym_date")
+    .notNull()
+    .default(sql`(now() at time zone 'Asia/Kolkata')::date`),
   method: attendanceMethod("method").notNull(),
   markedBy: uuid("marked_by").default(currentUser),
 });
@@ -193,6 +197,18 @@ export const claimTokens = pgTable("claim_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+export const deskDisplays = pgTable("desk_displays", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  label: text("label").notNull(),
+  tokenHash: bytea("token_hash").notNull(),
+  createdBy: uuid("created_by").notNull().default(currentUser),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });
 
 export const auditLog = pgTable("audit_log", {

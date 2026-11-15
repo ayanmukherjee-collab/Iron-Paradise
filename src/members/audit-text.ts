@@ -36,7 +36,7 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
         return `${str(after, "member_code")} ${str(after, "full_name")} marked ${after?.is_active ? "active" : "inactive"}`;
       }
       if (str(before, "profile_id") !== str(after, "profile_id")) {
-        return `${str(after, "member_code")} ${str(after, "full_name")} linked to an account`;
+        return `${str(after, "member_code")} ${str(after, "full_name")} ${str(after, "profile_id") ? "linked to an account" : "unlinked from its account"}`;
       }
       return `Edited member ${str(after, "member_code")} ${str(after, "full_name")}`;
     case "memberships":
@@ -59,7 +59,16 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
     case "payment_voids":
       return `Payment voided: ${str(after, "reason")}`;
     case "gym_settings":
+      if (before?.printed_qr_enabled !== after?.printed_qr_enabled) {
+        return `Printed check-in QR switched ${after?.printed_qr_enabled ? "on" : "off"}`;
+      }
       return `"Gone quiet" set to ${num(after, "gone_quiet_days")} days`;
+    case "desk_displays":
+      if (entry.action === "insert")
+        return `Desk display "${str(after, "label")}" set up`;
+      return `Desk display "${str(after, "label")}" switched off`;
+    case "checkin_codes":
+      return "Printed check-in code replaced";
     default:
       return `${entry.action} on ${entry.tableName}`;
   }

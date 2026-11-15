@@ -47,11 +47,23 @@ describe("the Drizzle schema matches the migrations", () => {
     expect(result.rows).toEqual([]);
   });
 
+  it("keeps the private schema out of reach of every app role", async () => {
+    const result = await t.client.query<{ role: string; usable: boolean }>(
+      "select r as role, has_schema_privilege(r, 'private', 'usage') as usable from unnest(array['anon', 'authenticated']) r",
+    );
+    expect(result.rows).toEqual([
+      { role: "anon", usable: false },
+      { role: "authenticated", usable: false },
+    ]);
+  });
+
   it("lets signed-in users execute only the functions meant for them", async () => {
     const result = await t.client.query<{ proname: string }>(
       "select proname from pg_proc where pronamespace = 'public'::regnamespace and has_function_privilege('authenticated', oid, 'execute') order by proname",
     );
     expect(result.rows.map((row) => row.proname)).toEqual([
+      "check_in",
+      "create_desk_display",
       "current_app_role",
       "has_role",
       "is_own_member",
@@ -59,7 +71,12 @@ describe("the Drizzle schema matches the migrations", () => {
       "is_staff",
       "issue_claim_token",
       "link_guest_to_member",
+      "own_member_id",
+      "own_membership_ids",
+      "printed_checkin_code",
       "redeem_claim_token",
+      "regenerate_printed_checkin_code",
+      "revoke_desk_display",
       "set_user_active",
       "set_user_role",
     ]);

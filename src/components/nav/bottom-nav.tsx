@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
+import {
+  isActivePath as isActive,
+  useCurrentPath,
+} from "@/components/nav/use-current-path";
 
 export interface NavItem {
   href: string;
@@ -14,10 +17,6 @@ export interface NavItem {
 export interface MoreItem {
   href: string;
   label: string;
-}
-
-function isActive(pathname: string, href: string): boolean {
-  return href === "/app" ? pathname === "/app" : pathname.startsWith(href);
 }
 
 /**
@@ -35,7 +34,7 @@ export function BottomNav({
   more: MoreItem[];
   signOut: () => Promise<void>;
 }) {
-  const pathname = usePathname();
+  const { current: pathname, markTapped } = useCurrentPath();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = more.some((item) => isActive(pathname, item.href));
 
@@ -73,7 +72,10 @@ export function BottomNav({
               <li key={item.href} className="border-b-2 border-ink">
                 <Link
                   href={item.href}
-                  onClick={() => setMoreOpen(false)}
+                  onClick={(event) => {
+                    setMoreOpen(false);
+                    markTapped(event, item.href);
+                  }}
                   aria-current={
                     isActive(pathname, item.href) ? "page" : undefined
                   }
@@ -135,7 +137,10 @@ export function BottomNav({
                 {slot.href ? (
                   <Link
                     href={slot.href}
-                    onClick={() => setMoreOpen(false)}
+                    onClick={(event) => {
+                      setMoreOpen(false);
+                      markTapped(event, slot.href);
+                    }}
                     aria-current={slot.active ? "page" : undefined}
                     className={cell}
                   >

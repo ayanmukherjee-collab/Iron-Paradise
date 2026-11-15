@@ -11,6 +11,12 @@ updates:
       # Minor and patch bumps land as one PR a week; majors come one at a time.
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 breaks linting: typescript-eslint (pulled in by
+      # eslint-config-next) refuses to run on it. Remove this once
+      # eslint-config-next supports TypeScript 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

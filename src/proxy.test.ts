@@ -16,7 +16,14 @@ async function request(path: string) {
 }
 
 describe("proxy without a session", () => {
-  it.each(["/app", "/app/team", "/app/members/123", "/some-future-page"])(
+  it.each([
+    "/app",
+    "/app/team",
+    "/app/members/123",
+    "/app/attendance",
+    "/app/check-in?c=0123456789ab",
+    "/some-future-page",
+  ])(
     "redirects %s to sign in, remembering where they were going",
     async (path) => {
       const response = await request(path);
@@ -59,5 +66,12 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/app")).toBe(false);
     expect(isPublicPath("/sign-in/extra")).toBe(false);
     expect(isPublicPath("/api/health")).toBe(false);
+    expect(isPublicPath("/desk")).toBe(false);
+    expect(isPublicPath("/app/desk/x")).toBe(false);
+  });
+
+  it("opens desk display pages, which check their own secret link", () => {
+    expect(isPublicPath("/desk/abc")).toBe(true);
+    expect(isPublicPath("/desk/abc/code")).toBe(true);
   });
 });
