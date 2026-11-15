@@ -252,3 +252,26 @@ Answered:
 Still open:
 
 - What do the current paper slips contain, and can a member ID be added to them? Get sample photos. (Phase 6)
+
+## 12. Next steps
+
+Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherjee-official01.workers.dev (Worker placed in AWS Mumbai, next to the database).
+
+**Before real members use it**
+
+1. Turn on nightly database backups. The workflow exists, but no GitHub secrets are set and it has never run. Create the R2 bucket, add the secrets, and test a restore (see `docs/backup-and-restore.md`). Required by section 8.11.
+2. Replace the Turnstile test keys with real ones (`NEXT_PUBLIC_TURNSTILE_SITE_KEY` build variable, `TURNSTILE_SECRET_KEY` Worker secret).
+3. Fill in real contact details, hours and address in `src/content/landing.ts`.
+4. Print the desk check-in QR from the attendance setup page and put it at the front desk.
+
+**Features**
+
+5. Phase 5, reminders: daily job, push, email, staff-sent WhatsApp queue, notification log.
+6. Phase 6, slip scanning: capture, extraction, matching, review queue, duplicate detection. Needs sample slip photos first (section 11).
+7. Member features such as progress tracking (workouts, body weight, measurements). Not specced yet; plan the scope with the owner before building.
+
+**Optional**
+
+8. A custom domain instead of `workers.dev`. Update `NEXT_PUBLIC_SITE_URL` and the Supabase redirect URL when it changes.
+9. Hyperdrive for faster database connections. Less important now that the Worker runs in Mumbai.
+10. Remove the Dependabot ignore rule for TypeScript majors once `eslint-config-next` supports TypeScript 7.
