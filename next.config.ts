@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
   // per-request CSP nonce, and the strict CSP is a hard requirement.
   reactCompiler: true,
   poweredByHeader: false,
+  // Lets a phone on the same Wi-Fi open the dev server by its LAN address
+  // (e.g. http://10.32.243.57:3000). Development only; production ignores it.
+  allowedDevOrigins: ["10.*.*.*", "192.168.*.*", "172.*.*.*"],
   turbopack: {
     rules: {
       "*.css": {

@@ -29,3 +29,12 @@ export function withUserContext<T>(
     return run(tx);
   });
 }
+
+/**
+ * Rows from a raw `tx.execute(sql...)`. The production driver (postgres-js)
+ * returns an array; the in-memory test driver returns `{ rows }`.
+ */
+export function rowsOf<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return ((result as { rows?: T[] }).rows ?? []) as T[];
+}

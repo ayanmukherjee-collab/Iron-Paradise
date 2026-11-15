@@ -58,10 +58,24 @@ Public, fast, and indexable. Gym intro, facilities, plans and prices, timings, l
 
 ### 4.2 Members
 
-- List with search and filters (active, expired, frozen, due, overdue).
+- List with search and filters (active, expired, frozen, due, overdue, free, gone quiet).
 - Add, edit, deactivate, reactivate.
-- Member detail page: profile, membership, attendance history, payment history, claim-link status.
-- Membership status: active, expired, frozen. Expiry is computed from plan and payments, not typed by hand.
+- Member detail page: profile, membership, agreed fee, attendance history, payment history, claim-link status.
+- Membership status: active, expired, frozen. Expiry is computed from the agreed fee, the due dates and payments, not typed by hand.
+
+**Fees are negotiated per member.** Owner's decision, 2026-11-15. The same plan can cost one person ₹600 a month, another ₹500, and a third nothing. Treat these as per-member discounts:
+
+- Every membership carries its own **agreed monthly fee** in paise. ₹0 is valid and means a free member.
+- Staff set the fee when adding a member and can change it later. Each change is audit-logged (who, old fee, new fee, when) and applies from the next due date. It never rewrites months already due.
+- Plans are only defaults: a standard rate that pre-fills the fee field. The member's agreed fee is what counts.
+- There is no admission or joining fee.
+- Free members are never due or overdue and never get reminders.
+
+**Due dates follow each member's joining date.** Owner's decision, 2026-11-15. Someone who joined on 12 March is due on the 12th of every month. When the month is shorter than the joining day, the due date is that month's last day: a member who joined on the 31st is due on 30 April and 28 or 29 February.
+
+**Freezes are optional.** Staff can freeze a membership with a start date and an optional end date. No fees fall due during a freeze, and due dates move back by its length. Freezes are often not recorded because members leave without saying, so the app must work without them.
+
+**Members who vanish.** A member with no visits and no payment for 30 days appears in a "gone quiet" list as a suggestion only. The window is a setting the owner can change. Staff confirm with one tap to mark them inactive, which stops reminders. Nothing is marked inactive automatically, and all history is kept.
 
 ### 4.3 Attendance
 
@@ -77,10 +91,11 @@ Payments are a ledger, not a "paid" flag.
 - Each payment is one row: member, month(s) covered, amount, method (cash, UPI, other), date paid, recorded by, optional slip photo, optional note.
 - Payments are never edited in place or deleted. A correction is a new entry that voids the old one, and only the owner can do it.
 - Supports partial payments and advance payments for several months.
+- What a member owes for a month is their agreed fee for that month (section 4.2), due on their joining-date anniversary. A payment below the agreed fee is partial; a payment covering several fees is an advance.
 
 ### 4.5 Payment sheet
 
-- Grid: members down the side, months across the top, each cell paid / partial / due / overdue.
+- Grid: members down the side, months across the top, each cell paid / partial / due / overdue / free / frozen. Paid and partial are measured against that member's agreed fee, not a plan price.
 - Computed from the ledger, never stored separately.
 - Sort, filter, search. Tap a cell to see or record the payment.
 - Export to CSV and Excel.
@@ -92,6 +107,7 @@ Payments are a ledger, not a "paid" flag.
 - Build one notification module with one file per channel, so automated WhatsApp (Meta Cloud API, direct, no reseller) can be added later without a rewrite. Do not build SMS.
 - Log every message: member, channel, time, delivered or failed. Never send the same reminder twice.
 - Reminders stop as soon as a payment is recorded.
+- Never remind free members, frozen memberships, or members marked inactive.
 - Members consent to reminders at registration. Staff can mute reminders per member.
 
 ### 4.7 AI fee-slip scanning
@@ -106,6 +122,8 @@ Staff photograph a paper fee slip, and the app proposes a payment entry. A human
 - Batch mode: photograph several slips, then work through a review queue.
 - Nothing is ever written to the ledger without confirmation.
 - Flag duplicates (same receipt number, or same member, month and amount).
+- Flag amounts that differ from the member's agreed fee and ask whether it is a partial payment or a changed rate. Choosing "changed rate" updates the agreed fee through the normal, audit-logged route.
+- Slip scanning is the main way payments get recorded, because negotiated fees make manual entry error-prone. Owner's preference, 2026-11-15.
 - Matching by member ID is preferred over matching by name. Show each member's ID clearly in the app so the gym can write it on slips.
 
 ### 4.8 Audit log
@@ -118,8 +136,8 @@ A starting point. Refine names, but keep the separations.
 
 - `profiles`: one per signed-in account. Holds role. Linked to an auth user.
 - `members`: one per gym member, created by staff. Name, phone, member ID, active flag, optional link to a profile.
-- `plans`: name, duration, price.
-- `memberships`: member, plan, start, status, freeze dates.
+- `plans`: name, duration, default price. Defaults only; see `memberships`.
+- `memberships`: member, plan, start date (sets the monthly due day), agreed monthly fee in paise (0 = free), freeze dates. Fee changes are kept as history so past months keep the fee that applied then.
 - `payments`: the ledger described in 4.4.
 - `attendance`: member, date, time, method (QR or manual), marked by.
 - `claim_tokens`: member, token hash, expiry, used flag.
@@ -215,9 +233,15 @@ Finish and test each phase before starting the next.
 
 Ask before the phase that depends on each.
 
-- How many members, and how many staff? (Phase 1)
-- Which plans and prices exist, and are there joining fees or discounts? (Phase 2)
-- Is the fee due on a fixed day each month or on each member's joining date? (Phase 3)
+Answered:
+
+- How many members, and how many staff? **150–500 members, about 3–10 staff accounts.** (Phase 1)
+- Gym logo, colours, photos, and text for the landing page. **Logo supplied, black/white/charcoal, halftone anime-style art. Contact details, hours and address are still placeholders in `src/content/landing.ts`. Prices are not shown on the public site.** (Phase 1)
+- Which plans and prices exist, and are there joining fees or discounts? **Fees are negotiated per member (₹600, ₹500 or free for the same plan). No joining fee. See section 4.2.** (Phase 2)
+- Is the fee due on a fixed day each month or on each member's joining date? **Each member's joining date. See section 4.2.** (Phase 3)
+- Can memberships be frozen? **Yes, optionally, but often not recorded because members leave without notice. See section 4.2.** (Phase 2)
+
+Still open:
+
 - Is there a phone or tablet that can stay at the front desk for the rotating QR? (Phase 4)
 - What do the current paper slips contain, and can a member ID be added to them? Get sample photos. (Phase 6)
-- Gym logo, colours, photos, and text for the landing page. (Phase 1)

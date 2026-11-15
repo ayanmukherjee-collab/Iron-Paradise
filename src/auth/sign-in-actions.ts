@@ -2,9 +2,9 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { publicEnv } from "@/lib/env";
+import { isProduction, publicEnv } from "@/lib/env";
 import { takeRateLimit } from "@/lib/rate-limit";
-import { clientIp, safeReturnPath } from "@/lib/request";
+import { appOrigin, clientIp, safeReturnPath } from "@/lib/request";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { verifyTurnstile } from "@/lib/turnstile";
 
@@ -19,7 +19,8 @@ export async function startGoogleSignIn(
   _previous: SignInState,
   form: FormData,
 ): Promise<SignInState> {
-  const ip = clientIp(await headers());
+  const requestHeaders = await headers();
+  const ip = clientIp(requestHeaders);
 
   if (!(await takeRateLimit("signIn", ip))) {
     return {
@@ -33,7 +34,12 @@ export async function startGoogleSignIn(
   }
 
   const returnTo = safeReturnPath(form.get("next"));
-  const callback = new URL("/auth/callback", publicEnv().NEXT_PUBLIC_SITE_URL);
+  const origin = appOrigin(
+    requestHeaders,
+    publicEnv().NEXT_PUBLIC_SITE_URL,
+    isProduction,
+  );
+  const callback = new URL("/auth/callback", origin);
   callback.searchParams.set("next", returnTo);
 
   const supabase = await createSupabaseServerClient();
