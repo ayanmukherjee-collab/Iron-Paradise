@@ -18,6 +18,13 @@
       "service": "iron-paradise",
     },
   ],
+  // Run the Worker next to the Supabase database (AWS Mumbai) instead of at
+  // whichever edge the visitor reaches (often Singapore from India). Every
+  // page makes several database round trips, and each one is ~80 ms across
+  // that gap but only a few ms inside the same region.
+  "placement": {
+    "region": "aws:ap-south-1",
+  },
   "observability": {
     "enabled": true,
   },
