@@ -4,6 +4,8 @@
 const publicExact = new Set([
   "/",
   "/sign-in",
+  "/privacy",
+  "/terms",
   "/auth/callback",
   "/~offline",
   "/manifest.webmanifest",

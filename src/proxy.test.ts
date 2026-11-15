@@ -39,14 +39,18 @@ describe("proxy without a session", () => {
     expect(response.status).toBe(401);
   });
 
-  it.each(["/", "/sign-in", "/auth/callback", "/~offline"])(
-    "lets %s through",
-    async (path) => {
-      const response = await request(path);
-      expect(response.headers.get("location")).toBeNull();
-      expect(response.status).toBe(200);
-    },
-  );
+  it.each([
+    "/",
+    "/sign-in",
+    "/privacy",
+    "/terms",
+    "/auth/callback",
+    "/~offline",
+  ])("lets %s through", async (path) => {
+    const response = await request(path);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
 
   it("sends a strict CSP with a nonce on every response", async () => {
     for (const path of ["/", "/app"]) {

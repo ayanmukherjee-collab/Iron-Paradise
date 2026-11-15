@@ -47,6 +47,17 @@ export default async function SignInPage({
         turnstileSiteKey={publicEnv().NEXT_PUBLIC_TURNSTILE_SITE_KEY}
         nonce={nonce}
       />
+      <p className="mt-6 max-w-sm text-sm text-mist">
+        By signing in you agree to our{" "}
+        <Link href="/terms" className="underline underline-offset-4">
+          terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="underline underline-offset-4">
+          privacy policy
+        </Link>
+        .
+      </p>
       <Link
         href="/"
         className="mt-10 font-semibold underline underline-offset-4"

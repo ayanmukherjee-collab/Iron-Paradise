@@ -100,6 +100,12 @@ export function Closing() {
             >
               Instagram
             </a>
+            <Link href="/privacy" className="hover:text-white">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-white">
+              Terms
+            </Link>
           </nav>
         </div>
       </div>
