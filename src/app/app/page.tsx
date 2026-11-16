@@ -5,6 +5,9 @@ import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
 import { formatDate, formatTime, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
+import { vapidKeys } from "@/notifications/channels";
+import { PushToggle } from "@/notifications/components/push-toggle";
+import type { MembershipStatus } from "@/members/billing";
 import {
   getOwnMembership,
   listMembers,
@@ -265,6 +268,11 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
         </ul>
       )}
 
+      <FeeReminders
+        status={membership.status}
+        allowed={membership.remindersAllowed}
+      />
+
       <h2 className="mt-10 mb-4 display text-3xl">Payments</h2>
       {payments.ledger && payments.ledger.owedPaise > 0 && (
         <p className="mb-4 border-l-4 border-ink pl-3 text-lg">
@@ -278,5 +286,35 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
         today={today}
       />
     </section>
+  );
+}
+
+function FeeReminders({
+  status,
+  allowed,
+}: {
+  status: MembershipStatus;
+  allowed: boolean;
+}) {
+  const keys = vapidKeys();
+  if (!keys || status === "free" || status === "inactive") return null;
+
+  return (
+    <div className="mt-8 border-2 border-ink bg-white p-5">
+      <h2 className="text-lg font-bold">Fee reminders</h2>
+      {allowed ? (
+        <>
+          <p className="mt-1 mb-4">
+            Get a notification 3 days before your fee is due, on the day, and if
+            it&apos;s late.
+          </p>
+          <PushToggle vapidPublicKey={keys.publicKey} />
+        </>
+      ) : (
+        <p className="mt-1">
+          Reminders are off for you. Ask at the front desk to turn them on.
+        </p>
+      )}
+    </div>
   );
 }

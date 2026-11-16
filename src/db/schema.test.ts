@@ -77,6 +77,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "redeem_claim_token",
       "regenerate_printed_checkin_code",
       "revoke_desk_display",
+      "save_push_subscription",
       "set_user_active",
       "set_user_role",
     ]);

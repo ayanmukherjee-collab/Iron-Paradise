@@ -112,10 +112,20 @@ export const updateMember = guardedAction({
     fullName,
     phone: mobile,
     remindersMuted: checkbox,
+    reminderConsent: checkbox,
   }),
-  run: async ({ memberId, ...fields }, viewer) => {
+  run: async ({ memberId, reminderConsent, ...fields }, viewer) => {
     await withUserContext(getDb(), viewer.userId, (tx) =>
-      tx.update(members).set(fields).where(eq(members.id, memberId)),
+      tx
+        .update(members)
+        .set({
+          ...fields,
+          // Keep the original date when consent was already recorded.
+          reminderConsentAt: reminderConsent
+            ? sql`coalesce(${members.reminderConsentAt}, now())`
+            : null,
+        })
+        .where(eq(members.id, memberId)),
     );
     revalidatePath(`/app/members/${memberId}`);
   },

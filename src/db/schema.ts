@@ -42,6 +42,24 @@ export const paymentMethod = pgEnum("payment_method", ["cash", "upi", "other"]);
 
 export const attendanceMethod = pgEnum("attendance_method", ["qr", "manual"]);
 
+export const reminderStage = pgEnum("reminder_stage", [
+  "due_soon",
+  "due_today",
+  "overdue",
+]);
+
+export const notificationChannel = pgEnum("notification_channel", [
+  "push",
+  "email",
+  "whatsapp",
+]);
+
+export const notificationStatus = pgEnum("notification_status", [
+  "sending",
+  "sent",
+  "failed",
+]);
+
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
   fullName: text("full_name").notNull().default(""),
@@ -209,6 +227,43 @@ export const deskDisplays = pgTable("desk_displays", {
     .defaultNow(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+});
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  memberId: uuid("member_id")
+    .notNull()
+    .references(() => members.id),
+  // Always the same member as memberId; a composite foreign key enforces it.
+  membershipId: uuid("membership_id")
+    .notNull()
+    .references(() => memberships.id),
+  period: smallint("period").notNull(),
+  stage: reminderStage("stage").notNull(),
+  channel: notificationChannel("channel").notNull(),
+  status: notificationStatus("status").notNull().default("sending"),
+  dueOn: date("due_on").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  error: text("error"),
+  // Null when the daily job sent it.
+  sentBy: uuid("sent_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id")
+    .notNull()
+    .references(() => profiles.id),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const auditLog = pgTable("audit_log", {

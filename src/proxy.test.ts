@@ -74,6 +74,12 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/app/desk/x")).toBe(false);
   });
 
+  it("opens only the reminder cron route among API routes; it checks its own secret", () => {
+    expect(isPublicPath("/api/cron/reminders")).toBe(true);
+    expect(isPublicPath("/api/cron")).toBe(false);
+    expect(isPublicPath("/api/cron/reminders/extra")).toBe(false);
+  });
+
   it("opens desk display pages, which check their own secret link", () => {
     expect(isPublicPath("/desk/abc")).toBe(true);
     expect(isPublicPath("/desk/abc/code")).toBe(true);

@@ -385,6 +385,8 @@ export async function getOwnMembership(viewer: Viewer) {
       memberCode: member.memberCode,
       fullName: member.fullName,
       status,
+      remindersAllowed:
+        member.reminderConsentAt !== null && !member.remindersMuted,
       startsOn: fact?.startsOn ?? null,
       feePaise: fact?.fees ? feeOn(fact.fees, today) : null,
       nextDue:
