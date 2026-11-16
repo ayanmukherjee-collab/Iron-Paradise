@@ -2,6 +2,7 @@
 
 import { useActionState, type ReactNode } from "react";
 import type { ActionResult } from "@/auth/guarded-action";
+import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
 import { Button } from "@/components/ui/button";
 
 type Variant = "dark" | "outline-dark";
@@ -20,6 +21,7 @@ export function ActionForm<T>({
   pendingLabel = "Saving…",
   success,
   variant = "dark",
+  icon,
   className = "",
   children,
 }: {
@@ -28,6 +30,8 @@ export function ActionForm<T>({
   pendingLabel?: string;
   success?: string;
   variant?: Variant;
+  /** Shows only this icon on the button; submitLabel becomes its name. */
+  icon?: NavIcon;
   className?: string;
   children?: ReactNode;
 }) {
@@ -40,14 +44,30 @@ export function ActionForm<T>({
     <form action={submit} className={className}>
       {children}
       <div className="mt-4 flex flex-col gap-3">
-        <Button
-          type="submit"
-          variant={variant}
-          disabled={pending}
-          className="self-start"
-        >
-          {pending ? pendingLabel : submitLabel}
-        </Button>
+        {icon ? (
+          <Button
+            type="submit"
+            variant={variant}
+            disabled={pending}
+            aria-label={submitLabel}
+            title={submitLabel}
+            className="size-11 self-start px-0!"
+          >
+            <NavIconSvg
+              icon={icon}
+              className={`size-5 ${pending ? "motion-safe:animate-pulse" : ""}`}
+            />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            variant={variant}
+            disabled={pending}
+            className="self-start"
+          >
+            {pending ? pendingLabel : submitLabel}
+          </Button>
+        )}
         {result && !result.ok && (
           <p role="alert" className="callout">
             {result.error}

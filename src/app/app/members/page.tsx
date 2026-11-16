@@ -3,6 +3,7 @@ import Link from "@/components/ui/link";
 import { requirePermission, viewerCan } from "@/auth/session";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { inputBase } from "@/components/ui/field";
+import { iconButton } from "@/components/ui/viz";
 import { formatShortDate, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
@@ -81,12 +82,16 @@ export default async function MembersPage({
 
   return (
     <section>
-      <header className="flex items-center justify-between gap-3">
+      <header className="page-header flex items-center justify-between gap-3">
         <h1 className="page-title">Members</h1>
         {viewerCan(viewer, "members.edit") && (
-          <Link href="/app/members/new" className="btn-dark pr-5 pl-4">
-            <NavIconSvg icon="plus" className="size-4" />
-            Add member
+          <Link
+            href="/app/members/new"
+            aria-label="Add member"
+            title="Add member"
+            className={`${iconButton} bg-ink text-white hover:bg-graphite`}
+          >
+            <NavIconSvg icon="plus" className="size-5" />
           </Link>
         )}
       </header>
@@ -136,25 +141,9 @@ export default async function MembersPage({
         </ul>
       </nav>
 
-      {filter === "overdue" && (
-        <p className="mt-3 max-w-prose text-sm text-muted">
-          A fee is past its due date and not paid in full. Overdue members are
-          the old &ldquo;expired&rdquo;: their membership stays, and recording a
-          payment clears it.
-        </p>
-      )}
-
-      {filter === "quiet" && (
-        <p className="mt-3 max-w-prose text-sm text-muted">
-          No visit and no payment for a while. Check in with them, freeze their
-          membership, or mark them inactive from their page. Nothing happens on
-          its own.
-        </p>
-      )}
-
       {shown.length === 0 ? (
         <p className="mt-4 rounded-card bg-white p-6 text-center text-muted shadow-card">
-          {everyone.length === 0 ? "No members yet." : "Nobody matches that."}
+          {everyone.length === 0 ? "No members yet" : "No match"}
         </p>
       ) : (
         <ul className="mt-4 list-card">
@@ -181,7 +170,7 @@ export default async function MembersPage({
                         ? member.lastVisit === today
                           ? "In today"
                           : `Last in ${formatShortDate(member.lastVisit, today)}`
-                        : "Never checked in"}
+                        : "—"}
                     </span>
                     {member.goneQuiet && (
                       <>
@@ -191,19 +180,35 @@ export default async function MembersPage({
                     )}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <StatusBadge status={member.status} />
-                  {member.owedPaise > 0 ? (
-                    <span className="text-sm font-semibold tabular-nums">
-                      Owes {formatPaise(member.owedPaise)}
-                    </span>
-                  ) : (
-                    member.standing && (
-                      <span className="text-xs text-muted">
-                        {standingLabels[member.standing]}
-                      </span>
-                    )
+                {/* Active is the norm, so only other states get a badge. */}
+                <div className="flex shrink-0 items-center gap-2">
+                  {member.status !== "active" && (
+                    <StatusBadge status={member.status} />
                   )}
+                  {member.owedPaise > 0 ? (
+                    <span className="rounded-badge bg-ink px-2 py-1 text-xs font-semibold text-white tabular-nums">
+                      <span className="sr-only">Owes </span>
+                      {formatPaise(member.owedPaise)}
+                    </span>
+                  ) : member.standing === "paid" ? (
+                    <span
+                      role="img"
+                      aria-label={standingLabels.paid}
+                      title={standingLabels.paid}
+                      className="flex size-6 items-center justify-center rounded-full bg-canvas"
+                    >
+                      <NavIconSvg icon="check" className="size-3.5" />
+                    </span>
+                  ) : member.standing === "due" ? (
+                    <span
+                      role="img"
+                      aria-label={standingLabels.due}
+                      title={standingLabels.due}
+                      className="flex size-6 items-center justify-center"
+                    >
+                      <span className="size-2 rounded-full bg-ink" />
+                    </span>
+                  ) : null}
                 </div>
                 <NavIconSvg
                   icon="chevronRight"

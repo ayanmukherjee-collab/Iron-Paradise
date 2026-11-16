@@ -1,8 +1,21 @@
 import Link from "@/components/ui/link";
-import { getOwnAttendance, listVisitsOn } from "@/attendance/queries";
+import { batchAt } from "@/attendance/batches";
+import { TodayCard } from "@/attendance/components/today-card";
+import {
+  getBatches,
+  getOwnAttendance,
+  listVisitsOn,
+} from "@/attendance/queries";
 import { isStaff } from "@/auth/permissions";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
-import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
+import { NavIconSvg } from "@/components/nav/nav-icons";
+import {
+  Meter,
+  SegmentBar,
+  StatCard,
+  iconButton,
+  type Segment,
+} from "@/components/ui/viz";
 import { formatDate, formatTime, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
@@ -16,7 +29,8 @@ import {
   type MemberSummary,
 } from "@/members/queries";
 import { PaymentHistory } from "@/payments/components/payment-history";
-import { getMemberPayments } from "@/payments/queries";
+import { MoneyCards, shortMonth } from "@/payments/components/money-cards";
+import { getCollected, getMemberPayments } from "@/payments/queries";
 
 export default async function AppHome() {
   const viewer = await requireViewer("/app");
@@ -59,200 +73,129 @@ function WaitingForGym({ email }: { email: string | null }) {
 
 async function StaffHome({ viewer }: { viewer: Viewer }) {
   const canManage = viewerCan(viewer, "guests.link");
-  const [members, guests, visits] = await Promise.all([
+  const seesFees = viewerCan(viewer, "payments.viewSheet");
+  const canAdd = viewerCan(viewer, "members.edit");
+  const today = todayAtGym();
+  const thisMonth = today.slice(0, 7);
+  const [members, guests, visits, batches, collectedPaise] = await Promise.all([
     listMembers(viewer),
     canManage ? listWaitingGuests(viewer) : Promise.resolve([]),
-    listVisitsOn(viewer, todayAtGym()),
+    listVisitsOn(viewer, today),
+    getBatches(viewer),
+    seesFees
+      ? getCollected(viewer, `${thisMonth}-01`, today)
+      : Promise.resolve(0),
   ]);
   const count = (keep: (member: MemberSummary) => boolean) =>
     members.filter(keep).length;
 
   const current = count((member) => member.status !== "inactive");
-  const inToday = visits.length;
-  const share = current > 0 ? Math.min(100, (inToday / current) * 100) : 0;
-
-  // Smaller figures under the headline pair. Ones that need someone to act
-  // (money owed, people waiting) turn white when they're above zero.
-  const tiles: Tile[] = [
-    ...(canManage
-      ? [
-          {
-            href: "/app/members?filter=overdue",
-            figure: count((member) => member.standing === "overdue"),
-            label: "Overdue",
-            icon: "clock" as const,
-            urgent: true,
-          },
-          {
-            href: "/app/guests",
-            figure: guests.length,
-            label: "Waiting guests",
-            icon: "guests" as const,
-            urgent: true,
-          },
-          {
-            href: "/app/members?filter=quiet",
-            figure: count((member) => member.goneQuiet),
-            label: "Gone quiet",
-            icon: "moon" as const,
-          },
-        ]
-      : []),
-    {
-      href: "/app/members?filter=frozen",
-      figure: count((member) => member.status === "frozen"),
-      label: "Frozen",
-      icon: "pause",
-    },
-  ];
+  const morning = visits.filter(
+    (visit) => batchAt(visit.checkedInAt, batches) === "morning",
+  ).length;
+  const evening = visits.filter(
+    (visit) => batchAt(visit.checkedInAt, batches) === "evening",
+  ).length;
+  const quiet = count((member) => member.goneQuiet);
+  const frozen = count((member) => member.status === "frozen");
 
   const keys = vapidKeys();
-  const showTeam = viewerCan(viewer, "roles.change");
-  const hasAside = Boolean(keys) || showTeam;
   const firstName = (viewer.fullName || "").trim().split(/\s+/)[0];
 
   return (
     <section>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted">{todayLong()}</p>
-          <h1 className="mt-1 page-title">
-            {greeting()}
-            {firstName ? `, ${firstName}` : ""}
-          </h1>
-        </div>
-        {canManage && (
-          <Link href="/app/members/new" className="btn-dark pr-5 pl-4">
-            <NavIconSvg icon="plus" className="size-4" />
-            Add member
-          </Link>
-        )}
+      {/* Stays put while the cards scroll under it. */}
+      <header className="page-header">
+        <p className="text-sm text-muted">{todayLong()}</p>
+        <h1 className="mt-0.5 page-title">
+          {greeting()}
+          {firstName ? `, ${firstName}` : ""}
+        </h1>
       </header>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div
-          className={`card-dark p-5 sm:p-7 ${hasAside ? "lg:col-span-2" : "lg:col-span-3"}`}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">
-                Front desk
-              </h2>
-              <p className="text-sm text-white/55">Today at the gym</p>
-            </div>
-            <Link
-              href="/app/attendance"
-              aria-label="Open attendance"
-              className="flex size-10 items-center justify-center rounded-control bg-white/10 transition-colors hover:bg-white hover:text-ink"
-            >
-              <NavIconSvg icon="arrow" className="size-[1.1rem]" />
-            </Link>
-          </div>
+      <div className="mt-2 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <TodayCard
+          className="col-span-2"
+          inToday={visits.length}
+          current={current}
+          morning={morning}
+          evening={evening}
+          batches={batches}
+          openNow={batchAt(new Date(), batches)}
+          href="/app/attendance"
+        />
+        <MembersCard
+          members={members}
+          current={current}
+          seesFees={seesFees}
+          canAdd={canAdd}
+        />
 
-          <div className="mt-6 flex items-center gap-5 sm:gap-8">
-            <Headline
-              href="/app/attendance"
-              figure={inToday}
-              label={["Checked in", "today"]}
+        {seesFees && (
+          <MoneyCards
+            monthLabel={shortMonth(thisMonth)}
+            figures={{
+              outstandingPaise: members.reduce(
+                (sum, member) => sum + member.owedPaise,
+                0,
+              ),
+              owing: count((member) => member.owedPaise > 0),
+              paying: count(
+                (member) =>
+                  member.standing !== null && member.standing !== "free",
+              ),
+              overdue: count((member) => member.standing === "overdue"),
+              collectedPaise,
+            }}
+          />
+        )}
+        {canManage && (
+          <StatCard
+            href="/app/guests"
+            icon="guests"
+            label="Waiting"
+            figure={guests.length}
+            lit={guests.length > 0}
+          />
+        )}
+        {canManage && (
+          <StatCard
+            href="/app/members?filter=quiet"
+            icon="moon"
+            label="Gone quiet"
+            figure={quiet}
+            visual={(tone) => (
+              <Meter
+                value={quiet}
+                max={current}
+                tone={tone}
+                label={`${quiet} of ${current} current members gone quiet`}
+              />
+            )}
+          />
+        )}
+        <StatCard
+          href="/app/members?filter=frozen"
+          icon="pause"
+          label="Frozen"
+          figure={frozen}
+          visual={(tone) => (
+            <Meter
+              value={frozen}
+              max={current}
+              tone={tone}
+              label={`${frozen} of ${current} current members frozen`}
             />
-            <span aria-hidden="true" className="h-12 w-px bg-white/15" />
-            <Headline
-              href="/app/members"
-              figure={current}
-              label={["Current", "members"]}
-            />
-          </div>
-
+          )}
+        />
+        {keys && (
           <div
-            className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/10"
-            role="img"
-            aria-label={`${Math.round(share)}% of current members are in today`}
+            className={`flex items-center gap-3 card p-4 sm:p-5 ${canManage ? "col-span-2" : ""}`}
           >
-            <div
-              className="h-full rounded-full bg-white"
-              style={{ width: `${Math.max(share, inToday > 0 ? 4 : 0)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-white/55">
-            {Math.round(share)}% of current members in today
-          </p>
-
-          <ul
-            className={`mt-6 grid gap-2.5 ${tiles.length > 1 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"}`}
-          >
-            {tiles.map((tile) => {
-              const lit = tile.urgent && tile.figure > 0;
-              return (
-                <li key={tile.href}>
-                  <Link
-                    href={tile.href}
-                    className={`flex h-full flex-col rounded-tile p-4 transition-colors ${
-                      lit
-                        ? "bg-white text-ink hover:bg-mist"
-                        : "bg-white/[0.07] hover:bg-white/[0.13]"
-                    }`}
-                  >
-                    <span
-                      className={`flex size-8 items-center justify-center rounded-control ${lit ? "bg-ink text-white" : "bg-white/10"}`}
-                    >
-                      <NavIconSvg icon={tile.icon} className="size-4" />
-                    </span>
-                    <span className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
-                      {tile.figure}
-                    </span>
-                    <span
-                      className={`text-xs ${lit ? "text-muted" : "text-white/60"}`}
-                    >
-                      {tile.label}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {hasAside && (
-          <div className="flex flex-col gap-4">
-            {keys && (
-              <div className="card p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-control bg-canvas">
-                    <NavIconSvg icon="reminders" className="size-5" />
-                  </span>
-                  <h2 className="font-semibold tracking-tight">
-                    Notifications on this phone
-                  </h2>
-                </div>
-                <p className="mt-3 mb-5 text-sm text-muted">
-                  Members get fee reminders this way. Turn it on here and send
-                  yourself a test to see what they will see.
-                </p>
-                <PushToggle vapidPublicKey={keys.publicKey} />
-              </div>
-            )}
-            {showTeam && (
-              <Link
-                href="/app/team"
-                className="group flex items-center gap-4 card p-5 transition-shadow hover:shadow-float sm:p-6"
-              >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-canvas">
-                  <NavIconSvg icon="team" className="size-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-semibold tracking-tight">
-                    Adding staff
-                  </span>
-                  <span className="mt-0.5 block text-sm text-muted">
-                    They sign in with Google first, then you give them a role on
-                    the team page.
-                  </span>
-                </span>
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-canvas transition-colors group-hover:bg-ink group-hover:text-white">
-                  <NavIconSvg icon="arrow" className="size-4" />
-                </span>
-              </Link>
-            )}
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-canvas">
+              <NavIconSvg icon="reminders" className="size-4" />
+            </span>
+            <PushToggle vapidPublicKey={keys.publicKey} compact />
           </div>
         )}
       </div>
@@ -260,38 +203,90 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
   );
 }
 
-function Headline({
-  href,
-  figure,
-  label,
-}: {
-  href: string;
-  figure: number;
-  label: [string, string];
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-tile transition-opacity hover:opacity-80"
-    >
-      <span className="text-5xl font-semibold tracking-tight tabular-nums sm:text-6xl">
-        {figure}
-      </span>
-      <span className="text-sm leading-tight text-white/60">
-        {label[0]}
-        <br />
-        {label[1]}
-      </span>
-    </Link>
-  );
-}
+const freeFill = "bg-white ring-1 ring-inset ring-ink/25";
+// Diagonal stripes, so overdue reads apart from paid without colour.
+const hatch =
+  "bg-[repeating-linear-gradient(-45deg,var(--color-ink)_0_2px,rgb(12_12_13/0.25)_2px_4px)]";
 
-interface Tile {
-  href: string;
-  figure: number;
-  label: string;
-  icon: NavIcon;
-  urgent?: boolean;
+/** Everyone current, split by where they stand, with the add button. */
+function MembersCard({
+  members,
+  current,
+  seesFees,
+  canAdd,
+}: {
+  members: MemberSummary[];
+  current: number;
+  seesFees: boolean;
+  canAdd: boolean;
+}) {
+  const count = (keep: (member: MemberSummary) => boolean) =>
+    members.filter(keep).length;
+  const active = (standing: string) =>
+    count(
+      (member) => member.status === "active" && member.standing === standing,
+    );
+  const frozen = count((member) => member.status === "frozen");
+  const free = count((member) => member.status === "free");
+  const segments: Segment[] = seesFees
+    ? [
+        { key: "paid", label: "Paid", value: active("paid"), fill: "bg-ink" },
+        { key: "due", label: "Due", value: active("due"), fill: "bg-ink/45" },
+        {
+          key: "overdue",
+          label: "Overdue",
+          value: active("overdue"),
+          fill: hatch,
+        },
+        { key: "frozen", label: "Frozen", value: frozen, fill: "bg-ink/15" },
+        { key: "free", label: "Free", value: free, fill: freeFill },
+      ]
+    : [
+        {
+          key: "active",
+          label: "Active",
+          value: count((member) => member.status === "active"),
+          fill: "bg-ink",
+        },
+        { key: "frozen", label: "Frozen", value: frozen, fill: "bg-ink/15" },
+        { key: "free", label: "Free", value: free, fill: freeFill },
+      ];
+
+  return (
+    <section
+      aria-label="Members"
+      className="col-span-2 flex flex-col card p-5 sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/app/members"
+          className="flex items-center gap-2 text-sm font-medium hover:underline hover:underline-offset-4"
+        >
+          <NavIconSvg icon="members" className="size-4" />
+          Members
+        </Link>
+        {canAdd && (
+          <Link
+            href="/app/members/new"
+            aria-label="Add member"
+            title="Add member"
+            className={`${iconButton} bg-ink text-white hover:bg-graphite`}
+          >
+            <NavIconSvg icon="plus" className="size-5" />
+          </Link>
+        )}
+      </div>
+      <Link
+        href="/app/members"
+        className="mt-3 block self-start text-5xl font-semibold tracking-tight tabular-nums transition-opacity hover:opacity-80 sm:text-6xl"
+      >
+        {current}
+      </Link>
+      <div className="mt-auto pt-5">
+        <SegmentBar segments={segments} />
+      </div>
+    </section>
+  );
 }
 
 const gymZone = "Asia/Kolkata";
@@ -340,10 +335,10 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
 
   return (
     <section className="max-w-prose">
-      <div className="flex flex-wrap items-center gap-3">
+      <header className="page-header flex flex-wrap items-center gap-3">
         <h1 className="page-title">Your membership</h1>
         <StatusBadge status={membership.status} />
-      </div>
+      </header>
       <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3 card p-5 text-lg sm:p-6">
         <dt className="text-muted">Member ID</dt>
         <dd className="font-mono text-2xl font-bold">

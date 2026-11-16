@@ -117,3 +117,36 @@ describe("stageOn", () => {
     expect(stageOn("2026-05-12", "2026-05-08", "staff")).toBeNull();
   });
 });
+
+describe("a late payment never moves the due date", () => {
+  // Joined and paid on 6 Jan; paid February's fee late, on 8 Feb. Due dates
+  // follow the joining day, not the day money came in, so March is still
+  // due on the 6th and the reminders say so.
+  const joinedJan6: MembershipWithFees = {
+    startsOn: "2026-01-06",
+    endedOn: null,
+    freezes: [],
+    fees: [fee(60000, "2026-01-06")],
+  };
+  const janAndFeb = [pay(60000, 0), pay(60000, 1)];
+
+  it("keeps the next due date on the 6th", () => {
+    const ledger = buildLedger(joinedJan6, janAndFeb, "2026-02-08");
+    expect(ledger.nextUnpaid?.dueOn).toBe("2026-03-06");
+    expect(ledger.standing).toBe("paid");
+  });
+
+  it("reminds for 6 March: 3 days before, on the day, 3 days after", () => {
+    for (const [today, stage] of [
+      ["2026-03-03", "due_soon"],
+      ["2026-03-06", "due_today"],
+      ["2026-03-09", "overdue"],
+    ] as const) {
+      const ledger = buildLedger(joinedJan6, janAndFeb, today);
+      expect(reminderFor(ledger, today, "automatic")).toMatchObject({
+        stage,
+        dueOn: "2026-03-06",
+      });
+    }
+  });
+});

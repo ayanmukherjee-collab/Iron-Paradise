@@ -189,7 +189,7 @@ export function PaymentSheet({
 
       {shown.length === 0 ? (
         <p className="mt-4 rounded-card bg-white p-6 text-center text-muted shadow-card">
-          Nobody matches that.
+          No match
         </p>
       ) : (
         <div className="mt-4 overflow-hidden rounded-card bg-white shadow-card">
@@ -251,10 +251,11 @@ export function PaymentSheet({
           </table>
         </div>
       )}
-      <p className="mt-3 text-sm text-muted">
-        Showing {shown.length} of {data.length}. Tap an amount owed to record a
-        payment.
-      </p>
+      {shown.length < data.length && (
+        <p className="mt-3 text-center text-xs text-muted tabular-nums">
+          {shown.length} / {data.length}
+        </p>
+      )}
     </div>
   );
 }
@@ -265,12 +266,9 @@ function PaymentCell({ row }: { row: Row }) {
       <Link
         href={`/app/members/${row.memberId}/pay`}
         aria-label={`${formatPaise(row.owedPaise)} owed by ${row.fullName}. Record a payment`}
-        className="inline-flex flex-col items-end rounded-control bg-ink px-2.5 py-1.5 leading-tight text-white transition-colors hover:bg-graphite"
+        className="inline-flex rounded-control bg-ink px-2.5 py-1.5 font-semibold text-white tabular-nums transition-colors hover:bg-graphite"
       >
-        <span className="font-semibold tabular-nums">
-          {formatPaise(row.owedPaise)}
-        </span>
-        <span className="text-[0.7rem] text-white/60">due</span>
+        {formatPaise(row.owedPaise)}
       </Link>
     );
   }
@@ -289,13 +287,17 @@ function NextDue({ row, today }: { row: Row; today: IsoDate }) {
   if (!row.nextDue) return <span className="text-muted">—</span>;
   const soon = row.standing === "due";
   return (
-    <span className={soon ? "font-semibold" : ""}>
-      {formatShortDate(row.nextDue, today)}
+    <span
+      className={`inline-flex items-center gap-1.5 ${soon ? "font-semibold" : ""}`}
+    >
       {soon && (
-        <span className="block text-[0.7rem] font-normal text-muted">
-          Due soon
-        </span>
+        <span
+          aria-label="Due soon"
+          role="img"
+          className="size-1.5 rounded-full bg-ink"
+        />
       )}
+      {formatShortDate(row.nextDue, today)}
     </span>
   );
 }

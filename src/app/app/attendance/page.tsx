@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "@/components/ui/link";
 import { markAttendance } from "@/attendance/actions";
-import { batchAt, batchHours, batchLabels } from "@/attendance/batches";
+import { batchAt } from "@/attendance/batches";
+import { TodayCard } from "@/attendance/components/today-card";
 import {
+  daysInMonth,
   getBatches,
   getMonthSummary,
   isMonthKey,
@@ -10,10 +12,10 @@ import {
   shiftMonthKey,
 } from "@/attendance/queries";
 import { requirePermission, viewerCan } from "@/auth/session";
-import { NavIconSvg } from "@/components/nav/nav-icons";
+import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
 import { inputBase } from "@/components/ui/field";
-import { StatusCard } from "@/components/ui/status-card";
+import { Columns, Dial, iconButton } from "@/components/ui/viz";
 import {
   formatMonth,
   formatShortDate,
@@ -86,161 +88,153 @@ export default async function AttendancePage({
   const latest = withBatch.slice(0, latestCount);
   const later = shiftMonthKey(month, 1);
 
+  const current = everyone.filter(
+    (member) => member.status !== "inactive",
+  ).length;
+  const days = daysInMonth(month);
+  const perDay = new Map(summary.perDay.map((row) => [row.day, row.visits]));
+  const peakIndex = summary.busiestDay
+    ? days.indexOf(summary.busiestDay.day)
+    : undefined;
+
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
+      <header className="page-header flex items-center justify-between gap-3">
         <h1 className="page-title">Attendance</h1>
         {viewerCan(viewer, "desk.manage") && (
-          <Link href="/app/attendance/setup" className="btn-dark pr-5 pl-4">
-            <NavIconSvg icon="checkIn" className="size-[1.1rem]" />
-            Check-in QR
+          <Link
+            href="/app/attendance/setup"
+            aria-label="Check-in QR"
+            title="Check-in QR"
+            className={`${iconButton} bg-ink text-white hover:bg-graphite`}
+          >
+            <NavIconSvg icon="qr" className="size-5" />
           </Link>
         )}
       </header>
 
-      <StatusCard
-        title={`Today · ${formatShortDate(today, today)}`}
-        aside={
-          openNow ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-ink">
-              <span className="size-1.5 rounded-full bg-ink" />
-              {batchLabels[openNow]} batch open
-            </span>
-          ) : (
-            "Check-in closed now"
-          )
-        }
-        figures={[
-          {
-            label: "Morning",
-            value: String(morning),
-            note: batchHours(batches, "morning"),
-          },
-          {
-            label: "Evening",
-            value: String(evening),
-            note: batchHours(batches, "evening"),
-          },
-          { label: "Total in today", value: String(visits.length) },
-        ]}
-      />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <TodayCard
+          inToday={visits.length}
+          current={current}
+          morning={morning}
+          evening={evening}
+          batches={batches}
+          openNow={openNow}
+        />
 
-      {canMark && (
-        <section className="card-section">
-          <h2 className="section-title">Mark someone in</h2>
-          <p className="mt-1 text-sm text-muted">
-            For members without the app, or when the camera won&apos;t play
-            along. Only during a batch.
-          </p>
-          <form className="relative mt-4" role="search">
-            <label className="sr-only" htmlFor="mark-search">
-              Find a member
-            </label>
-            <NavIconSvg
-              icon="search"
-              className="pointer-events-none absolute top-1/2 left-3.5 size-[1.1rem] -translate-y-1/2 text-muted"
-            />
-            <input
-              id="mark-search"
-              name="q"
-              type="search"
-              defaultValue={query}
-              placeholder="Name, phone or member ID"
-              className={`${inputBase} pl-10`}
-            />
-          </form>
-          {query && candidates.length === 0 && (
-            <p className="mt-4 text-sm text-muted">
-              Nobody matches, or they&apos;re already in today.
-            </p>
-          )}
-          {candidates.length > 0 && (
-            <ul className="mt-4 list-card">
-              {candidates.map((member) => (
-                <li
-                  key={member.id}
-                  className="flex items-center justify-between gap-3 list-row py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{member.fullName}</p>
-                    <p className="font-mono text-xs text-muted">
-                      {member.memberCode}
-                    </p>
-                  </div>
-                  <ActionForm
-                    action={markAttendance}
-                    submitLabel="Mark in"
-                    pendingLabel="Marking…"
-                    className="[&>div]:mt-0 [&>div]:items-end"
+        {canMark && (
+          <section aria-label="Mark someone in" className="card p-4 sm:p-5">
+            <form className="relative" role="search">
+              <label className="sr-only" htmlFor="mark-search">
+                Mark someone in
+              </label>
+              <NavIconSvg
+                icon="markIn"
+                className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2"
+              />
+              <input
+                id="mark-search"
+                name="q"
+                type="search"
+                defaultValue={query}
+                placeholder="Name, phone or ID"
+                className={`${inputBase} pl-11`}
+              />
+            </form>
+            {query && candidates.length === 0 && (
+              <p className="mt-4 text-center text-sm text-muted">No match</p>
+            )}
+            {candidates.length > 0 && (
+              <ul className="mt-3 list-card">
+                {candidates.map((member) => (
+                  <li
+                    key={member.id}
+                    className="flex items-center justify-between gap-3 list-row py-2.5"
                   >
-                    <input type="hidden" name="memberId" value={member.id} />
-                  </ActionForm>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">
+                        {member.fullName}
+                      </p>
+                      <p className="font-mono text-xs text-muted">
+                        {member.memberCode}
+                      </p>
+                    </div>
+                    <ActionForm
+                      action={markAttendance}
+                      submitLabel={`Mark ${member.fullName} in`}
+                      icon="check"
+                      className="[&>div]:mt-0 [&>div]:items-end"
+                    >
+                      <input type="hidden" name="memberId" value={member.id} />
+                    </ActionForm>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </div>
 
-      <section>
-        <div className="flex items-baseline justify-between gap-3 px-1">
-          <h2 className="section-title">Latest check-ins</h2>
-          {visits.length > latestCount && (
-            <p className="text-sm text-muted">
-              {latestCount} of {visits.length}
-            </p>
-          )}
-        </div>
+      <section aria-label="Latest check-ins">
         {visits.length === 0 ? (
-          <p className="mt-3 rounded-card bg-white p-6 text-center text-muted shadow-card">
-            Nobody has checked in yet today.
+          <p className="rounded-card bg-white p-6 text-center text-muted shadow-card">
+            Nobody yet
           </p>
         ) : (
-          <ul className="mt-3 list-card">
+          <ul className="list-card">
             {latest.map((visit) => {
               const member = byId.get(visit.memberId);
               const owes = seesFees && member && member.owedPaise > 0;
+              const method =
+                visit.method === "qr"
+                  ? "Scanned QR"
+                  : `Marked${visit.markedBy ? ` by ${visit.markedBy}` : ""}`;
               return (
                 <li
                   key={visit.memberId}
-                  className="flex items-center justify-between gap-4 list-row py-3"
+                  className="flex items-center gap-3 list-row py-3"
                 >
-                  <div className="min-w-0">
+                  <span
+                    title={method}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-control bg-canvas"
+                  >
+                    <NavIconSvg
+                      icon={visit.method === "qr" ? "qr" : "user"}
+                      className="size-4"
+                    />
+                    <span className="sr-only">{method}</span>
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <Link
                       href={`/app/members/${visit.memberId}`}
                       className="block truncate font-semibold hover:underline hover:underline-offset-4"
                     >
                       {visit.fullName}
                     </Link>
-                    <p className="truncate text-sm text-muted">
-                      <span className="font-mono text-xs">
-                        {visit.memberCode}
-                      </span>
-                      {" · "}
-                      {visit.method === "qr"
-                        ? "Scanned QR"
-                        : `Marked${visit.markedBy ? ` by ${visit.markedBy}` : ""}`}
+                    <p className="font-mono text-xs text-muted">
+                      {visit.memberCode}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <span className="text-sm font-medium tabular-nums">
                       {formatTime(visit.checkedInAt)}
                     </span>
-                    {owes ? (
-                      <span className="rounded-badge bg-ink px-2 py-0.5 text-xs font-medium text-white">
-                        Owes {formatPaise(member.owedPaise)}
+                    {owes && (
+                      <span className="rounded-badge bg-ink px-2 py-0.5 text-xs font-medium text-white tabular-nums">
+                        <span className="sr-only">Owes </span>
+                        {formatPaise(member.owedPaise)}
                       </span>
-                    ) : (
-                      visit.batch && (
-                        <span className="text-xs text-muted">
-                          {batchLabels[visit.batch]}
-                        </span>
-                      )
                     )}
                   </div>
                 </li>
               );
             })}
+            {visits.length > latestCount && (
+              <li className="list-row py-2.5 text-center text-xs text-muted tabular-nums">
+                +{visits.length - latestCount}
+              </li>
+            )}
           </ul>
         )}
       </section>
@@ -274,36 +268,74 @@ export default async function AttendancePage({
             )}
           </nav>
         </div>
-        <dl className="mt-4 grid grid-cols-3 divide-x divide-line">
-          {[
-            { label: "Visits", value: String(summary.totalVisits) },
-            {
-              label: "Members came",
-              value: String(summary.perMember.length),
-            },
-            {
-              label: summary.busiestDay
-                ? `Busiest · ${summary.busiestDay.visits} in`
-                : "Busiest day",
-              value: summary.busiestDay
-                ? formatShortDate(summary.busiestDay.day, today)
-                : "—",
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="flex min-w-0 flex-col px-3 first:pl-0 last:pr-0"
-            >
-              <dt className="order-2 text-xs leading-snug text-muted">
-                {stat.label}
-              </dt>
-              <dd className="order-1 truncate text-xl font-semibold tracking-tight tabular-nums">
-                {stat.value}
-              </dd>
-            </div>
-          ))}
+
+        <Columns
+          values={days.map((day) => perDay.get(day) ?? 0)}
+          highlight={peakIndex}
+          label={`Visits per day in ${formatMonth(month)}`}
+          className="mt-5 h-24"
+        />
+        <div
+          aria-hidden="true"
+          className="mt-1.5 flex justify-between text-[0.65rem] text-muted tabular-nums"
+        >
+          <span>1</span>
+          <span>{days.length}</span>
+        </div>
+
+        <dl className="mt-5 grid grid-cols-3 gap-2">
+          <MonthFigure icon="attendance" label="Visits">
+            {summary.totalVisits}
+          </MonthFigure>
+          <MonthFigure
+            icon="members"
+            label="Members"
+            aside={
+              <Dial
+                value={summary.members}
+                max={current}
+                size={34}
+                stroke={3.5}
+                label={`${summary.members} of ${current} current members came`}
+              />
+            }
+          >
+            {summary.members}
+          </MonthFigure>
+          <MonthFigure icon="arrow" label="Peak">
+            {summary.busiestDay
+              ? formatShortDate(summary.busiestDay.day, today)
+              : "—"}
+          </MonthFigure>
         </dl>
       </section>
+    </div>
+  );
+}
+
+function MonthFigure({
+  icon,
+  label,
+  aside,
+  children,
+}: {
+  icon: NavIcon;
+  label: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-2 rounded-tile bg-canvas p-3">
+      <div className="min-w-0">
+        <dt className="flex items-center gap-1.5 text-xs text-muted">
+          <NavIconSvg icon={icon} className="size-3.5 shrink-0" />
+          {label}
+        </dt>
+        <dd className="mt-1 truncate text-lg font-semibold tracking-tight tabular-nums">
+          {children}
+        </dd>
+      </div>
+      {aside && <span className="hidden sm:block">{aside}</span>}
     </div>
   );
 }

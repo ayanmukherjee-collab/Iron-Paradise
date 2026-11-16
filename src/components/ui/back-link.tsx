@@ -5,11 +5,19 @@ import { NavIconSvg } from "@/components/nav/nav-icons";
  * The way back up from a sub-page, at the very top. Names where it goes
  * ("Members", "Test 2") so nobody has to guess what "back" means.
  */
-export function BackLink({ href, label }: { href: string; label: string }) {
+export function BackLink({
+  href,
+  label,
+  className = "mb-4",
+}: {
+  href: string;
+  label: string;
+  className?: string;
+}) {
   return (
     <Link
       href={href}
-      className="group mb-4 -ml-1 inline-flex min-h-10 items-center gap-1.5 rounded-control pr-3 pl-1 text-sm font-medium text-muted transition-colors hover:bg-white hover:text-ink"
+      className={`group -ml-1 inline-flex min-h-10 items-center gap-1.5 rounded-control pr-3 pl-1 text-sm font-medium text-muted transition-colors hover:bg-white hover:text-ink ${className}`}
     >
       <NavIconSvg
         icon="chevronLeft"

@@ -16,17 +16,15 @@ export default async function NewMemberPage() {
 
   return (
     <section className="max-w-lg">
-      <BackLink href="/app/members" label="Members" />
-      <h1 className="page-title">Add member</h1>
-      <p className="mt-3 text-muted">
-        Attendance and payments work for them straight away. They don&apos;t
-        need an account; you can send a claim link afterwards.
-      </p>
+      <header className="page-header">
+        <BackLink href="/app/members" label="Members" className="mb-1" />
+        <h1 className="page-title">Add member</h1>
+      </header>
       <ActionForm
         action={addMember}
         submitLabel="Add member"
         pendingLabel="Adding…"
-        className="mt-8 space-y-5"
+        className="mt-2 space-y-5"
       >
         <Field label="Full name">
           <input

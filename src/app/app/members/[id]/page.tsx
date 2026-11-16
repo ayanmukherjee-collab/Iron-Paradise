@@ -110,14 +110,19 @@ export default async function MemberPage({
 
   return (
     <article className="space-y-4">
-      <BackLink href="/app/members" label="Members" />
+      <header className="page-header">
+        <BackLink href="/app/members" label="Members" className="mb-1" />
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 page-title break-words">{member.fullName}</h1>
+          <StatusBadge status={status} />
+        </div>
+      </header>
 
       {/* Who they are and where they stand, at a glance. */}
       <section className="card p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
+        <div>
           <div className="min-w-0">
-            <h1 className="page-title break-words">{member.fullName}</h1>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <span className="font-mono text-ink">{member.memberCode}</span>
               <a
                 href={whatsAppLink(
@@ -142,7 +147,6 @@ export default async function MemberPage({
               </span>
             </p>
           </div>
-          <StatusBadge status={status} />
         </div>
 
         <dl
@@ -161,7 +165,7 @@ export default async function MemberPage({
               }
               note={
                 owes
-                  ? "due now"
+                  ? undefined
                   : ledger?.nextUnpaid
                     ? `Next ${formatShortDate(ledger.nextUnpaid.dueOn, today)}`
                     : status === "frozen"
@@ -178,7 +182,7 @@ export default async function MemberPage({
                 ? "In today"
                 : lastVisit
                   ? `Last ${formatShortDate(lastVisit, today)}`
-                  : "No visits yet"
+                  : "—"
             }
           />
           <Stat
@@ -207,14 +211,12 @@ export default async function MemberPage({
             Frozen from {formatDate(membership.activeFreeze.startsOn)}
             {membership.activeFreeze.endsOn
               ? ` to ${formatDate(membership.activeFreeze.endsOn)}`
-              : ", no end date yet"}
-            . No fees fall due while frozen.
+              : " →"}
           </p>
         )}
         {(ledger?.creditPaise ?? 0) > 0 && (
           <p className="mt-3 callout text-sm">
-            {formatPaise(ledger!.creditPaise)} credit waits for the next due
-            date.
+            {formatPaise(ledger!.creditPaise)} credit
           </p>
         )}
 
@@ -247,9 +249,6 @@ export default async function MemberPage({
       {!membership && canEdit && (
         <section className="card-section">
           <h2 className="section-title">Start a new membership</h2>
-          <p className="mt-1 text-sm text-muted">
-            No current membership. The months they were away are not charged.
-          </p>
           <ActionForm
             action={reactivateMember}
             submitLabel="Reactivate"
@@ -269,11 +268,7 @@ export default async function MemberPage({
       )}
 
       {actionTabs.length > 0 && (
-        <Disclosure
-          title="Account actions"
-          summary={actionTabs.map((tab) => tab.label).join(", ")}
-          icon="sliders"
-        >
+        <Disclosure title="Account actions" icon="sliders">
           <Tabs tabs={actionTabs} label="Account actions" />
         </Disclosure>
       )}
@@ -286,11 +281,7 @@ export default async function MemberPage({
             className="flex flex-wrap items-end gap-3 [&>div]:mt-0"
           >
             <input type="hidden" name="memberId" value={member.id} />
-            <Field
-              label="Member type"
-              hint="Staff types can see and change gym records. Only the owner can change this."
-              className="min-w-48 flex-1"
-            >
+            <Field label="Member type" className="min-w-48 flex-1">
               <select
                 name="role"
                 defaultValue={detail.accountRole}
@@ -310,7 +301,7 @@ export default async function MemberPage({
       {canLink && !member.profileId && member.isActive && (
         <Disclosure
           title="Claim link"
-          summary={`Let them see their membership in the app · ${claimStatusText(detail.claimLink)}`}
+          summary={claimStatusText(detail.claimLink)}
           icon="user"
         >
           <ClaimLinkPanel
@@ -329,7 +320,7 @@ export default async function MemberPage({
           title="Payment history"
           summary={
             payments.history.length === 0
-              ? "No payments yet"
+              ? "—"
               : `${payments.history.length} ${payments.history.length === 1 ? "payment" : "payments"}`
           }
           icon="payments"
@@ -346,7 +337,7 @@ export default async function MemberPage({
         title="Visit history"
         summary={
           detail.visits.length === 0
-            ? "No visits yet"
+            ? "—"
             : `Last ${formatShortDate(lastVisit!, today)} · ${visitsThisMonth} this month`
         }
         icon="attendance"
@@ -433,10 +424,6 @@ function FeeForm({ detail }: { detail: MemberDetail }) {
         submitLabel="Change fee"
         className="max-w-lg space-y-4"
       >
-        <p className="text-sm text-muted">
-          Takes effect from the next due date. Months already due keep their
-          fee.
-        </p>
         <input type="hidden" name="memberId" value={detail.member.id} />
         <input type="hidden" name="membershipId" value={membership.id} />
         <Field label="New monthly fee (₹)">
@@ -452,10 +439,7 @@ function FeeForm({ detail }: { detail: MemberDetail }) {
             className={inputClass}
           />
         </Field>
-        <Field
-          label="Reason (optional)"
-          hint="e.g. student discount, agreed at the desk"
-        >
+        <Field label="Reason (optional)">
           <input name="note" maxLength={200} className={inputClass} />
         </Field>
       </ActionForm>
@@ -507,7 +491,7 @@ function DetailsForm({ detail }: { detail: MemberDetail }) {
         </Field>
         <Checkbox
           name="reminderConsent"
-          label="They agree to get payment reminders"
+          label="Payment reminders"
           defaultChecked={member.reminderConsentAt !== null}
         />
         <Checkbox
@@ -524,11 +508,6 @@ function DetailsForm({ detail }: { detail: MemberDetail }) {
           variant="outline-dark"
           className="mt-6 max-w-lg border-t border-line pt-6"
         >
-          <p className="font-medium">Mark inactive</p>
-          <p className="mt-1 text-sm text-muted">
-            Ends their membership today and stops reminders. Nothing is deleted,
-            and you can reactivate them any time.
-          </p>
           <input type="hidden" name="memberId" value={member.id} />
         </ActionForm>
       )}
@@ -569,9 +548,6 @@ function FreezeControls({
           success="Freeze ended."
           className="max-w-lg space-y-4"
         >
-          <p className="text-sm text-muted">
-            Due dates move back by however long the freeze lasted.
-          </p>
           <input type="hidden" name="memberId" value={detail.member.id} />
           <input type="hidden" name="freezeId" value={open.id} />
           <Field label="Last frozen day">
@@ -597,10 +573,6 @@ function FreezeControls({
         success="Frozen."
         className="max-w-lg space-y-4"
       >
-        <p className="text-sm text-muted">
-          No fees fall due while frozen. Leave the end blank if you don&apos;t
-          know it yet.
-        </p>
         <input type="hidden" name="memberId" value={detail.member.id} />
         <input type="hidden" name="membershipId" value={membership.id} />
         <div className="grid grid-cols-2 gap-3">
@@ -642,7 +614,7 @@ function claimStatusText(claim: MemberDetail["claimLink"]): string {
     case "used":
       return "claimed";
     default:
-      return "no link sent yet";
+      return "—";
   }
 }
 

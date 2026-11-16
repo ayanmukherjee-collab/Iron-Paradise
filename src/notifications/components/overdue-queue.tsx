@@ -42,9 +42,7 @@ export function OverdueQueue({ entries }: { entries: QueueEntry[] }) {
   if (!current) {
     return (
       <div className="card p-5">
-        <p className="text-lg font-semibold">
-          All done. Everyone overdue has a WhatsApp.
-        </p>
+        <p className="text-lg font-semibold">All done</p>
         <Button variant="outline-dark" className="mt-4" onClick={stop}>
           Close
         </Button>

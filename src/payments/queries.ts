@@ -1,5 +1,15 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  sum,
+} from "drizzle-orm";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
 import {
@@ -227,6 +237,31 @@ export async function getPaymentSheet(
         },
       ];
     });
+  });
+}
+
+/**
+ * Money taken in a date range: counted (not voided) payments by the day
+ * they were paid. One sum in the database, for summary cards.
+ */
+export async function getCollected(
+  viewer: Viewer,
+  from: IsoDate,
+  to: IsoDate,
+): Promise<number> {
+  return withUserContext(getDb(), viewer.userId, async (tx) => {
+    const [row] = await tx
+      .select({ total: sum(payments.amountPaise) })
+      .from(payments)
+      .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
+      .where(
+        and(
+          isNull(paymentVoids.paymentId),
+          gte(payments.paidOn, from),
+          lte(payments.paidOn, to),
+        ),
+      );
+    return Number(row?.total ?? 0);
   });
 }
 

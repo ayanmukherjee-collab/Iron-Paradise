@@ -22,18 +22,12 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Settings</h1>
+      <header className="page-header">
+        <h1 className="page-title">Settings</h1>
+      </header>
 
       <section>
-        <div className="flex items-end justify-between gap-3 px-1">
-          <div>
-            <h2 className="section-title">Plans</h2>
-            <p className="mt-0.5 text-sm text-muted">
-              Fills in the usual fee when someone joins. Changing a plan never
-              changes what existing members pay.
-            </p>
-          </div>
-        </div>
+        <h2 className="px-1 section-title">Plans</h2>
 
         <ul className="mt-3 list-card">
           {plans.map((plan) => (
@@ -57,7 +51,7 @@ export default async function SettingsPage() {
                   />
                   <Checkbox
                     name="isActive"
-                    label="Offer this plan to new members"
+                    label="Offered"
                     defaultChecked={plan.isActive}
                   />
                 </ActionForm>
@@ -101,10 +95,6 @@ export default async function SettingsPage() {
                 submitLabel="Save batches"
                 className="space-y-4"
               >
-                <p className="text-sm text-muted">
-                  Check-ins only count during these hours. Outside them, the QR
-                  scan and staff marking are both refused.
-                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Morning opens">
                     <input
@@ -157,10 +147,7 @@ export default async function SettingsPage() {
                 success="Saved."
                 className="max-w-xs"
               >
-                <Field
-                  label="Days with no visit or payment"
-                  hint="Members past this show in the Gone quiet list. Nobody is marked inactive automatically."
-                >
+                <Field label="Days">
                   <input
                     name="days"
                     type="number"
@@ -209,9 +196,10 @@ function Row({
           </span>
           <span className="block text-sm text-muted">{detail}</span>
         </span>
-        <span className="shrink-0 rounded-control px-3 py-1.5 text-sm font-medium text-muted ring-1 ring-line group-open:bg-ink group-open:text-white group-open:ring-ink">
-          <span className="group-open:hidden">Edit</span>
-          <span className="hidden group-open:inline">Close</span>
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-control text-muted ring-1 ring-line group-open:bg-ink group-open:text-white group-open:ring-ink">
+          <NavIconSvg icon="gear" className="size-4 group-open:hidden" />
+          <NavIconSvg icon="close" className="hidden size-4 group-open:block" />
+          <span className="sr-only">Edit</span>
         </span>
       </summary>
       <div className="px-5 pt-1 pb-5 sm:px-6">{children}</div>

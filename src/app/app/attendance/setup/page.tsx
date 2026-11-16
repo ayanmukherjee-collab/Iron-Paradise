@@ -35,20 +35,17 @@ export default async function CheckInSetupPage() {
 
   return (
     <div>
-      <BackLink href="/app/attendance" label="Attendance" />
-      <h1 className="page-title">Check-in QR</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        Members open the app and scan a QR at the front desk to check in. Use a
-        printed sheet, a desk display, or both.
-      </p>
+      <header className="page-header">
+        <BackLink href="/app/attendance" label="Attendance" className="mb-1" />
+        <h1 className="page-title">Check-in QR</h1>
+      </header>
 
-      <div className="mt-5 grid items-start gap-4 lg:grid-cols-2">
+      <div className="mt-2 grid items-start gap-4 lg:grid-cols-2">
         {/* Printed QR */}
         <section className="card p-5 sm:p-6">
           <CardHeader
-            icon="checkIn"
+            icon="qr"
             title="Printed QR"
-            subtitle="One fixed code on paper. Simple, but a photo of it works from anywhere."
             status={setup.printedQrEnabled ? "On" : "Off"}
           />
 
@@ -68,50 +65,39 @@ export default async function CheckInSetupPage() {
                 download
               >
                 <NavIconSvg icon="download" className="size-[1.1rem]" />
-                Download PDF to print
+                PDF
               </a>
-              <p className="mt-2 text-center text-xs text-muted">
-                A4 sheet with the code and instructions for members.
-              </p>
 
               {isOwner && (
                 <div className="mt-5 border-t border-line pt-5">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex justify-center gap-2">
                     <ActionForm
                       action={regeneratePrintedCode}
                       submitLabel="Replace code"
-                      pendingLabel="Replacing…"
+                      icon="refresh"
                       variant="outline-dark"
-                      className="[&_button]:w-full [&_button]:px-3 [&>div]:mt-0"
+                      className="[&>div]:mt-0 [&>div]:items-center"
                     />
                     <ActionForm
                       action={setPrintedQr}
                       submitLabel="Switch off"
+                      icon="power"
                       variant="outline-dark"
-                      className="[&_button]:w-full [&_button]:px-3 [&>div]:mt-0"
+                      className="[&>div]:mt-0 [&>div]:items-center"
                     >
                       <input type="hidden" name="enabled" value="false" />
                     </ActionForm>
                   </div>
-                  <p className="mt-3 text-xs text-muted">
-                    Replace the code if a photo of it is going around; the old
-                    sheet stops working at once. Switch it off once a desk
-                    display is set up.
-                  </p>
                 </div>
               )}
             </>
           ) : (
-            <div className="mt-5 rounded-tile bg-canvas p-5 text-center">
-              <p className="text-sm text-muted">
-                Scanning the printed sheet shows an error. Only desk displays
-                check people in.
-              </p>
+            <div className="mt-5 flex justify-center rounded-tile bg-canvas p-5">
               {isOwner && (
                 <ActionForm
                   action={setPrintedQr}
-                  submitLabel="Switch printed QR on"
-                  className="mt-4 [&>div]:mt-0 [&>div]:items-center"
+                  submitLabel="Switch on"
+                  className="[&>div]:mt-0 [&>div]:items-center"
                 >
                   <input type="hidden" name="enabled" value="true" />
                 </ActionForm>
@@ -123,12 +109,11 @@ export default async function CheckInSetupPage() {
         {/* Desk displays */}
         <section className="card p-5 sm:p-6">
           <CardHeader
-            icon="attendance"
+            icon="checkIn"
             title="Desk displays"
-            subtitle="A phone or tablet at the desk showing a code that changes every 30 seconds. A photo of it is useless from home."
             status={
               setup.displays.length === 0
-                ? "None yet"
+                ? "Off"
                 : `${setup.displays.length} on`
             }
           />
@@ -142,19 +127,19 @@ export default async function CheckInSetupPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium">{display.label}</p>
-                    <p className="truncate text-xs text-muted">
+                    <p className="flex items-center gap-1 truncate text-xs text-muted">
+                      <NavIconSvg icon="clock" className="size-3.5 shrink-0" />
                       {display.lastSeenAt
-                        ? `Last on ${formatDateTime(display.lastSeenAt)}`
-                        : "Not opened yet"}
-                      {display.createdBy && ` · by ${display.createdBy}`}
+                        ? formatDateTime(display.lastSeenAt)
+                        : "—"}
                     </p>
                   </div>
                   <ActionForm
                     action={revokeDeskDisplay}
-                    submitLabel="Switch off"
-                    pendingLabel="Switching off…"
+                    submitLabel={`Switch off ${display.label}`}
+                    icon="power"
                     variant="outline-dark"
-                    className="shrink-0 [&_button]:min-h-10 [&_button]:px-3 [&>div]:mt-0 [&>div]:items-end"
+                    className="shrink-0 [&>div]:mt-0 [&>div]:items-end"
                   >
                     <input type="hidden" name="displayId" value={display.id} />
                   </ActionForm>
@@ -164,11 +149,6 @@ export default async function CheckInSetupPage() {
           )}
 
           <div className="mt-5 border-t border-line pt-5">
-            <h3 className="text-sm font-medium">Set up a device</h3>
-            <p className="mt-0.5 mb-3 text-xs text-muted">
-              It shows the rotating QR and nothing else: no member list, no
-              staff access.
-            </p>
             <DeskLinkPanel createDeskDisplay={createDeskDisplay} />
           </div>
         </section>
@@ -180,17 +160,15 @@ export default async function CheckInSetupPage() {
 function CardHeader({
   icon,
   title,
-  subtitle,
   status,
 }: {
-  icon: "checkIn" | "attendance";
+  icon: "qr" | "checkIn";
   title: string;
-  subtitle: string;
   status: string;
 }) {
   const on = status === "On" || status.endsWith(" on");
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-canvas">
         <NavIconSvg icon={icon} className="size-5" />
       </span>
@@ -204,7 +182,6 @@ function CardHeader({
             {status}
           </span>
         </div>
-        <p className="mt-0.5 text-sm text-muted">{subtitle}</p>
       </div>
     </div>
   );

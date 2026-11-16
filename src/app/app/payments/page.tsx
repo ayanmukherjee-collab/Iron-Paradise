@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/auth/session";
-import { StatusCard } from "@/components/ui/status-card";
-import { formatMonth, todayAtGym } from "@/lib/dates";
-import { formatPaise } from "@/lib/money";
+import { todayAtGym } from "@/lib/dates";
 import { ExportMenu } from "@/payments/components/export-menu";
+import {
+  MoneyCards,
+  shortMonth,
+  type MoneyFigures,
+} from "@/payments/components/money-cards";
 import { PaymentSheet } from "@/payments/components/payment-sheet";
 import { getPaymentSheet } from "@/payments/queries";
 import { sheetMonths } from "@/payments/sheet";
@@ -15,35 +18,29 @@ export default async function PaymentsPage() {
   const today = todayAtGym();
   const rows = await getPaymentSheet(viewer, sheetMonths(null, today));
 
-  const collected = rows.reduce((sum, row) => sum + row.paidThisMonthPaise, 0);
-  const outstanding = rows.reduce((sum, row) => sum + row.owedPaise, 0);
-  const owing = rows.filter((row) => row.owedPaise > 0).length;
-  const paying = rows.filter(
-    (row) => row.isActive && row.standing && row.standing !== "free",
-  ).length;
+  const thisMonth = today.slice(0, 7);
+  const current = rows.filter((row) => row.isActive);
+  const figures: MoneyFigures = {
+    outstandingPaise: rows.reduce((sum, row) => sum + row.owedPaise, 0),
+    owing: rows.filter((row) => row.owedPaise > 0).length,
+    paying: current.filter((row) => row.standing && row.standing !== "free")
+      .length,
+    overdue: current.filter((row) => row.standing === "overdue").length,
+    collectedPaise: rows.reduce((sum, row) => sum + row.paidThisMonthPaise, 0),
+  };
 
   return (
     <section>
-      <header className="flex items-center justify-between gap-3">
+      <header className="page-header flex items-center justify-between gap-3">
         <h1 className="page-title">Payments</h1>
         <ExportMenu />
       </header>
 
-      <div className="mt-5">
-        <StatusCard
-          title={`This month · ${formatMonth(today.slice(0, 7))}`}
-          figures={[
-            {
-              label: "Outstanding",
-              value: formatPaise(outstanding),
-              note:
-                owing === 0
-                  ? "Nobody owes"
-                  : `${owing} ${owing === 1 ? "member" : "members"}`,
-            },
-            { label: "Collected", value: formatPaise(collected) },
-            { label: "Paying members", value: String(paying) },
-          ]}
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 [&>*:first-child]:col-span-2 lg:[&>*:first-child]:col-span-1">
+        <MoneyCards
+          figures={figures}
+          monthLabel={shortMonth(thisMonth)}
+          links={false}
         />
       </div>
 

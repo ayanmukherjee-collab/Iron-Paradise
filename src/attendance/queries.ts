@@ -1,5 +1,15 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gte,
+  lte,
+  sql,
+} from "drizzle-orm";
 import type { Batches } from "@/attendance/batches";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
@@ -101,16 +111,14 @@ function monthBounds(month: MonthKey): { first: IsoDate; last: IsoDate } {
 
 export interface MonthSummary {
   totalVisits: number;
+  /** How many different members came at least once. */
+  members: number;
   busiestDay: { day: IsoDate; visits: number } | null;
-  perMember: {
-    memberId: string;
-    memberCode: string;
-    fullName: string;
-    visits: number;
-  }[];
+  /** Visits on each day of the month that had any, oldest first. */
+  perDay: { day: IsoDate; visits: number }[];
 }
 
-/** Simple monthly counts (brief §4.3): totals, busiest day, visits per member. */
+/** Simple monthly counts (brief §4.3): totals, busiest day, visits per day. */
 export async function getMonthSummary(
   viewer: Viewer,
   month: MonthKey,
@@ -122,33 +130,37 @@ export async function getMonthSummary(
   );
 
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [perMember, perDay] = await Promise.all([
-      tx
-        .select({
-          memberId: attendance.memberId,
-          memberCode: members.memberCode,
-          fullName: members.fullName,
-          visits: count(),
-        })
-        .from(attendance)
-        .innerJoin(members, eq(members.id, attendance.memberId))
-        .where(inMonth)
-        .groupBy(attendance.memberId, members.memberCode, members.fullName)
-        .orderBy(desc(count()), asc(members.fullName)),
+    const [perDay, [distinct]] = await Promise.all([
       tx
         .select({ day: attendance.gymDate, visits: count() })
         .from(attendance)
         .where(inMonth)
         .groupBy(attendance.gymDate)
-        .orderBy(desc(count()), asc(attendance.gymDate))
-        .limit(1),
+        .orderBy(asc(attendance.gymDate)),
+      tx
+        .select({ members: countDistinct(attendance.memberId) })
+        .from(attendance)
+        .where(inMonth),
     ]);
+    const busiestDay = perDay.reduce<MonthSummary["busiestDay"]>(
+      (best, row) => (!best || row.visits > best.visits ? row : best),
+      null,
+    );
     return {
-      totalVisits: perMember.reduce((sum, row) => sum + row.visits, 0),
-      busiestDay: perDay[0] ?? null,
-      perMember,
+      totalVisits: perDay.reduce((sum, row) => sum + row.visits, 0),
+      members: distinct?.members ?? 0,
+      busiestDay,
+      perDay,
     };
   });
+}
+
+/** Days in a month, for charts that need a slot per day. */
+export function daysInMonth(month: MonthKey): IsoDate[] {
+  const { first, last } = monthBounds(month);
+  const days: IsoDate[] = [];
+  for (let day = first; day <= last; day = addDays(day, 1)) days.push(day);
+  return days;
 }
 
 export interface OwnAttendance {
