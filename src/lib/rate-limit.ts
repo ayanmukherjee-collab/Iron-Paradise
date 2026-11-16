@@ -13,6 +13,8 @@ const limits = {
   checkIn: { requests: 30, window: "1 h" },
   // Per IP: a desk display asks for a new code about every 30 seconds.
   deskDisplay: { requests: 600, window: "1 h" },
+  // Per account: test notifications go out through the browser push services.
+  testPush: { requests: 5, window: "10 m" },
 } as const satisfies Record<
   string,
   { requests: number; window: `${number} ${"s" | "m" | "h"}` }

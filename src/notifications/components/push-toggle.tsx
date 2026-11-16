@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   removePushSubscription,
   savePushSubscription,
+  sendTestNotification,
 } from "@/notifications/actions";
 
 type State =
@@ -20,7 +21,7 @@ const explanations: Partial<Record<State, string>> = {
   unsupported: "This browser can't show notifications.",
   "install-first":
     "On iPhone, add the app to your Home Screen first (Share, then Add to Home Screen), then open it from there.",
-  "not-ready": "Open the installed app to turn on reminders.",
+  "not-ready": "Open the installed app to turn on notifications.",
   blocked:
     "Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
 };
@@ -52,7 +53,10 @@ function toSaved(subscription: PushSubscription) {
   };
 }
 
-/** Lets a member turn fee reminders on or off on the phone they're using. */
+/**
+ * Turns push notifications on or off on the phone being used, and sends a
+ * test so anyone can check they arrive.
+ */
 export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
   const [state, setState] = useState<State>("checking");
   const [busy, setBusy] = useState(false);
@@ -107,7 +111,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
         setMessage(result.error);
       }
     } catch {
-      setMessage("Couldn't turn on reminders here. Try again.");
+      setMessage("Couldn't turn on notifications here. Try again.");
     } finally {
       setBusy(false);
     }
@@ -125,7 +129,20 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
         await subscription.unsubscribe();
       }
       setState("off");
-      setMessage("Reminders are off for this phone.");
+      setMessage("Notifications are off for this phone.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await sendTestNotification({});
+      setMessage(result.ok ? result.data.message : result.error);
+    } catch {
+      setMessage("Couldn't send the test. Try again.");
     } finally {
       setBusy(false);
     }
@@ -138,12 +155,17 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
       {explanations[state] ? (
         <p className="text-smoke">{explanations[state]}</p>
       ) : state === "on" ? (
-        <Button variant="outline-dark" disabled={busy} onClick={turnOff}>
-          {busy ? "Turning off…" : "Turn off reminders on this phone"}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button disabled={busy} onClick={sendTest}>
+            Send a test notification
+          </Button>
+          <Button variant="outline-dark" disabled={busy} onClick={turnOff}>
+            Turn off on this phone
+          </Button>
+        </div>
       ) : (
         <Button disabled={busy} onClick={turnOn}>
-          {busy ? "Turning on…" : "Turn on reminders on this phone"}
+          {busy ? "Turning on…" : "Turn on notifications on this phone"}
         </Button>
       )}
       {message && (
