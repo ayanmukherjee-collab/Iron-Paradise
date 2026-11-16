@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { contact, gym } from "@/content/landing";
 import { ContactLines, LegalPage } from "@/legal/legal-page";
 

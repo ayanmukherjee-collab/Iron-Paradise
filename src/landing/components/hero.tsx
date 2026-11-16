@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { LogoMark } from "@/components/brand/logo-mark";
 import { art, gym, hero, nav } from "@/content/landing";
 import { ArtImage } from "./art-image";

@@ -10,6 +10,7 @@ import {
   Serwist,
   StaleWhileRevalidate,
 } from "serwist";
+import { createRequestBuffer } from "./request-buffer";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -35,10 +36,44 @@ const runtimeCaching: RuntimeCaching[] = [
     handler: new StaleWhileRevalidate({ cacheName: "public-media" }),
   },
   {
+    // Pages and their data: through the request buffer, never cached.
+    matcher: ({ request, sameOrigin }) =>
+      sameOrigin && request.method === "GET",
+    handler: ({ request, event }) => sendToServer(request, event),
+  },
+  {
+    // Saves (Server Actions, uploads) and other sites go straight out. A
+    // save is never repeated here: if the server cut it off it may already
+    // have happened, and a second try could record a payment twice.
     matcher: () => true,
     handler: new NetworkOnly(),
   },
 ];
+
+const buffer = createRequestBuffer({
+  maxInFlight: 2,
+  retryDelaysMs: [1000, 3000],
+});
+
+function sendToServer(request: Request, event: ExtendableEvent) {
+  // Next.js marks its guesses about the next page with these headers.
+  const prefetch =
+    request.headers.has("next-router-prefetch") ||
+    request.headers.has("next-router-segment-prefetch");
+  return buffer.send(
+    async (attempt) => {
+      // The browser starts a page load before this worker wakes up
+      // (navigation preload). Use that first answer instead of asking twice.
+      if (attempt === 0 && request.mode === "navigate") {
+        const preloaded = await (event as FetchEvent).preloadResponse;
+        if (preloaded) return preloaded;
+      }
+      return fetch(request.clone());
+    },
+    // A failed prefetch costs nothing, so it isn't worth a retry.
+    { background: prefetch, retry: !prefetch },
+  );
+}
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,

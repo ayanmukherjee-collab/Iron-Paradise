@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import type { Action } from "@/auth/permissions";
 import { roleLabels } from "@/auth/permissions";
 import { requireViewer, viewerCan } from "@/auth/session";

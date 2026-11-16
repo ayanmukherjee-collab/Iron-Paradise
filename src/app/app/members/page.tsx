@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { requirePermission, viewerCan } from "@/auth/session";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { inputBase } from "@/components/ui/field";

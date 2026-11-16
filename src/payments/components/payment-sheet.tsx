@@ -19,7 +19,7 @@ import {
   useTable,
   type SortingState,
 } from "@tanstack/react-table";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useMemo, useState } from "react";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { inputBase } from "@/components/ui/field";

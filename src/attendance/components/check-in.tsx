@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { CheckInResult } from "@/attendance/actions";
 import { codeFromScan } from "@/attendance/code";
@@ -8,8 +8,12 @@ import { QrScanner } from "@/attendance/components/qr-scanner";
 import type { ActionResult } from "@/auth/guarded-action";
 import { Button } from "@/components/ui/button";
 import { formatPaise } from "@/lib/money";
+import { retryOnThrow } from "@/lib/retry";
 
 type Outcome = ActionResult<CheckInResult> | null;
+
+const unreachable =
+  "Couldn't reach the gym's server. Scan again in a moment, or ask the front desk to mark you in.";
 
 /**
  * Member check-in. Opened from a desk QR the code is already in the link and
@@ -32,7 +36,16 @@ export function CheckIn({
   const send = useCallback(
     (code: string) => {
       setScanning(false);
-      startTransition(async () => setOutcome(await checkIn({ code })));
+      startTransition(async () => {
+        // When many members scan at once the server can turn a request away
+        // (503). A check-in is safe to send again, since the database ignores
+        // a second one the same day, so try twice more before giving up.
+        try {
+          setOutcome(await retryOnThrow(() => checkIn({ code }), [1000, 3000]));
+        } catch {
+          setOutcome({ ok: false, error: unreachable });
+        }
+      });
     },
     [checkIn],
   );
