@@ -39,7 +39,7 @@ async function vapidKeys() {
 }
 
 function replies(statuses: Record<string, number>) {
-  return vi.fn(async (url: string | URL | Request) => {
+  return vi.fn<typeof fetch>(async (url) => {
     const status = statuses[String(url)];
     return new Response(status === 201 ? null : "nope", { status });
   });
