@@ -11,7 +11,7 @@ const SOURCE_DIR = "assets/art";
 const OUTPUT_DIR = "public/art";
 const WIDTHS = [560, 960];
 
-const ART = ["goku", "saitama", "asta"];
+const ART = ["goku", "saitama"];
 
 await mkdir(OUTPUT_DIR, { recursive: true });
 

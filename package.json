@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "art": "node scripts/process-art.mjs",
+    "map": "node scripts/make-map.mjs",
     "icons": "node scripts/make-icons.mjs",
     "vapid": "node scripts/make-vapid-keys.mjs",
     "cf:build": "opennextjs-cloudflare build",

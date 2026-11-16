@@ -6,12 +6,16 @@ type ArtImageProps = {
   sizes: string;
   /** Only the hero art should load eagerly; everything else waits for scroll. */
   priority?: boolean;
-  /** "bottom-right" also softens a right edge where the source art was cropped. */
-  fade?: "bottom" | "bottom-right";
+  /**
+   * "bottom-right" also softens a right edge where the source art was cropped.
+   * "none" keeps the figure solid, for when a gradient overlay does the fading.
+   */
+  fade?: "bottom" | "bottom-right" | "none";
   className?: string;
 };
 
 const FADES = {
+  none: "",
   bottom: "[mask-image:linear-gradient(to_bottom,black_55%,transparent_98%)]",
   "bottom-right":
     "[mask-image:linear-gradient(to_bottom,black_55%,transparent_98%),linear-gradient(to_left,transparent,black_22%)] [mask-composite:intersect]",
