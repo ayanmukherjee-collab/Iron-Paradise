@@ -261,7 +261,7 @@ Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherj
 
 1. Turn on nightly database backups. The workflow exists, but no GitHub secrets are set and it has never run. Create the R2 bucket, add the secrets, and test a restore (see `docs/backup-and-restore.md`). Required by section 8.11.
 2. Replace the Turnstile test keys with real ones (`NEXT_PUBLIC_TURNSTILE_SITE_KEY` build variable, `TURNSTILE_SECRET_KEY` Worker secret).
-3. Fill in the real address, map link and hours in `src/content/landing.ts`. Phone, WhatsApp, Instagram and the WhatsApp community link are done.
+3. Confirm the equipment list and the plan lengths shown on the landing page (still marked PLACEHOLDER in `src/content/landing.ts`). Contact details, address, map link and hours are real since 2026-11-16; the hours list a morning and an evening session with no days, so add days if they differ.
 4. Print the desk check-in QR from the attendance setup page and put it at the front desk.
 
 **Features**

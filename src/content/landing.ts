@@ -59,9 +59,12 @@ export const contact = {
   phoneDisplay: "+91 87970 02647",
   phoneHref: "tel:+918797002647",
   whatsappNumber: "918797002647",
-  // PLACEHOLDER: real address and map link from the owner.
-  addressLines: ["Street address", "Area, City 000000"],
-  mapsUrl: "https://maps.google.com/?q=Iron+Paradise+Gym",
+  addressLines: [
+    "Near Bank of Baroda",
+    "Bundu, Ranchi 835204",
+    "Jharkhand, India",
+  ],
+  mapsUrl: "https://maps.app.goo.gl/1S3FUJhDWSiPHZij7",
   instagramHandle: "ip_fit_gym",
   whatsappCommunityUrl: "https://chat.whatsapp.com/C7rWOtn1YYr2BZpaCAXiQp",
 };
@@ -74,8 +77,8 @@ export const nav = [
 ];
 
 export const hero = {
-  // PLACEHOLDER: keep in step with the hours below.
-  openingLine: "Open Mon–Sat from 5:30 AM. Sunday mornings too.",
+  // Keep in step with the hours below.
+  openingLine: "Open 5–10 AM and 4–10 PM.",
   headline: "Paradise is earned.",
   sub: "Every body starts somewhere. Usually on a Monday, sore in places you didn't know had muscles.",
   primaryCta: { label: "Start here", href: "#plans" },
@@ -172,15 +175,11 @@ export const plans = {
 
 export const hours = {
   heading: "When the doors are open.",
-  // PLACEHOLDER: real timings from the owner.
+  // From the owner, 2026-11-16.
   rows: [
-    {
-      days: "Monday to Saturday",
-      slots: ["5:30 AM – 10:30 AM", "4:30 PM – 10:00 PM"],
-    },
-    { days: "Sunday", slots: ["7:00 AM – 11:00 AM"] },
+    { days: "Morning", slots: ["5:00 AM – 10:00 AM"] },
+    { days: "Evening", slots: ["4:00 PM – 10:00 PM"] },
   ] satisfies HoursRow[],
-  note: "Last entry 30 minutes before closing.",
 };
 
 export const visit = {
