@@ -7,6 +7,10 @@ import {
   listVisitsOn,
 } from "@/attendance/queries";
 import { isStaff } from "@/auth/permissions";
+import {
+  AccountSwitchedOff,
+  WaitingForGym,
+} from "@/auth/components/waiting-screens";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import {
@@ -39,36 +43,6 @@ export default async function AppHome() {
   if (viewer.role === "guest") return <WaitingForGym email={viewer.email} />;
   if (isStaff(viewer.role)) return <StaffHome viewer={viewer} />;
   return <MemberHome viewer={viewer} />;
-}
-
-function AccountSwitchedOff() {
-  return (
-    <section className="max-w-prose">
-      <h1 className="page-title">This account is switched off</h1>
-      <p className="mt-4 text-lg">
-        The owner has turned off access for this account. If that&apos;s a
-        mistake, talk to them at the gym.
-      </p>
-    </section>
-  );
-}
-
-function WaitingForGym({ email }: { email: string | null }) {
-  return (
-    <section className="max-w-prose">
-      <h1 className="page-title">Nearly there</h1>
-      <p className="mt-4 text-lg">
-        You&apos;re signed in, but the gym hasn&apos;t linked this account to
-        your membership yet. Show this screen at the front desk, or open the
-        claim link the gym sent you on WhatsApp.
-      </p>
-      {email && (
-        <p className="mt-6 callout text-lg">
-          Signed in as <strong className="break-all">{email}</strong>
-        </p>
-      )}
-    </section>
-  );
 }
 
 async function StaffHome({ viewer }: { viewer: Viewer }) {

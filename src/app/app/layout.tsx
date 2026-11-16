@@ -125,6 +125,19 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
     .map(({ href, label, icon }) => ({ href, label, icon }));
   const name = viewer.fullName || viewer.email || "You";
 
+  // Guests and switched-off accounts have nowhere to go yet: their home
+  // screen stands alone, with no navigation around it.
+  if (viewer.role === "guest" || !viewer.isActive) {
+    return (
+      <div className={`${inter.className} min-h-svh text-ink app-canvas`}>
+        <main className="mx-auto flex min-h-svh w-full max-w-md flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {children}
+        </main>
+        <InstallGuide />
+      </div>
+    );
+  }
+
   return (
     <div className={`${inter.className} min-h-svh text-ink app-canvas`}>
       <div className="mx-auto flex max-w-[92rem] gap-4 lg:p-4">
