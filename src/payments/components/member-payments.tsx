@@ -31,13 +31,13 @@ export function MemberPayments({
             </p>
           )}
           {ledger.nextUnpaid && (
-            <p className="text-smoke">
+            <p className="text-muted">
               {ledger.nextUnpaid.dueOn < today ? "Unpaid since" : "Next due"}{" "}
               {formatDate(ledger.nextUnpaid.dueOn)}
             </p>
           )}
           {ledger.creditPaise > 0 && (
-            <p className="text-smoke">
+            <p className="text-muted">
               {formatPaise(ledger.creditPaise)} credit waiting for the next due
               date
             </p>
@@ -45,10 +45,7 @@ export function MemberPayments({
         </div>
       )}
       {canRecord && ledger && (
-        <Link
-          href={`/app/members/${memberId}/pay`}
-          className="inline-flex min-h-12 items-center bg-ink px-6 text-sm font-bold tracking-[0.08em] text-white uppercase hover:bg-ash"
-        >
+        <Link href={`/app/members/${memberId}/pay`} className="btn-dark">
           Record payment
         </Link>
       )}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/auth/session";
 import { ActionForm } from "@/components/ui/action-form";
+import { BackLink } from "@/components/ui/back-link";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import { todayAtGym } from "@/lib/dates";
 import { addMember } from "@/members/actions";
@@ -15,8 +16,9 @@ export default async function NewMemberPage() {
 
   return (
     <section className="max-w-lg">
-      <h1 className="display text-5xl">Add member</h1>
-      <p className="mt-3 text-lg">
+      <BackLink href="/app/members" label="Members" />
+      <h1 className="page-title">Add member</h1>
+      <p className="mt-3 text-muted">
         Attendance and payments work for them straight away. They don&apos;t
         need an account; you can send a claim link afterwards.
       </p>

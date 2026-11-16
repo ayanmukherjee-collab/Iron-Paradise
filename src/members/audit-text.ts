@@ -62,6 +62,17 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
       if (before?.printed_qr_enabled !== after?.printed_qr_enabled) {
         return `Printed check-in QR switched ${after?.printed_qr_enabled ? "on" : "off"}`;
       }
+      if (
+        [
+          "morning_opens",
+          "morning_closes",
+          "evening_opens",
+          "evening_closes",
+        ].some((key) => before?.[key] !== after?.[key])
+      ) {
+        const hhmm = (key: string) => str(after, key).slice(0, 5);
+        return `Batches set to ${hhmm("morning_opens")}–${hhmm("morning_closes")} and ${hhmm("evening_opens")}–${hhmm("evening_closes")}`;
+      }
       return `"Gone quiet" set to ${num(after, "gone_quiet_days")} days`;
     case "desk_displays":
       if (entry.action === "insert")

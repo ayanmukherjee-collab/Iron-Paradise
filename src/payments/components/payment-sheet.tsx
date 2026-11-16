@@ -1,7 +1,10 @@
 "use client";
 
-// The payment grid (brief §4.5). Rows arrive already computed from the
-// ledger on the server; TanStack Table only sorts and searches them here.
+// The payments list (brief §4.5): one row per member with what they last
+// paid, when, and when the next fee falls due. Anyone who owes money gets a
+// black box with the amount, which opens the record-payment form. Rows
+// arrive already computed from the ledger on the server; TanStack Table only
+// sorts and searches them here.
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -18,13 +21,17 @@ import {
 } from "@tanstack/react-table";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { inputClass } from "@/components/ui/field";
+import { NavIconSvg } from "@/components/nav/nav-icons";
+import { inputBase } from "@/components/ui/field";
+import { Menu, MenuHeading, MenuOption } from "@/components/ui/menu";
+import { formatShortDate, type IsoDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
-import { StandingBadge } from "@/payments/components/standing-badge";
-import { cellLabels, standingLabels } from "@/payments/describe";
+import { standingLabels } from "@/payments/describe";
 import type { Standing } from "@/payments/ledger";
 import type { SheetRow } from "@/payments/queries";
-import type { CellStatus, MonthKey, SheetCell } from "@/payments/sheet";
+
+/** A sheet row plus plain-text keys the table can sort dates by. */
+type Row = SheetRow & { nextDueKey: string; lastPaidKey: string };
 
 const features = tableFeatures({
   columnFilteringFeature,
@@ -36,16 +43,26 @@ const features = tableFeatures({
   sortFns: { text: sortFn_text, alphanumeric: sortFn_alphanumeric },
 });
 
-const helper = createColumnHelper<typeof features, SheetRow>();
+const helper = createColumnHelper<typeof features, Row>();
 const searchable = new Set(["fullName", "memberCode", "phone"]);
-// The grid's markup is written by hand below; these columns only tell the
+// The table's markup is written by hand below; these columns only tell the
 // table what it can sort by and search in.
 const columns = helper.columns([
   helper.accessor("fullName", { sortFn: "text" }),
   helper.accessor("memberCode", { sortFn: "alphanumeric" }),
   helper.accessor("phone", { enableSorting: false }),
   helper.accessor("owedPaise", {}),
+  helper.accessor("nextDueKey", { sortFn: "text" }),
+  helper.accessor("lastPaidKey", { sortFn: "text" }),
 ]);
+
+const sortOptions: { id: string; label: string; desc: boolean }[] = [
+  { id: "fullName", label: "Name, A to Z", desc: false },
+  { id: "owedPaise", label: "Most owed", desc: true },
+  { id: "nextDueKey", label: "Next due, soonest", desc: false },
+  { id: "lastPaidKey", label: "Paid most recently", desc: true },
+  { id: "memberCode", label: "Member ID", desc: false },
+];
 
 type StandingFilter = Standing | "all" | "inactive";
 
@@ -64,48 +81,29 @@ function keepRow(row: SheetRow, filter: StandingFilter): boolean {
   return filter === "all" || row.standing === filter;
 }
 
-const cellStyles: Record<CellStatus, string> = {
-  paid: "bg-white",
-  partial: "bg-mist",
-  due: "bg-ash text-white",
-  overdue: "bg-ink text-white",
-  upcoming: "bg-paper text-smoke",
-  free: "bg-paper border-dashed",
-  frozen: "bg-paper text-smoke",
-  none: "bg-paper",
-};
-
-const monthHeading = new Intl.DateTimeFormat("en-IN", {
-  month: "short",
-  year: "2-digit",
-  timeZone: "UTC",
-});
-
-// On a phone only a few months fit; open on the newest ones, where the
-// money is still owed. Defined once so React calls it only on mount.
-function scrollToNewest(node: HTMLDivElement | null) {
-  if (node) node.scrollLeft = node.scrollWidth;
-}
-
-function monthLabel(month: MonthKey): string {
-  return monthHeading.format(new Date(`${month}-01T00:00:00Z`));
-}
-
 export function PaymentSheet({
   rows,
-  months,
+  today,
 }: {
   rows: SheetRow[];
-  months: MonthKey[];
+  today: IsoDate;
 }) {
   const [filter, setFilter] = useState<StandingFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "fullName", desc: false },
   ]);
   const [globalFilter, setGlobalFilter] = useState("");
-  // Stable between renders so the table keeps its row models.
-  const data = useMemo(
-    () => rows.filter((row) => keepRow(row, filter)),
+  // Stable between renders so the table keeps its row models. Members with
+  // no date sort last either way.
+  const data = useMemo<Row[]>(
+    () =>
+      rows
+        .filter((row) => keepRow(row, filter))
+        .map((row) => ({
+          ...row,
+          nextDueKey: row.nextDue ?? "9999-12-31",
+          lastPaidKey: row.lastPayment?.paidOn ?? "0000-01-01",
+        })),
     [rows, filter],
   );
 
@@ -122,30 +120,52 @@ export function PaymentSheet({
     enableSortingRemoval: false,
   });
   const shown = table.getRowModel().rows;
+  const sortedBy =
+    sortOptions.find((option) => option.id === sorting[0]?.id) ??
+    sortOptions[0];
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-        <label className="block flex-1 text-sm font-semibold">
-          <span className="sr-only">Search the sheet</span>
+      <div className="flex items-center gap-2">
+        <label className="relative block flex-1">
+          <span className="sr-only">Search payments</span>
+          <NavIconSvg
+            icon="search"
+            className="pointer-events-none absolute top-1/2 left-3.5 size-[1.1rem] -translate-y-1/2 text-muted"
+          />
           <input
             type="search"
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            placeholder="Name, phone or member ID"
-            className={inputClass}
+            placeholder="Name, phone or ID"
+            className={`${inputBase} pl-10`}
           />
         </label>
-        <SortControl
-          sorting={sorting}
-          onChange={(id) => setSorting([{ id, desc: id === "owedPaise" }])}
-        />
+        <Menu label="Sort" icon="filter" badge={sortedBy.label}>
+          {(close) => (
+            <>
+              <MenuHeading>Sort by</MenuHeading>
+              {sortOptions.map((option) => (
+                <MenuOption
+                  key={option.id}
+                  selected={option.id === sortedBy.id}
+                  onSelect={() => {
+                    setSorting([{ id: option.id, desc: option.desc }]);
+                    close();
+                  }}
+                >
+                  {option.label}
+                </MenuOption>
+              ))}
+            </>
+          )}
+        </Menu>
       </div>
 
       <div
         role="group"
         aria-label="Filter by payment standing"
-        className="-mx-4 mt-4 [scrollbar-width:none] overflow-x-auto px-4"
+        className="-mx-4 mt-3 [scrollbar-width:none] overflow-x-auto px-4 sm:mx-0 sm:px-0"
       >
         <div className="flex gap-2">
           {standingFilters.map(({ key, label }) => (
@@ -154,82 +174,76 @@ export function PaymentSheet({
               type="button"
               aria-pressed={filter === key}
               onClick={() => setFilter(key)}
-              className={`inline-flex min-h-10 items-center border-2 border-ink px-3 text-sm font-semibold whitespace-nowrap ${
-                filter === key ? "bg-ink text-white" : "bg-white"
-              }`}
+              className="chip"
             >
-              {label} · {rows.filter((row) => keepRow(row, key)).length}
+              {label}
+              <span
+                className={`tabular-nums ${filter === key ? "text-white/60" : "text-muted"}`}
+              >
+                {rows.filter((row) => keepRow(row, key)).length}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
       {shown.length === 0 ? (
-        <p className="mt-8 text-lg">Nobody matches that.</p>
+        <p className="mt-4 rounded-card bg-white p-6 text-center text-muted shadow-card">
+          Nobody matches that.
+        </p>
       ) : (
-        <div
-          ref={scrollToNewest}
-          className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0"
-        >
-          <table className="w-full min-w-max border-separate border-spacing-0 border-2 border-ink text-sm">
+        <div className="mt-4 overflow-hidden rounded-card bg-white shadow-card">
+          <table className="w-full text-sm">
             <caption className="sr-only">
-              Payments by member and month. Tap a month to record a payment.
+              Each member&apos;s last payment and next due date. Amounts owed
+              open the record-payment form.
             </caption>
             <thead>
-              <tr className="bg-ink text-white">
-                <th
-                  scope="col"
-                  className="sticky -left-4 z-10 bg-ink px-3 py-2 text-left sm:left-0"
-                >
+              <tr className="text-left text-xs font-medium whitespace-nowrap text-muted">
+                <th scope="col" className="py-3 pr-2 pl-4 sm:pl-6">
                   Member
                 </th>
-                {months.map((month) => (
-                  <th key={month} scope="col" className="px-2 py-2 text-center">
-                    {monthLabel(month)}
-                  </th>
-                ))}
-                <th scope="col" className="px-3 py-2 text-right">
-                  Owes
+                <th scope="col" className="px-2 py-3 text-right">
+                  Payment
+                </th>
+                <th scope="col" className="px-2 py-3">
+                  Paid on
+                </th>
+                <th scope="col" className="py-3 pr-4 pl-2 sm:pr-6">
+                  Next due
                 </th>
               </tr>
             </thead>
             <tbody>
               {shown.map(({ original: row }) => (
-                <tr key={row.memberId}>
+                <tr
+                  key={row.memberId}
+                  className="border-t border-line transition-colors hover:bg-canvas/40"
+                >
                   <th
                     scope="row"
-                    className="sticky -left-4 z-10 max-w-44 border-t-2 border-r-2 border-ink bg-white px-3 py-2 text-left font-normal sm:left-0"
+                    className="w-full max-w-0 py-3 pr-2 pl-4 text-left font-normal sm:pl-6"
                   >
                     <Link
                       href={`/app/members/${row.memberId}`}
-                      className="block font-semibold underline-offset-4 hover:underline"
+                      className="block truncate font-semibold hover:underline hover:underline-offset-4"
                     >
-                      <span className="block truncate">{row.fullName}</span>
-                      <span className="font-mono text-xs text-smoke">
-                        {row.memberCode}
-                      </span>
+                      {row.fullName}
                     </Link>
+                    <span className="font-mono text-xs text-muted">
+                      {row.memberCode}
+                    </span>
                   </th>
-                  {months.map((month) => (
-                    <td
-                      key={month}
-                      className="border-t-2 border-l border-t-ink border-l-mist p-0 text-center"
-                    >
-                      <MonthCell
-                        row={row}
-                        month={month}
-                        cell={row.cells[month]}
-                      />
-                    </td>
-                  ))}
-                  <td className="border-t-2 border-l-2 border-ink bg-white px-3 py-2 text-right whitespace-nowrap">
-                    {row.owedPaise > 0 ? (
-                      <strong>{formatPaise(row.owedPaise)}</strong>
-                    ) : row.standing ? (
-                      <StandingBadge standing={row.standing} />
-                    ) : (
-                      <span className="text-smoke">—</span>
-                    )}
+                  <td className="px-2 py-3 text-right whitespace-nowrap">
+                    <PaymentCell row={row} />
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-muted tabular-nums">
+                    {row.lastPayment
+                      ? formatShortDate(row.lastPayment.paidOn, today)
+                      : "—"}
+                  </td>
+                  <td className="py-3 pr-4 pl-2 whitespace-nowrap tabular-nums sm:pr-6">
+                    <NextDue row={row} today={today} />
                   </td>
                 </tr>
               ))}
@@ -237,76 +251,51 @@ export function PaymentSheet({
           </table>
         </div>
       )}
-      <p className="mt-3 text-sm text-smoke">
-        Showing {shown.length} of {data.length}. Amounts are measured against
-        each member&apos;s own agreed fee.
+      <p className="mt-3 text-sm text-muted">
+        Showing {shown.length} of {data.length}. Tap an amount owed to record a
+        payment.
       </p>
     </div>
   );
 }
 
-const sortOptions = [
-  { id: "fullName", label: "Name" },
-  { id: "memberCode", label: "Member ID" },
-  { id: "owedPaise", label: "Most owed" },
-];
-
-function SortControl({
-  sorting,
-  onChange,
-}: {
-  sorting: SortingState;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <label className="block text-sm font-semibold sm:w-48">
-      Sort by
-      <select
-        value={sorting[0]?.id ?? "fullName"}
-        onChange={(event) => onChange(event.target.value)}
-        className={inputClass}
+function PaymentCell({ row }: { row: Row }) {
+  if (row.owedPaise > 0) {
+    return (
+      <Link
+        href={`/app/members/${row.memberId}/pay`}
+        aria-label={`${formatPaise(row.owedPaise)} owed by ${row.fullName}. Record a payment`}
+        className="inline-flex flex-col items-end rounded-control bg-ink px-2.5 py-1.5 leading-tight text-white transition-colors hover:bg-graphite"
       >
-        {sortOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span className="font-semibold tabular-nums">
+          {formatPaise(row.owedPaise)}
+        </span>
+        <span className="text-[0.7rem] text-white/60">due</span>
+      </Link>
+    );
+  }
+  if (row.standing === "free") return <span className="text-muted">Free</span>;
+  if (!row.lastPayment) return <span className="text-muted">—</span>;
+  return (
+    <span
+      className={`font-medium tabular-nums ${row.isActive ? "" : "text-muted"}`}
+    >
+      {formatPaise(row.lastPayment.amountPaise)}
+    </span>
   );
 }
 
-function MonthCell({
-  row,
-  month,
-  cell,
-}: {
-  row: SheetRow;
-  month: MonthKey;
-  cell: SheetCell;
-}) {
-  if (cell.status === "none") return <span className="block min-h-12" />;
-
-  const amount =
-    cell.status === "partial"
-      ? `${formatPaise(cell.paidPaise)}/${formatPaise(cell.feePaise)}`
-      : cell.status === "free" || cell.status === "frozen"
-        ? ""
-        : formatPaise(cell.feePaise);
-  const href = cell.target
-    ? `/app/members/${row.memberId}/pay?period=${cell.target.period}`
-    : `/app/members/${row.memberId}`;
-
+function NextDue({ row, today }: { row: Row; today: IsoDate }) {
+  if (!row.nextDue) return <span className="text-muted">—</span>;
+  const soon = row.standing === "due";
   return (
-    <Link
-      href={href}
-      aria-label={`${row.fullName}, ${monthLabel(month)}: ${cellLabels[cell.status]}${amount ? `, ${amount}` : ""}`}
-      className={`flex min-h-12 min-w-20 flex-col items-center justify-center px-2 py-1 leading-tight hover:outline-2 hover:-outline-offset-2 hover:outline-ink ${cellStyles[cell.status]}`}
-    >
-      <span className="text-xs font-bold tracking-[0.06em] uppercase">
-        {cellLabels[cell.status]}
-      </span>
-      {amount && <span className="text-xs">{amount}</span>}
-    </Link>
+    <span className={soon ? "font-semibold" : ""}>
+      {formatShortDate(row.nextDue, today)}
+      {soon && (
+        <span className="block text-[0.7rem] font-normal text-muted">
+          Due soon
+        </span>
+      )}
+    </span>
   );
 }

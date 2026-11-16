@@ -45,7 +45,7 @@ export function PaymentFields({
             (method) => (
               <label
                 key={method}
-                className="flex min-h-12 cursor-pointer items-center gap-2 border-2 border-ink bg-white px-4 has-checked:bg-ink has-checked:text-white has-focus-visible:outline-2 has-focus-visible:outline-offset-3 has-focus-visible:outline-ink"
+                className="flex min-h-12 cursor-pointer items-center gap-2 rounded-control bg-white px-5 font-medium ring-1 ring-line transition-colors hover:ring-ink/30 has-checked:bg-ink has-checked:text-white has-checked:ring-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-3 has-focus-visible:outline-ink"
               >
                 <input
                   type="radio"

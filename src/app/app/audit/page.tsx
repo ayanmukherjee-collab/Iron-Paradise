@@ -12,7 +12,7 @@ export default async function AuditPage() {
 
   return (
     <section>
-      <h1 className="display text-5xl">Audit log</h1>
+      <h1 className="page-title">Audit log</h1>
       <p className="mt-3 max-w-prose text-lg">
         Every change to roles, members, memberships, fees and payments, newest
         first. Nobody can edit or delete these entries, including the owner.
@@ -20,11 +20,11 @@ export default async function AuditPage() {
       {entries.length === 0 ? (
         <p className="mt-8 text-lg">Nothing recorded yet.</p>
       ) : (
-        <ol className="mt-8 border-t-2 border-ink">
+        <ol className="mt-8 list-card">
           {entries.map((entry) => (
-            <li key={entry.id} className="border-b-2 border-ink py-4">
+            <li key={entry.id} className="list-row py-4">
               <p className="font-semibold">{describeAuditEntry(entry)}</p>
-              <p className="text-sm text-smoke">
+              <p className="text-sm text-muted">
                 {entry.actorName || entry.actorEmail || "System"} ·{" "}
                 {formatDateTime(entry.occurredAt)}
               </p>

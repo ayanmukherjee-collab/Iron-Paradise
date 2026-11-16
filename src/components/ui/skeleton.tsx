@@ -6,7 +6,7 @@ export function Bar({ className = "" }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`block bg-mist/60 motion-safe:animate-pulse ${className}`}
+      className={`block rounded-badge bg-ink/[0.06] motion-safe:animate-pulse ${className}`}
     />
   );
 }
@@ -30,17 +30,17 @@ export function LoadingRegion({
 export function TitleBar({ action = false }: { action?: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <Bar className="h-12 w-56" />
-      {action && <Bar className="h-12 w-36" />}
+      <Bar className="h-11 w-56" />
+      {action && <Bar className="h-12 w-36 rounded-control" />}
     </div>
   );
 }
 
 export function RowList({ rows = 6 }: { rows?: number }) {
   return (
-    <ul className="mt-6 border-t-2 border-ink">
+    <ul className="mt-6 list-card">
       {Array.from({ length: rows }, (_, index) => (
-        <li key={index} className="border-b-2 border-ink py-4">
+        <li key={index} className="list-row py-4">
           <div className="flex items-center justify-between gap-4">
             <Bar className="h-6 w-48" />
             <Bar className="h-6 w-20" />

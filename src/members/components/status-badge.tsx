@@ -9,16 +9,20 @@ const labels: Record<MembershipStatus, string> = {
 
 const styles: Record<MembershipStatus, string> = {
   active: "bg-ink text-white",
-  frozen: "border-2 border-ink text-ink",
-  free: "border-2 border-dashed border-ink text-ink",
-  inactive: "bg-mist text-ash",
+  frozen: "bg-white text-ink ring-1 ring-inset ring-ink/20",
+  free: "bg-white text-ink ring-1 ring-inset ring-ink/20",
+  inactive: "bg-ink/5 text-muted",
 };
 
 export function StatusBadge({ status }: { status: MembershipStatus }) {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs font-bold tracking-[0.08em] uppercase ${styles[status]}`}
+      className={`inline-flex items-center gap-1.5 rounded-badge px-2 py-1 text-xs font-medium ${styles[status]}`}
     >
+      <span
+        aria-hidden="true"
+        className={`size-1.5 rounded-full ${status === "free" ? "ring-1 ring-current" : "bg-current"}`}
+      />
       {labels[status]}
     </span>
   );

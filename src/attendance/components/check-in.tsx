@@ -54,7 +54,7 @@ export function CheckIn({
 
   if (pending) {
     return (
-      <p role="status" className="display text-4xl">
+      <p role="status" className="page-title">
         Checking you in…
       </p>
     );
@@ -64,8 +64,8 @@ export function CheckIn({
     const { status, firstName, owedPaise } = outcome.data;
     return (
       <div role="status" className="space-y-6">
-        <div className="border-4 border-ink bg-ink p-6 text-white">
-          <p className="display text-5xl">
+        <div className="card-dark p-6 sm:p-7">
+          <p className="page-title">
             {status === "checked_in" ? "You're in" : "Already in"}
           </p>
           <p className="mt-2 text-lg text-mist">
@@ -75,14 +75,14 @@ export function CheckIn({
           </p>
         </div>
         {owedPaise > 0 && (
-          <p className="border-l-4 border-ink pl-3 text-lg">
+          <p className="callout text-lg">
             {formatPaise(owedPaise)} fee due. Pay at the front desk when you get
             a moment.
           </p>
         )}
         <Link
           href="/app"
-          className="inline-flex font-semibold underline underline-offset-4"
+          className="inline-flex font-semibold underline decoration-line underline-offset-4 hover:decoration-ink"
         >
           See your visits
         </Link>
@@ -93,14 +93,14 @@ export function CheckIn({
   return (
     <div className="space-y-6">
       {outcome && !outcome.ok && (
-        <p role="alert" className="border-l-4 border-ink pl-3 text-lg">
+        <p role="alert" className="callout text-lg">
           {outcome.error}
         </p>
       )}
       {scanning ? (
         <>
           <QrScanner onScan={onScan} />
-          <p className="text-center text-smoke">
+          <p className="text-center text-muted">
             Point the camera at the QR on the front desk.
           </p>
           <Button variant="outline-dark" onClick={() => setScanning(false)}>

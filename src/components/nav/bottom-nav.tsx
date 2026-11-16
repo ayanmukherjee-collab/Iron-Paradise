@@ -14,16 +14,11 @@ export interface NavItem {
   icon: NavIcon;
 }
 
-export interface MoreItem {
-  href: string;
-  label: string;
-}
-
 /**
- * Phone navigation: a black bar on the bottom edge where the current tab
- * rises into a square notch. Pages that don't fit (Team, Audit, Settings)
- * and sign-out live behind "More". Hidden from tablet width up, where the
- * top bar has room for everything.
+ * Phone and tablet navigation: a floating white pill on the bottom edge.
+ * The current tab grows into a dark pill that shows its name; the others
+ * are icons only. Pages that don't fit (Team, Audit, Settings) and sign-out
+ * live behind "More". Hidden on wide screens, where the sidebar takes over.
  */
 export function BottomNav({
   items,
@@ -31,7 +26,7 @@ export function BottomNav({
   signOut,
 }: {
   items: NavItem[];
-  more: MoreItem[];
+  more: NavItem[];
   signOut: () => Promise<void>;
 }) {
   const { current: pathname, markTapped } = useCurrentPath();
@@ -61,79 +56,98 @@ export function BottomNav({
   ];
 
   return (
-    <div className="sm:hidden">
+    <div className="lg:hidden">
       {moreOpen && (
-        <div
-          id="more-menu"
-          className="fixed inset-x-0 bottom-16 z-40 border-t-4 border-ink bg-paper px-4 pt-2 pb-6"
-        >
-          <ul>
-            {more.map((item) => (
-              <li key={item.href} className="border-b-2 border-ink">
-                <Link
-                  href={item.href}
-                  onClick={(event) => {
-                    setMoreOpen(false);
-                    markTapped(event, item.href);
-                  }}
-                  aria-current={
-                    isActive(pathname, item.href) ? "page" : undefined
-                  }
-                  className="flex min-h-14 items-center justify-between text-sm font-bold tracking-[0.08em] uppercase"
-                >
-                  {item.label}
-                  <span aria-hidden="true">→</span>
-                </Link>
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            tabIndex={-1}
+            onClick={() => setMoreOpen(false)}
+            className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]"
+          />
+          <div
+            id="more-menu"
+            className="fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md origin-bottom rounded-card bg-white p-2 shadow-float motion-safe:animate-rise"
+          >
+            <ul>
+              {more.map((item) => {
+                const active = isActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={(event) => {
+                        setMoreOpen(false);
+                        markTapped(event, item.href);
+                      }}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex min-h-14 items-center gap-3 rounded-tile px-3 text-[0.95rem] font-medium transition-colors ${
+                        active ? "bg-ink text-white" : "hover:bg-canvas"
+                      }`}
+                    >
+                      <span
+                        className={`flex size-9 items-center justify-center rounded-control ${active ? "bg-white/15" : "bg-canvas"}`}
+                      >
+                        <NavIconSvg
+                          icon={item.icon}
+                          className="size-[1.15rem]"
+                        />
+                      </span>
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+              <li className="mt-1 border-t border-line pt-1">
+                <form action={signOut}>
+                  <button
+                    type="submit"
+                    className="flex min-h-14 w-full items-center gap-3 rounded-tile px-3 text-left text-[0.95rem] font-medium text-muted transition-colors hover:bg-canvas hover:text-ink"
+                  >
+                    <span className="flex size-9 items-center justify-center rounded-control bg-canvas">
+                      <NavIconSvg icon="signOut" className="size-[1.15rem]" />
+                    </span>
+                    Sign out
+                  </button>
+                </form>
               </li>
-            ))}
-            <li>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="min-h-14 w-full text-left text-sm font-bold tracking-[0.08em] uppercase underline underline-offset-4"
-                >
-                  Sign out
-                </button>
-              </form>
-            </li>
-          </ul>
-        </div>
+            </ul>
+          </div>
+        </>
       )}
 
       <nav
         aria-label="Sections"
-        className="fixed inset-x-0 bottom-0 z-50 h-16 bg-ink text-white"
+        className="fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md rounded-tile bg-white/90 p-1.5 shadow-float ring-1 ring-line backdrop-blur-xl"
       >
-        <ul
-          className="grid h-full"
-          style={{
-            gridTemplateColumns: `repeat(${slots.length}, minmax(0, 1fr))`,
-          }}
-        >
+        <ul className="flex items-center justify-between gap-1">
           {slots.map((slot) => {
             const content = (
               <>
-                {slot.active ? (
-                  // The raised block. Its paper-coloured ring cuts the notch
-                  // out of the bar, like the reference, but square.
-                  <span className="absolute -top-6 left-1/2 flex size-14 -translate-x-1/2 items-center justify-center border-4 border-paper bg-ink">
-                    <NavIconSvg icon={slot.icon} className="size-6" />
-                  </span>
-                ) : (
-                  <NavIconSvg icon={slot.icon} className="size-6 opacity-80" />
-                )}
+                <NavIconSvg
+                  icon={slot.icon}
+                  className="size-[1.35rem] shrink-0"
+                />
                 <span
-                  className={`text-[0.65rem] font-bold tracking-[0.08em] uppercase ${slot.active ? "mt-auto mb-2" : "mt-1"}`}
+                  className={
+                    slot.active
+                      ? "text-[0.8rem] font-semibold whitespace-nowrap"
+                      : "sr-only"
+                  }
                 >
                   {slot.label}
                 </span>
               </>
             );
-            const cell =
-              "relative flex h-full w-full flex-col items-center justify-center";
+            const cell = `flex h-12 items-center justify-center gap-2 rounded-control transition-[background-color,color,padding] duration-300 ease-out ${
+              slot.active
+                ? "bg-ink px-4 text-white"
+                : "w-12 text-ink/70 hover:bg-canvas hover:text-ink"
+            }`;
 
             return (
-              <li key={slot.label} className="h-full">
+              <li key={slot.label} className={slot.active ? "shrink-0" : ""}>
                 {slot.href ? (
                   <Link
                     href={slot.href}

@@ -56,12 +56,12 @@ export function ClaimLinkPanel({
               : "Create claim link"}
         </Button>
         {hasOpenLink && (
-          <p className="mt-2 text-sm text-smoke">
+          <p className="mt-2 text-sm text-muted">
             A new link cancels the one already sent.
           </p>
         )}
         {result && !result.ok && (
-          <p role="alert" className="mt-3 border-l-4 border-ink pl-3">
+          <p role="alert" className="mt-3 callout">
             {result.error}
           </p>
         )}
@@ -76,10 +76,10 @@ export function ClaimLinkPanel({
       <QrCode
         value={link.url}
         label="Claim link QR code"
-        className="size-48 shrink-0 border-2 border-ink"
+        className="size-48 shrink-0 rounded-tile bg-white p-2 ring-1 ring-line"
       />
       <div className="min-w-0 space-y-3">
-        <p className="text-sm text-smoke">
+        <p className="text-sm text-muted">
           Works once, until {expiry.format(new Date(link.expiresAt))}. It
           won&apos;t be shown again after you leave this page.
         </p>
@@ -89,7 +89,7 @@ export function ClaimLinkPanel({
             href={whatsAppLink(phone, message)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-12 items-center bg-ink px-6 text-sm font-bold tracking-[0.08em] text-white uppercase hover:bg-ash"
+            className="btn-dark"
           >
             Send on WhatsApp
           </a>

@@ -12,6 +12,9 @@ const row: SheetRow = {
   feePaise: 60000,
   standing: "overdue",
   owedPaise: 30000,
+  lastPayment: { amountPaise: 30000, paidOn: "2026-11-02" },
+  paidThisMonthPaise: 30000,
+  nextDue: "2026-12-01",
   cells: {
     "2026-10": {
       status: "paid",

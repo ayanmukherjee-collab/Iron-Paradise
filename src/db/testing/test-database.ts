@@ -36,6 +36,11 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   for (const file of migrations) {
     await client.exec(readFileSync(join(migrationsDir, file), "utf8"));
   }
+  // Check-ins are refused outside the training batches. Open them round the
+  // clock so tests pass whatever time they run; batch tests set real hours.
+  await client.exec(
+    "update public.gym_settings set morning_opens = '00:00', morning_closes = '12:00', evening_opens = '12:00', evening_closes = '24:00'",
+  );
 
   const db = drizzle(client, { schema }) as unknown as Database;
 

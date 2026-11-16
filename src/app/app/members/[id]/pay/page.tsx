@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/back-link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/auth/session";
 import { ActionForm } from "@/components/ui/action-form";
@@ -34,13 +34,11 @@ export default async function RecordPaymentPage({
 
   return (
     <section className="max-w-2xl">
-      <Link
+      <BackLink
         href={`/app/members/${form.member.id}`}
-        className="text-sm font-semibold underline underline-offset-4"
-      >
-        Back to {form.member.fullName}
-      </Link>
-      <h1 className="mt-3 display text-5xl">Record payment</h1>
+        label={form.member.fullName}
+      />
+      <h1 className="page-title">Record payment</h1>
       <p className="mt-2 text-lg">
         <span className="font-mono font-bold">{form.member.memberCode}</span>{" "}
         {form.member.fullName} · agreed fee{" "}

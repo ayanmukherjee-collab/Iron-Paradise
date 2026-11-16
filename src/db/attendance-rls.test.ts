@@ -324,3 +324,86 @@ describe("the printed code", () => {
     ).toMatch(/permission denied/);
   });
 });
+
+describe("training batches", () => {
+  // 05:00–11:00 and 16:00–22:00 gym time, the defaults the migration sets.
+  async function useRealBatches() {
+    await t.client.query(
+      "update public.gym_settings set morning_opens = '05:00', morning_closes = '11:00', evening_opens = '16:00', evening_closes = '22:00'",
+    );
+  }
+
+  /** A check-in at a given gym-time moment, written as the database owner. */
+  function checkInAt(istMoment: string) {
+    return t.client.query(
+      "insert into public.attendance (member_id, method, checked_in_at, gym_date) values ($1, 'manual', $2::timestamp at time zone 'Asia/Kolkata', ($2::timestamp)::date)",
+      [aliceMember, istMoment],
+    );
+  }
+
+  async function batchAt(istMoment: string): Promise<string | null> {
+    const result = await t.client.query<{ batch: string | null }>(
+      "select public.batch_at($1::timestamp at time zone 'Asia/Kolkata') as batch",
+      [istMoment],
+    );
+    return result.rows[0].batch;
+  }
+
+  it("names the batch a moment falls in, in gym time", async () => {
+    await useRealBatches();
+    expect(await batchAt("2026-11-16 05:00")).toBe("morning");
+    expect(await batchAt("2026-11-16 10:59")).toBe("morning");
+    expect(await batchAt("2026-11-16 11:00")).toBeNull();
+    expect(await batchAt("2026-11-16 16:30")).toBe("evening");
+    expect(await batchAt("2026-11-16 22:00")).toBeNull();
+    expect(await batchAt("2026-11-16 02:00")).toBeNull();
+  });
+
+  it("refuses a check-in outside both batches, and says when it's open", async () => {
+    await useRealBatches();
+    let message = "";
+    try {
+      await checkInAt("2026-11-16 13:00");
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toBe("Check-in is open 05:00–11:00 and 16:00–22:00 only.");
+    const rows = await t.client.query("select 1 from public.attendance");
+    expect(rows.rows).toHaveLength(0);
+  });
+
+  it("accepts check-ins inside either batch", async () => {
+    await useRealBatches();
+    await checkInAt("2026-11-16 06:15");
+    await checkInAt("2026-11-17 19:45");
+    const rows = await t.client.query("select 1 from public.attendance");
+    expect(rows.rows).toHaveLength(2);
+  });
+
+  it("keeps the batches in order", async () => {
+    let message = "";
+    try {
+      await t.client.query(
+        "update public.gym_settings set morning_closes = '17:00', evening_opens = '16:00'",
+      );
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/gym_settings_batches_in_order/);
+  });
+
+  it("lets only the owner change the batch hours", async () => {
+    await useRealBatches();
+    await as(manager, (tx) =>
+      tx.update(gymSettings).set({ morningOpens: "04:00" }),
+    );
+    let [row] = await as(owner, (tx) => tx.select().from(gymSettings));
+    expect(row.morningOpens).toBe("05:00:00");
+
+    await as(owner, (tx) =>
+      tx.update(gymSettings).set({ morningOpens: "04:30" }),
+    );
+    [row] = await as(owner, (tx) => tx.select().from(gymSettings));
+    expect(row.morningOpens).toBe("04:30:00");
+  });
+});

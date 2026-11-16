@@ -17,21 +17,21 @@ export function PaymentHistory({
   today: string;
 }) {
   if (history.length === 0) {
-    return <p className="text-smoke">No payments recorded yet.</p>;
+    return <p className="text-muted">No payments recorded yet.</p>;
   }
 
   return (
-    <ul className="border-t-2 border-ink">
+    <ul className="list-card">
       {history.map((payment) => (
-        <li key={payment.id} className="border-b-2 border-ink py-3">
-          <div className={payment.void ? "text-smoke line-through" : ""}>
+        <li key={payment.id} className="list-row py-3">
+          <div className={payment.void ? "text-muted line-through" : ""}>
             <strong className="text-lg">
               {formatPaise(payment.amountPaise)}
             </strong>{" "}
             · {formatDate(payment.paidOn)} · {methodLabels[payment.method]}
             {payment.covers && <> · {coverText(payment.covers)}</>}
           </div>
-          <p className="text-sm text-smoke">
+          <p className="text-sm text-muted">
             {payment.receiptNumber && <>Receipt {payment.receiptNumber} · </>}
             Recorded {formatDateTime(payment.recordedAt)}
             {payment.recordedBy && <> by {payment.recordedBy}</>}
@@ -68,7 +68,7 @@ function OwnerCorrections({
 }) {
   return (
     <details className="mt-2">
-      <summary className="inline-flex min-h-10 cursor-pointer items-center text-sm font-semibold underline underline-offset-4">
+      <summary className="inline-flex min-h-10 cursor-pointer items-center text-sm font-semibold underline decoration-line underline-offset-4 hover:decoration-ink">
         Void or correct
       </summary>
       <div className="mt-4 grid gap-10 lg:grid-cols-2">
@@ -78,8 +78,8 @@ function OwnerCorrections({
           variant="outline-dark"
           className="space-y-4"
         >
-          <h3 className="text-lg font-bold">Void</h3>
-          <p className="text-smoke">
+          <h3 className="text-lg font-semibold tracking-tight">Void</h3>
+          <p className="text-muted">
             For an entry that should never have been made. It stays in the
             history, crossed out.
           </p>
@@ -91,8 +91,8 @@ function OwnerCorrections({
           submitLabel="Save correction"
           className="space-y-4"
         >
-          <h3 className="text-lg font-bold">Correct</h3>
-          <p className="text-smoke">
+          <h3 className="text-lg font-semibold tracking-tight">Correct</h3>
+          <p className="text-muted">
             Voids this entry and records the right one in its place.
           </p>
           <input type="hidden" name="paymentId" value={payment.id} />

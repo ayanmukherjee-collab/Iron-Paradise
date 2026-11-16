@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import type { Batches } from "@/attendance/batches";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
 import {
@@ -11,6 +12,42 @@ import {
 } from "@/db/schema";
 import { rowsOf, withUserContext } from "@/db/user-context";
 import { addDays, todayAtGym, type IsoDate } from "@/lib/dates";
+
+/** The training batch hours. Staff can read them; members cannot. */
+export async function getBatches(viewer: Viewer): Promise<Batches> {
+  try {
+    const [row] = await withUserContext(getDb(), viewer.userId, (tx) =>
+      tx
+        .select({
+          morningOpens: gymSettings.morningOpens,
+          morningCloses: gymSettings.morningCloses,
+          eveningOpens: gymSettings.eveningOpens,
+          eveningCloses: gymSettings.eveningCloses,
+        })
+        .from(gymSettings),
+    );
+    return row ?? defaultBatches;
+  } catch (error) {
+    // Until the check_in_batches migration reaches the database the columns
+    // don't exist (Postgres 42703). Show the defaults rather than break the
+    // page; anything else is a real failure.
+    if (pgCode(error) === "42703") return defaultBatches;
+    throw error;
+  }
+}
+
+/** The migration's defaults. */
+const defaultBatches: Batches = {
+  morningOpens: "05:00:00",
+  morningCloses: "11:00:00",
+  eveningOpens: "16:00:00",
+  eveningCloses: "22:00:00",
+};
+
+function pgCode(error: unknown): string | undefined {
+  const cause = (error as { cause?: { code?: string } })?.cause;
+  return cause?.code ?? (error as { code?: string })?.code;
+}
 
 export interface Visit {
   memberId: string;

@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import type { ActionResult } from "@/auth/guarded-action";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass } from "@/components/ui/field";
+import { inputBase } from "@/components/ui/field";
 
 /**
  * Makes a desk display link and shows it once. Only a hash is stored, so it
@@ -24,46 +24,51 @@ export function DeskLinkPanel({
   if (result?.ok) {
     const { url } = result.data;
     return (
-      <div className="space-y-3 border-2 border-ink bg-white p-4">
-        <p className="font-semibold">
+      <div className="space-y-3 rounded-tile bg-canvas p-4">
+        <p className="text-sm font-semibold">
           Open this link on the desk device now. It won&apos;t be shown again.
         </p>
-        <p className="font-mono text-sm break-all">{url}</p>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline-dark"
-            onClick={async () => {
-              await navigator.clipboard.writeText(url);
-              setCopied(true);
-            }}
-          >
-            {copied ? "Copied" : "Copy link"}
-          </Button>
-        </div>
-        <p className="text-sm text-smoke">
+        <p className="rounded-control bg-white p-3 font-mono text-xs break-all ring-1 ring-line">
+          {url}
+        </p>
+        <Button
+          variant="outline-dark"
+          className="w-full"
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+          }}
+        >
+          {copied ? "Copied" : "Copy link"}
+        </Button>
+        <p className="text-xs text-muted">
           Anyone with this link can show the check-in QR, nothing else. If a
-          device is lost, switch it off below.
+          device is lost, switch it off above.
         </p>
       </div>
     );
   }
 
   return (
-    <form action={create} className="max-w-sm">
-      <Field label="Device name" hint="So you can tell devices apart later.">
+    <form action={create}>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <label className="sr-only" htmlFor="desk-label">
+          Device name
+        </label>
         <input
+          id="desk-label"
           name="label"
           required
           maxLength={40}
-          placeholder="Front desk tablet"
-          className={inputClass}
+          placeholder="Device name, e.g. Front desk tablet"
+          className={`${inputBase} sm:flex-1`}
         />
-      </Field>
-      <Button type="submit" disabled={pending} className="mt-4">
-        {pending ? "Creating…" : "Create desk display link"}
-      </Button>
+        <Button type="submit" disabled={pending} className="shrink-0">
+          {pending ? "Creating…" : "Create link"}
+        </Button>
+      </div>
       {result && !result.ok && (
-        <p role="alert" className="mt-3 border-l-4 border-ink pl-3">
+        <p role="alert" className="mt-3 callout text-sm">
           {result.error}
         </p>
       )}

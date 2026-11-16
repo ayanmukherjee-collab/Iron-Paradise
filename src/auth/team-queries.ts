@@ -15,6 +15,17 @@ export const assignableRoles = [
 ] as const;
 export type AssignableRole = (typeof assignableRoles)[number];
 
+// From a member's page: what their linked account can do. "member" is
+// allowed here because the account already belongs to a member record, so
+// moving a member who became staff back to plain member is a real case.
+export const memberAccountRoles = [
+  "member",
+  "trainer",
+  "manager",
+  "owner",
+  "guest",
+] as const;
+
 export type TeamMember = Awaited<ReturnType<typeof listTeam>>[number];
 
 /** Every account the viewer may see. RLS limits this to owner and managers. */

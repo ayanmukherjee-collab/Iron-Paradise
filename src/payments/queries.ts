@@ -128,7 +128,18 @@ export interface SheetRow {
   feePaise: number | null;
   standing: Standing | null;
   owedPaise: number;
+  /** Their most recent payment that still counts. */
+  lastPayment: { amountPaise: number; paidOn: IsoDate } | null;
+  /** Counted payments dated this calendar month. */
+  paidThisMonthPaise: number;
+  /** The next fee not yet due and not paid in full; null when none is set. */
+  nextDue: IsoDate | null;
   cells: Record<MonthKey, SheetCell>;
+}
+
+interface PaymentTotals {
+  last: { amountPaise: number; paidOn: IsoDate };
+  thisMonthPaise: number;
 }
 
 /** The payment sheet: one row per member, one cell per month (brief §4.5). */
@@ -138,10 +149,32 @@ export async function getPaymentSheet(
 ): Promise<SheetRow[]> {
   const today = todayAtGym();
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [memberRows, membershipRows] = await Promise.all([
+    const [memberRows, membershipRows, paymentRows] = await Promise.all([
       tx.select().from(members).orderBy(asc(members.fullName)),
       tx.select(membershipFields).from(memberships),
+      tx
+        .select({
+          memberId: payments.memberId,
+          amountPaise: payments.amountPaise,
+          paidOn: payments.paidOn,
+        })
+        .from(payments)
+        .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
+        .where(isNull(paymentVoids.paymentId))
+        .orderBy(desc(payments.paidOn), desc(payments.createdAt)),
     ]);
+
+    // Newest first, so the first payment seen for a member is their last.
+    const thisMonth = today.slice(0, 7);
+    const totals = new Map<string, PaymentTotals>();
+    for (const { memberId, amountPaise, paidOn } of paymentRows) {
+      const entry = totals.get(memberId) ?? {
+        last: { amountPaise, paidOn },
+        thisMonthPaise: 0,
+      };
+      if (paidOn.startsWith(thisMonth)) entry.thisMonthPaise += amountPaise;
+      totals.set(memberId, entry);
+    }
     const { facts, ledgers } = await loadFactsAndLedgers(
       tx,
       membershipRows,
@@ -167,6 +200,12 @@ export async function getPaymentSheet(
       const current = rows.find((row) => row.endedOn === null);
       const currentFees = current ? facts.get(current.id)!.fees : null;
       const currentLedger = current ? ledgers.get(current.id)! : null;
+      const paid = totals.get(member.id);
+      const nextDue =
+        currentLedger?.periods.find(
+          (period) =>
+            period.dueOn >= today && period.paidPaise < period.feePaise,
+        )?.dueOn ?? null;
 
       return [
         {
@@ -181,6 +220,9 @@ export async function getPaymentSheet(
             (sum, entry) => sum + entry.ledger.owedPaise,
             0,
           ),
+          lastPayment: paid?.last ?? null,
+          paidThisMonthPaise: paid?.thisMonthPaise ?? 0,
+          nextDue: member.isActive ? nextDue : null,
           cells: sheetRow(withLedgers, months),
         },
       ];

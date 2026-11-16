@@ -13,6 +13,7 @@ import {
   pgTable,
   smallint,
   text,
+  time,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -144,6 +145,11 @@ export const gymSettings = pgTable("gym_settings", {
   id: boolean("id").primaryKey().default(true),
   goneQuietDays: smallint("gone_quiet_days").notNull().default(30),
   printedQrEnabled: boolean("printed_qr_enabled").notNull().default(true),
+  // Gym-time "HH:MM:SS"; check-ins outside both batches are refused.
+  morningOpens: time("morning_opens").notNull().default("05:00"),
+  morningCloses: time("morning_closes").notNull().default("11:00"),
+  eveningOpens: time("evening_opens").notNull().default("16:00"),
+  eveningCloses: time("evening_closes").notNull().default("22:00"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

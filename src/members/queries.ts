@@ -46,6 +46,8 @@ export interface MemberSummary {
   /** Paid/due/overdue; null for inactive members or viewers without fees. */
   standing: Standing | null;
   owedPaise: number;
+  /** Their most recent check-in day, if they have ever come in. */
+  lastVisit: IsoDate | null;
 }
 
 export async function getGoneQuietDays(viewer: Viewer): Promise<number> {
@@ -135,6 +137,7 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
           }),
         standing: ledger?.standing ?? null,
         owedPaise: ledger?.owedPaise ?? 0,
+        lastVisit: lastVisit.get(member.id) ?? null,
       };
     });
   });
@@ -158,7 +161,11 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
     const [[found], history, visits, claim] = await Promise.all([
       tx
         // Email is null for trainers, who cannot read other profiles.
-        .select({ member: members, accountEmail: profiles.email })
+        .select({
+          member: members,
+          accountEmail: profiles.email,
+          accountRole: profiles.role,
+        })
         .from(members)
         .leftJoin(profiles, eq(profiles.id, members.profileId))
         .where(eq(members.id, memberId)),
@@ -231,6 +238,7 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
     return {
       member,
       accountEmail: found.accountEmail ?? null,
+      accountRole: found.accountRole ?? null,
       status,
       membership:
         open && openFacts
