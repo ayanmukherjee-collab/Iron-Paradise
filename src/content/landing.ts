@@ -55,13 +55,15 @@ export const gym = {
 };
 
 export const contact = {
-  // PLACEHOLDER: real phone, WhatsApp number, address and map link from the owner.
-  phoneDisplay: "+91 00000 00000",
-  phoneHref: "tel:+910000000000",
-  whatsappNumber: "910000000000",
+  // The owner's number, for calls and WhatsApp (owner, 2026-11-16).
+  phoneDisplay: "+91 87970 02647",
+  phoneHref: "tel:+918797002647",
+  whatsappNumber: "918797002647",
+  // PLACEHOLDER: real address and map link from the owner.
   addressLines: ["Street address", "Area, City 000000"],
   mapsUrl: "https://maps.google.com/?q=Iron+Paradise+Gym",
-  instagramHandle: "ironparadise.gym",
+  instagramHandle: "ip_fit_gym",
+  whatsappCommunityUrl: "https://chat.whatsapp.com/C7rWOtn1YYr2BZpaCAXiQp",
 };
 
 export const nav = [
