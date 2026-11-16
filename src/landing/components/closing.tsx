@@ -100,6 +100,14 @@ export function Closing() {
             >
               Instagram
             </a>
+            <a
+              href={contact.whatsappCommunityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white"
+            >
+              WhatsApp community
+            </a>
             <Link href="/privacy" className="hover:text-white">
               Privacy
             </Link>

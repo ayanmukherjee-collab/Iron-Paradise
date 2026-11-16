@@ -95,7 +95,6 @@ export function Hours() {
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-sm text-smoke">{hours.note}</p>
     </div>
   );
 }
