@@ -141,7 +141,27 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
           .
         </p>
       )}
+      <PhoneNotifications />
     </section>
+  );
+}
+
+/**
+ * Staff get no fee reminders of their own, but can turn notifications on to
+ * check push works on a phone before members rely on it.
+ */
+function PhoneNotifications() {
+  const keys = vapidKeys();
+  if (!keys) return null;
+  return (
+    <div className="mt-8 max-w-prose border-2 border-ink bg-white p-5">
+      <h2 className="text-lg font-bold">Notifications on this phone</h2>
+      <p className="mt-1 mb-4">
+        Members get fee reminders this way. Turn it on here and send yourself a
+        test to see what they will see.
+      </p>
+      <PushToggle vapidPublicKey={keys.publicKey} />
+    </div>
   );
 }
 
