@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { getOwnAttendance, listVisitsOn } from "@/attendance/queries";
 import { isStaff } from "@/auth/permissions";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";

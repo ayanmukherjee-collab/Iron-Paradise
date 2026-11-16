@@ -5,6 +5,26 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // Plain next/link prefetches every visible link, and each prefetch is a
+    // server render on the Worker; bursts of them hit its CPU limit (503s).
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/components/ui/link.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/link",
+              message:
+                "Import Link from @/components/ui/link, which prefetches on intent only.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

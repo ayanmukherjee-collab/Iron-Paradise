@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { formatDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { PaymentHistory } from "@/payments/components/payment-history";

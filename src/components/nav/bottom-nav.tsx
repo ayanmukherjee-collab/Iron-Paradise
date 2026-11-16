@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useEffect, useState } from "react";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
 import {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { getViewer } from "@/auth/session";
 import { LogoMark } from "@/components/brand/logo-mark";
 import { ClaimForm } from "@/members/components/claim-form";
