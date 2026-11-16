@@ -7,6 +7,8 @@ Web app for Iron Paradise Gym: public landing page, member management, attendanc
 - **Phase 1, Foundation:** landing page, Google sign-in with a bot check and rate limits, roles and the owner's team page, database schema with row-level security and an append-only audit log, installable PWA shell, Cloudflare deploy config, CI.
 - **Phase 2, Members:** member records with negotiated fees, freezes, claim links and QR codes, the waiting-guest list, deactivate and reactivate, "gone quiet" suggestions.
 - **Phase 3, Payments:** the payment ledger with partial and advance payments, owner-only void and correction, the month-by-month payment sheet, CSV and Excel export, due and overdue filters.
+- **Phase 4, Attendance:** desk QR check-in (rotating and printed), desk display links, manual marking, today's list, history and monthly counts.
+- **Phase 5, Reminders:** a morning job that sends push and email reminders 3 days before, on, and 3 days after each due date; the staff WhatsApp queue with "remind all overdue"; the notification log.
 
 ## Setup
 
@@ -52,6 +54,11 @@ Every variable is listed and explained in [.env.example](.env.example).
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`                      | Bot check widget on sign-in                 | No      |
 | `TURNSTILE_SECRET_KEY`                                | Verifying the bot check                     | **Yes** |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limits (required in production)        | **Yes** |
+| `CRON_SECRET`                                         | Lets the Cron Trigger run the reminder job  | **Yes** |
+| `VAPID_PUBLIC_KEY`                                    | Push notifications (given to browsers)      | No      |
+| `VAPID_PRIVATE_KEY`                                   | Signing push notifications                  | **Yes** |
+| `VAPID_SUBJECT`                                       | Contact for push services (optional)        | No      |
+| `RESEND_API_KEY` / `EMAIL_FROM`                       | Reminder emails (optional)                  | **Yes** |
 
 ## Scripts
 
@@ -68,6 +75,7 @@ Every variable is listed and explained in [.env.example](.env.example).
 | `npm run db:push`    | Apply new migrations to the linked Supabase project                  |
 | `npm run art`        | Rebuild landing page art from `assets/art`                           |
 | `npm run icons`      | Rebuild app icons from `public/brand/logo.svg`                       |
+| `npm run vapid`      | Print a new key pair for push notifications                          |
 
 ## Tests
 
@@ -93,6 +101,21 @@ Nothing about what a member owes is stored; it is computed from the ledger each 
 - A payment names the period it starts from. It fills that period up to its fee, then flows on to the next, so a short payment is partial and a large one is an advance.
 - Payments are never edited or deleted. The owner voids a wrong entry (`payment_voids`) and, for a correction, records the right one in the same transaction.
 
+## How reminders work
+
+`src/notifications/` holds the rules (`schedule.ts`), the wording (`message.ts`) and one file per channel in `channels/`.
+
+- `worker.mjs` wraps OpenNext's Worker and adds a Cron Trigger (`wrangler.jsonc`, every 15 minutes from 08:30 to 11:15 India time). Each run calls `/api/cron/reminders` in-process with `CRON_SECRET`.
+- The job reminds members 3 days before a fee is due, on the day, and 3 days after (with a few days' grace if a run was missed). It skips free, frozen, inactive and muted members, and anyone who did not agree to reminders.
+- Before sending, it claims a row in `notifications`, whose unique key (fee, stage, channel) means nothing is ever sent twice. A run sends at most 40 requests, under Cloudflare's free-plan limit of 50; later runs that morning send the rest.
+- Push is encrypted and signed with the Web Crypto API (`web-push.ts`, tested against RFC 8291's worked example). Email goes through Resend. Staff send WhatsApp from the Reminders page; the app opens WhatsApp with the message typed in and logs it.
+
+To test a run locally, set `CRON_SECRET` in `.env.local`, start `npm run dev`, then:
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/reminders
+```
+
 ## Landing page content
 
 All landing page text, plans, timings and contact details live in `src/content/landing.ts`. Edit that one file to change what the public page says.
@@ -106,7 +129,11 @@ All landing page text, plans, timings and contact details live in `src/content/l
    npx wrangler secret put TURNSTILE_SECRET_KEY
    npx wrangler secret put UPSTASH_REDIS_REST_URL
    npx wrangler secret put UPSTASH_REDIS_REST_TOKEN
+   npx wrangler secret put CRON_SECRET
+   npx wrangler secret put VAPID_PRIVATE_KEY
+   npx wrangler secret put RESEND_API_KEY   # optional, with EMAIL_FROM
    ```
+   Add `VAPID_PUBLIC_KEY` (and `EMAIL_FROM`, `VAPID_SUBJECT` if used) as plain Worker variables.
 3. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
 4. `npm run cf:deploy`
 

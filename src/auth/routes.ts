@@ -13,6 +13,8 @@ const publicExact = new Set([
   "/sitemap.xml",
   "/favicon.ico",
   "/sw.js",
+  // Has no session: checks the cron secret itself (see the route).
+  "/api/cron/reminders",
 ]);
 
 // Claim pages are public so a signed-out member can see what to do next.

@@ -255,7 +255,7 @@ Still open:
 
 ## 12. Next steps
 
-Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherjee-official01.workers.dev (Worker placed in AWS Mumbai, next to the database).
+Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherjee-official01.workers.dev (Worker placed in AWS Mumbai, next to the database). Phase 5 (reminders) is built and tested; it needs the steps under "Switch on reminders" before it sends anything.
 
 **Before real members use it**
 
@@ -264,14 +264,20 @@ Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherj
 3. Confirm the equipment list and the plan lengths shown on the landing page (still marked PLACEHOLDER in `src/content/landing.ts`). Contact details, address, map link and hours are real since 2026-11-16; the hours list a morning and an evening session with no days, so add days if they differ.
 4. Print the desk check-in QR from the attendance setup page and put it at the front desk.
 
+**Switch on reminders (Phase 5)**
+
+5. Apply migration `20261120000100_reminders.sql` to the Supabase project (`npm run db:push`).
+6. Set the Worker secrets `CRON_SECRET` and `VAPID_PRIVATE_KEY`, and the variable `VAPID_PUBLIC_KEY` (`npm run vapid` makes the pair). Push works from then on, once members turn it on in the installed app.
+7. Email is optional: it needs a domain verified in Resend, then `RESEND_API_KEY` and `EMAIL_FROM`. Without a custom domain, Resend can only send to the account owner's own address, so this waits for item 11.
+8. Record reminder consent for members added before they were asked (member page → "They agree to get payment reminders").
+
 **Features**
 
-5. Phase 5, reminders: daily job, push, email, staff-sent WhatsApp queue, notification log.
-6. Phase 6, slip scanning: capture, extraction, matching, review queue, duplicate detection. Needs sample slip photos first (section 11).
-7. Member features such as progress tracking (workouts, body weight, measurements). Not specced yet; plan the scope with the owner before building.
+9. Phase 6, slip scanning: capture, extraction, matching, review queue, duplicate detection. Needs sample slip photos first (section 11).
+10. Member features such as progress tracking (workouts, body weight, measurements). Not specced yet; plan the scope with the owner before building.
 
 **Optional**
 
-8. A custom domain instead of `workers.dev`. Update `NEXT_PUBLIC_SITE_URL` and the Supabase redirect URL when it changes.
-9. Hyperdrive for faster database connections. Less important now that the Worker runs in Mumbai.
-10. Remove the Dependabot ignore rule for TypeScript majors once `eslint-config-next` supports TypeScript 7.
+11. A custom domain instead of `workers.dev`. Update `NEXT_PUBLIC_SITE_URL` and the Supabase redirect URL when it changes.
+12. Hyperdrive for faster database connections. Less important now that the Worker runs in Mumbai.
+13. Remove the Dependabot ignore rule for TypeScript majors once `eslint-config-next` supports TypeScript 7.

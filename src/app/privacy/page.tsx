@@ -69,7 +69,9 @@ export default function PrivacyPage() {
           <li>To record check-ins and show you your visit history.</li>
           <li>To keep accurate payment records and correct mistakes.</li>
           <li>
-            To send fee reminders, only if you agreed to them. You can ask the
+            To send fee reminders, only if you agreed to them: a notification on
+            your phone if you turn them on in the app, an email to your sign-in
+            address, or a WhatsApp message from the front desk. You can ask the
             front desk to stop them at any time.
           </li>
           <li>To keep the app secure and prevent abuse.</li>
@@ -118,6 +120,14 @@ export default function PrivacyPage() {
           <li>
             <strong>Upstash</strong>, which counts requests per IP address for
             rate limiting.
+          </li>
+          <li>
+            <strong>Resend</strong>, which sends our reminder emails.
+          </li>
+          <li>
+            <strong>Your browser&apos;s push service</strong> (Google, Apple,
+            Mozilla or Microsoft), which delivers phone notifications. The
+            message is encrypted so the push service cannot read it.
           </li>
         </ul>
         <p>

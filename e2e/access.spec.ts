@@ -14,6 +14,7 @@ test.describe("signed-out visitors", () => {
     "/app/attendance",
     "/app/attendance/setup",
     "/app/check-in",
+    "/app/reminders",
   ]) {
     test(`are sent from ${path} to sign in`, async ({ page }) => {
       await page.goto(path);
@@ -29,6 +30,17 @@ test.describe("signed-out visitors", () => {
   test("get 401 from API routes", async ({ request }) => {
     const response = await request.get("/api/anything", { maxRedirects: 0 });
     expect(response.status()).toBe(401);
+  });
+
+  test("cannot run the reminder job without the cron secret", async ({
+    request,
+  }) => {
+    const response = await request.post("/api/cron/reminders", {
+      headers: { authorization: "Bearer guess" },
+      maxRedirects: 0,
+    });
+    // 503 where no secret is configured (CI), 401 where one is.
+    expect([401, 503]).toContain(response.status());
   });
 
   test("can open the landing page with no CSP violations", async ({ page }) => {

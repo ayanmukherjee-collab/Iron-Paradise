@@ -16,8 +16,29 @@ const serverSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 });
 
+// Reminders (brief §4.6). Each channel switches on only when its values are
+// set, so the app runs without them and a missing key never breaks a page.
+const reminderSchema = z.object({
+  CRON_SECRET: z.string().min(32).optional(),
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{87}$/, "a base64url P-256 public key")
+    .optional(),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/, "a base64url P-256 private key")
+    .optional(),
+  VAPID_SUBJECT: z
+    .string()
+    .regex(/^(mailto:|https:\/\/)/, "a mailto: or https:// address")
+    .optional(),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(3).optional(),
+});
+
 export type PublicEnv = z.infer<typeof publicSchema>;
 export type ServerEnv = z.infer<typeof serverSchema>;
+export type ReminderEnv = z.infer<typeof reminderSchema>;
 
 function parse<T>(
   schema: z.ZodType<T>,
@@ -64,6 +85,22 @@ export function serverEnv(): ServerEnv {
         process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
     },
     "server",
+  );
+}
+
+export function reminderEnv(): ReminderEnv {
+  const read = (name: string) => process.env[name] || undefined;
+  return parse(
+    reminderSchema,
+    {
+      CRON_SECRET: read("CRON_SECRET"),
+      VAPID_PUBLIC_KEY: read("VAPID_PUBLIC_KEY"),
+      VAPID_PRIVATE_KEY: read("VAPID_PRIVATE_KEY"),
+      VAPID_SUBJECT: read("VAPID_SUBJECT"),
+      RESEND_API_KEY: read("RESEND_API_KEY"),
+      EMAIL_FROM: read("EMAIL_FROM"),
+    },
+    "reminder",
   );
 }
 

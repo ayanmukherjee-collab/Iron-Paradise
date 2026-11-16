@@ -4,7 +4,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "iron-paradise",
-  "main": ".open-next/worker.js",
+  // worker.mjs wraps OpenNext's .open-next/worker.js to add the Cron Trigger.
+  "main": "worker.mjs",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -24,6 +25,12 @@
   // that gap but only a few ms inside the same region.
   "placement": {
     "region": "aws:ap-south-1",
+  },
+  // Due reminders (brief §4.6): every 15 minutes from 08:30 to 11:15 in
+  // India (03:00–05:45 UTC). Each run sends what fits in Cloudflare's
+  // free-plan request limit and later runs carry on; nothing is sent twice.
+  "triggers": {
+    "crons": ["*/15 3-5 * * *"],
   },
   "observability": {
     "enabled": true,

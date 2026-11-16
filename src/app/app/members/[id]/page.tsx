@@ -96,8 +96,14 @@ export default async function MemberPage({
             >
               {formatMobile(member.phone)}
             </a>
-            {member.remindersMuted && (
+            {member.remindersMuted ? (
               <span className="ml-3 text-sm text-smoke">Reminders muted</span>
+            ) : (
+              member.reminderConsentAt === null && (
+                <span className="ml-3 text-sm text-smoke">
+                  No OK for reminders yet
+                </span>
+              )
             )}
           </dd>
           <dt className="text-smoke">Account</dt>
@@ -342,6 +348,11 @@ export default async function MemberPage({
                 className={inputClass}
               />
             </Field>
+            <Checkbox
+              name="reminderConsent"
+              label="They agree to get payment reminders"
+              defaultChecked={member.reminderConsentAt !== null}
+            />
             <Checkbox
               name="remindersMuted"
               label="Mute payment reminders"

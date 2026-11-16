@@ -43,6 +43,11 @@ const sections: Section[] = [
     permission: "attendance.view",
     icon: "attendance",
   },
+  {
+    href: "/app/reminders",
+    label: "Reminders",
+    permission: "reminders.send",
+  },
   { href: "/app/guests", label: "Guests", permission: "guests.link" },
   { href: "/app/team", label: "Team", permission: "roles.change" },
   { href: "/app/audit", label: "Audit", permission: "audit.view" },
