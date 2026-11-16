@@ -153,7 +153,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
   return (
     <div>
       {explanations[state] ? (
-        <p className="text-smoke">{explanations[state]}</p>
+        <p className="text-muted">{explanations[state]}</p>
       ) : state === "on" ? (
         <div className="flex flex-wrap gap-3">
           <Button disabled={busy} onClick={sendTest}>
@@ -169,7 +169,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
         </Button>
       )}
       {message && (
-        <p role="status" className="mt-3 border-l-4 border-ink pl-3">
+        <p role="status" className="mt-3 callout">
           {message}
         </p>
       )}

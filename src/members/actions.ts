@@ -299,11 +299,13 @@ export const linkGuest = guardedAction({
 });
 
 // One tap for a guest who isn't on the books yet: creates their member
-// record from their Google name and links the account in one transaction.
+// record (the name staff typed, which starts as their Google name) and
+// links the account in one transaction.
 export const convertGuest = guardedAction({
   permission: "guests.link",
   input: z.object({
     profileId: z.uuid(),
+    fullName: z.string().trim().min(1, "Enter their name").max(120),
     phone: mobile,
     startsOn: isoDate,
     planId: optionalPlanId,
@@ -316,7 +318,7 @@ export const convertGuest = guardedAction({
       viewer.userId,
       async (tx) => {
         const [guest] = await tx
-          .select({ fullName: profiles.fullName })
+          .select({ id: profiles.id })
           .from(profiles)
           .where(eq(profiles.id, input.profileId));
         if (!guest) throw new GuestNotFoundError();
@@ -324,7 +326,7 @@ export const convertGuest = guardedAction({
         const [member] = await tx
           .insert(members)
           .values({
-            fullName: guest.fullName || "New member",
+            fullName: input.fullName,
             phone: input.phone,
             reminderConsentAt: input.reminderConsent ? new Date() : null,
             createdBy: viewer.userId,

@@ -92,14 +92,14 @@ export function QrScanner({ onScan }: { onScan: (text: string) => boolean }) {
 
   if (problem) {
     return (
-      <p role="alert" className="border-l-4 border-ink pl-3 text-lg">
+      <p role="alert" className="callout text-lg">
         {problem}
       </p>
     );
   }
 
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden border-4 border-ink bg-ink">
+    <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-card bg-ink shadow-float">
       <video
         ref={video}
         muted
@@ -109,7 +109,7 @@ export function QrScanner({ onScan }: { onScan: (text: string) => boolean }) {
       />
       <span
         aria-hidden="true"
-        className="absolute inset-[18%] border-4 border-white/90"
+        className="absolute inset-[18%] rounded-card border-2 border-white/90"
       />
     </div>
   );

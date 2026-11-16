@@ -81,6 +81,20 @@ export function formatDate(date: IsoDate): string {
   return displayDate.format(new Date(toEpochDay(date) * dayMs));
 }
 
+const displayDayMonth = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/** "12 Mar" this year, "12 Mar 25" in any other year: for tight columns. */
+export function formatShortDate(date: IsoDate, today: IsoDate): string {
+  const dayMonth = displayDayMonth.format(new Date(toEpochDay(date) * dayMs));
+  return date.slice(0, 4) === today.slice(0, 4)
+    ? dayMonth
+    : `${dayMonth} ${date.slice(2, 4)}`;
+}
+
 const displayDateTime = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
   month: "short",

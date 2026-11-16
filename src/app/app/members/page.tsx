@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePermission, viewerCan } from "@/auth/session";
-import { inputClass } from "@/components/ui/field";
-import { formatDate } from "@/lib/dates";
+import { NavIconSvg } from "@/components/nav/nav-icons";
+import { inputBase } from "@/components/ui/field";
+import { formatShortDate, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { StatusBadge } from "@/members/components/status-badge";
-import { formatMobile } from "@/members/phone";
 import { listMembers, type MemberSummary } from "@/members/queries";
-import { StandingBadge } from "@/payments/components/standing-badge";
+import { standingLabels } from "@/payments/describe";
 
 export const metadata: Metadata = { title: "Members" };
 
@@ -71,6 +71,7 @@ export default async function MembersPage({
       : "current";
 
   const everyone = await listMembers(viewer);
+  const today = todayAtGym();
   const shown = everyone
     .filter(filters[filter].keep)
     .filter((member) => matchesSearch(member, query));
@@ -80,36 +81,38 @@ export default async function MembersPage({
 
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="display text-5xl">Members</h1>
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="page-title">Members</h1>
         {viewerCan(viewer, "members.edit") && (
-          <Link
-            href="/app/members/new"
-            className="inline-flex min-h-12 items-center bg-ink px-6 text-sm font-bold tracking-[0.08em] text-white uppercase hover:bg-ash"
-          >
+          <Link href="/app/members/new" className="btn-dark pr-5 pl-4">
+            <NavIconSvg icon="plus" className="size-4" />
             Add member
           </Link>
         )}
-      </div>
+      </header>
 
-      <form className="mt-6" role="search">
+      <form className="relative mt-5" role="search">
         <input type="hidden" name="filter" value={filter} />
         <label className="sr-only" htmlFor="member-search">
           Search members
         </label>
+        <NavIconSvg
+          icon="search"
+          className="pointer-events-none absolute top-1/2 left-3.5 size-[1.1rem] -translate-y-1/2 text-muted"
+        />
         <input
           id="member-search"
           name="q"
           type="search"
           defaultValue={query}
           placeholder="Name, phone or member ID"
-          className={inputClass}
+          className={`${inputBase} pl-10`}
         />
       </form>
 
       <nav
         aria-label="Filter members"
-        className="-mx-4 mt-4 [scrollbar-width:none] overflow-x-auto px-4"
+        className="-mx-4 mt-3 [scrollbar-width:none] overflow-x-auto px-4 sm:mx-0 sm:px-0"
       >
         <ul className="flex gap-2">
           {filterKeys.map((key) => (
@@ -119,11 +122,14 @@ export default async function MembersPage({
                   query: { filter: key, ...(query ? { q: query } : {}) },
                 }}
                 aria-current={key === filter ? "page" : undefined}
-                className={`inline-flex min-h-10 items-center border-2 border-ink px-3 text-sm font-semibold whitespace-nowrap ${
-                  key === filter ? "bg-ink text-white" : "bg-white"
-                }`}
+                className="chip"
               >
-                {filters[key].label} · {counts[key]}
+                {filters[key].label}
+                <span
+                  className={`tabular-nums ${key === filter ? "text-white/60" : "text-muted"}`}
+                >
+                  {counts[key]}
+                </span>
               </Link>
             </li>
           ))}
@@ -131,7 +137,7 @@ export default async function MembersPage({
       </nav>
 
       {filter === "overdue" && (
-        <p className="mt-4 max-w-prose text-smoke">
+        <p className="mt-3 max-w-prose text-sm text-muted">
           A fee is past its due date and not paid in full. Overdue members are
           the old &ldquo;expired&rdquo;: their membership stays, and recording a
           payment clears it.
@@ -139,7 +145,7 @@ export default async function MembersPage({
       )}
 
       {filter === "quiet" && (
-        <p className="mt-4 max-w-prose text-smoke">
+        <p className="mt-3 max-w-prose text-sm text-muted">
           No visit and no payment for a while. Check in with them, freeze their
           membership, or mark them inactive from their page. Nothing happens on
           its own.
@@ -147,50 +153,62 @@ export default async function MembersPage({
       )}
 
       {shown.length === 0 ? (
-        <p className="mt-8 text-lg">
+        <p className="mt-4 rounded-card bg-white p-6 text-center text-muted shadow-card">
           {everyone.length === 0 ? "No members yet." : "Nobody matches that."}
         </p>
       ) : (
-        <ul className="mt-6 border-t-2 border-ink">
+        <ul className="mt-4 list-card">
           {shown.map((member) => (
-            <li key={member.id} className="border-b-2 border-ink">
+            <li key={member.id} className="list-row">
               <Link
                 href={`/app/members/${member.id}`}
-                className="block py-4 hover:bg-white"
+                className="-mx-5 flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-canvas/50 sm:-mx-6 sm:px-6"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <p className="text-lg font-semibold">{member.fullName}</p>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {member.goneQuiet && (
-                      <span className="text-xs font-bold tracking-[0.08em] uppercase">
-                        Gone quiet
-                      </span>
+                    <p className="truncate font-semibold">{member.fullName}</p>
+                    {!member.hasAccount && (
+                      <span className="sr-only">, no app account</span>
                     )}
-                    {member.standing &&
-                      member.standing !== "paid" &&
-                      member.standing !== "free" && (
-                        <StandingBadge standing={member.standing} />
-                      )}
-                    <StatusBadge status={member.status} />
                   </div>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted">
+                    <span className="font-mono text-xs text-ink">
+                      {member.memberCode}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {member.lastVisit
+                        ? member.lastVisit === today
+                          ? "In today"
+                          : `Last in ${formatShortDate(member.lastVisit, today)}`
+                        : "Never checked in"}
+                    </span>
+                    {member.goneQuiet && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>Gone quiet</span>
+                      </>
+                    )}
+                  </p>
                 </div>
-                <p className="mt-1 flex flex-wrap gap-x-4 text-smoke">
-                  <span className="font-mono text-ink">
-                    {member.memberCode}
-                  </span>
-                  <span>{formatMobile(member.phone)}</span>
-                  {member.feePaise !== null && member.status !== "free" && (
-                    <span>{formatPaise(member.feePaise)}/month</span>
-                  )}
-                  {member.owedPaise > 0 && (
-                    <span className="font-semibold text-ink">
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <StatusBadge status={member.status} />
+                  {member.owedPaise > 0 ? (
+                    <span className="text-sm font-semibold tabular-nums">
                       Owes {formatPaise(member.owedPaise)}
                     </span>
+                  ) : (
+                    member.standing && (
+                      <span className="text-xs text-muted">
+                        {standingLabels[member.standing]}
+                      </span>
+                    )
                   )}
-                  {member.nextDue && (
-                    <span>Next due {formatDate(member.nextDue)}</span>
-                  )}
-                </p>
+                </div>
+                <NavIconSvg
+                  icon="chevronRight"
+                  className="size-4 shrink-0 text-muted"
+                />
               </Link>
             </li>
           ))}

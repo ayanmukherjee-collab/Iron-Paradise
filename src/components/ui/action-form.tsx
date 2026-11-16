@@ -49,12 +49,12 @@ export function ActionForm<T>({
           {pending ? pendingLabel : submitLabel}
         </Button>
         {result && !result.ok && (
-          <p role="alert" className="border-l-4 border-ink pl-3">
+          <p role="alert" className="callout">
             {result.error}
           </p>
         )}
         {result?.ok && (messageOf(result.data) ?? success) && (
-          <p role="status" className="border-l-4 border-ink pl-3">
+          <p role="status" className="callout">
             {messageOf(result.data) ?? success}
           </p>
         )}

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { logWhatsAppReminder } from "@/notifications/actions";
 
 const linkClass =
-  "inline-flex min-h-12 items-center justify-center px-5 text-sm font-bold tracking-[0.08em] uppercase";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-5 text-sm font-semibold transition-colors";
 
 /**
  * Opens WhatsApp with the reminder typed in and logs it as sent. A plain
@@ -43,7 +43,7 @@ export function WhatsAppButton({
             router.refresh();
           });
         }}
-        className={`${linkClass} bg-ink text-white hover:bg-ash`}
+        className={`${linkClass} bg-ink text-white hover:bg-graphite`}
       >
         {pending ? "Logging…" : label}
       </a>

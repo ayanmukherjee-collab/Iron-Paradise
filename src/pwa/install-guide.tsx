@@ -84,7 +84,7 @@ export function InstallGuide() {
 
   return (
     <aside
-      className="border-t-4 border-ink bg-white px-4 py-5"
+      className="mx-4 rounded-card bg-white px-5 py-5 shadow-float"
       aria-label="Install the app"
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

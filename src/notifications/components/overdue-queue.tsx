@@ -41,7 +41,7 @@ export function OverdueQueue({ entries }: { entries: QueueEntry[] }) {
   const current = queue[position];
   if (!current) {
     return (
-      <div className="border-2 border-ink bg-white p-5">
+      <div className="card p-5">
         <p className="text-lg font-semibold">
           All done. Everyone overdue has a WhatsApp.
         </p>
@@ -54,12 +54,12 @@ export function OverdueQueue({ entries }: { entries: QueueEntry[] }) {
 
   const next = () => setPosition((value) => value + 1);
   return (
-    <div className="border-2 border-ink bg-white p-5" aria-live="polite">
-      <p className="text-sm font-bold tracking-[0.08em] uppercase">
+    <div className="card p-5" aria-live="polite">
+      <p className="text-sm font-medium text-muted">
         {position + 1} of {queue.length}
       </p>
-      <p className="mt-2 display text-3xl">{current.fullName}</p>
-      <p className="text-smoke">
+      <p className="mt-2 section-title">{current.fullName}</p>
+      <p className="text-muted">
         <span className="font-mono">{current.memberCode}</span> ·{" "}
         {current.summary}
       </p>

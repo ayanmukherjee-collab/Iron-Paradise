@@ -147,6 +147,34 @@ export const setPrintedQr = guardedAction({
   },
 });
 
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a time");
+
+export const saveBatches = guardedAction({
+  permission: "checkin.settings",
+  input: z
+    .object({
+      morningOpens: clockTime,
+      morningCloses: clockTime,
+      eveningOpens: clockTime,
+      eveningCloses: clockTime,
+    })
+    .refine(
+      (hours) =>
+        hours.morningOpens < hours.morningCloses &&
+        hours.morningCloses <= hours.eveningOpens &&
+        hours.eveningOpens < hours.eveningCloses,
+      "Each batch must close after it opens, and the morning must end before the evening starts.",
+    ),
+  run: async (hours, viewer) => {
+    await withUserContext(getDb(), viewer.userId, (tx) =>
+      tx.update(gymSettings).set(hours),
+    );
+    revalidatePath("/app/settings");
+    revalidatePath("/app/attendance");
+    return { message: "Saved. Check-ins outside these hours are refused." };
+  },
+});
+
 export const regeneratePrintedCode = guardedAction({
   permission: "checkin.settings",
   input: z.object({}),
