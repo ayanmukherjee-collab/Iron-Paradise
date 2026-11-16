@@ -266,8 +266,10 @@ Status on 2026-11-16: Phases 1–4 are live at https://iron-paradise.ayanmukherj
 
 **Switch on reminders (Phase 5)**
 
-5. Apply migration `20261120000100_reminders.sql` to the Supabase project (`npm run db:push`).
-6. Set the Worker secrets `CRON_SECRET` and `VAPID_PRIVATE_KEY`, and the variable `VAPID_PUBLIC_KEY` (`npm run vapid` makes the pair). Push works from then on, once members turn it on in the installed app.
+Done 2026-11-16: the migration is applied, and `CRON_SECRET`, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` are set as Worker secrets. Push reminders go out from the next morning run to members who turn them on in the installed app.
+
+5. Turn on reminders on a member's phone once, from the installed app's home screen, and check a notification arrives on the next due date.
+6. Keep the push keys stable. New keys (`npm run vapid`) switch reminders off on every phone until each member turns them on again.
 7. Email is optional: it needs a domain verified in Resend, then `RESEND_API_KEY` and `EMAIL_FROM`. Without a custom domain, Resend can only send to the account owner's own address, so this waits for item 11.
 8. Record reminder consent for members added before they were asked (member page → "They agree to get payment reminders").
 

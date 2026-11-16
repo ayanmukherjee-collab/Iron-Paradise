@@ -130,10 +130,12 @@ All landing page text, plans, timings and contact details live in `src/content/l
    npx wrangler secret put UPSTASH_REDIS_REST_URL
    npx wrangler secret put UPSTASH_REDIS_REST_TOKEN
    npx wrangler secret put CRON_SECRET
+   npx wrangler secret put VAPID_PUBLIC_KEY
    npx wrangler secret put VAPID_PRIVATE_KEY
    npx wrangler secret put RESEND_API_KEY   # optional, with EMAIL_FROM
+   npx wrangler secret put EMAIL_FROM       # optional
    ```
-   Add `VAPID_PUBLIC_KEY` (and `EMAIL_FROM`, `VAPID_SUBJECT` if used) as plain Worker variables.
+   Store every runtime value as a secret, even public ones like `VAPID_PUBLIC_KEY`: each `wrangler deploy` removes plain variables that were added in the dashboard but aren't in `wrangler.jsonc`, while secrets are kept.
 3. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
 4. `npm run cf:deploy`
 
