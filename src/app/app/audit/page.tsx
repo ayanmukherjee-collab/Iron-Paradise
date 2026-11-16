@@ -12,15 +12,15 @@ export default async function AuditPage() {
 
   return (
     <section>
-      <h1 className="page-title">Audit log</h1>
-      <p className="mt-3 max-w-prose text-lg">
-        Every change to roles, members, memberships, fees and payments, newest
-        first. Nobody can edit or delete these entries, including the owner.
-      </p>
+      <header className="page-header">
+        <h1 className="page-title">Audit log</h1>
+      </header>
       {entries.length === 0 ? (
-        <p className="mt-8 text-lg">Nothing recorded yet.</p>
+        <p className="mt-2 rounded-card bg-white p-6 text-center text-muted shadow-card">
+          Nothing yet
+        </p>
       ) : (
-        <ol className="mt-8 list-card">
+        <ol className="mt-2 list-card">
           {entries.map((entry) => (
             <li key={entry.id} className="list-row py-4">
               <p className="font-semibold">{describeAuditEntry(entry)}</p>

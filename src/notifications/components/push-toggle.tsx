@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NavIconSvg } from "@/components/nav/nav-icons";
 import { Button } from "@/components/ui/button";
 import {
   removePushSubscription,
@@ -57,7 +58,14 @@ function toSaved(subscription: PushSubscription) {
  * Turns push notifications on or off on the phone being used, and sends a
  * test so anyone can check they arrive.
  */
-export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
+export function PushToggle({
+  vapidPublicKey,
+  compact = false,
+}: {
+  vapidPublicKey: string;
+  /** One row with a switch, for a small card. */
+  compact?: boolean;
+}) {
   const [state, setState] = useState<State>("checking");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -148,7 +156,52 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
     }
   }
 
-  if (state === "checking") return null;
+  if (state === "checking") return compact ? <span className="flex-1" /> : null;
+
+  if (compact) {
+    const on = state === "on";
+    return (
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium">Notifications</span>
+          {!explanations[state] && (
+            <span className="flex items-center gap-2">
+              {on && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={sendTest}
+                  aria-label="Send a test notification"
+                  title="Send a test"
+                  className="flex size-9 items-center justify-center rounded-control bg-canvas transition-colors hover:bg-ink hover:text-white disabled:opacity-50"
+                >
+                  <NavIconSvg icon="arrow" className="size-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label="Notifications on this phone"
+                disabled={busy}
+                onClick={on ? turnOff : turnOn}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-ink" : "bg-ink/15"}`}
+              >
+                <span
+                  className={`absolute top-1 left-1 size-5 rounded-full bg-white shadow-card transition-transform ${on ? "translate-x-5" : ""}`}
+                />
+              </button>
+            </span>
+          )}
+        </div>
+        {(explanations[state] || message) && (
+          <p role="status" className="mt-1 text-xs text-muted">
+            {explanations[state] ?? message}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -157,15 +210,15 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string }) {
       ) : state === "on" ? (
         <div className="flex flex-wrap gap-3">
           <Button disabled={busy} onClick={sendTest}>
-            Send a test notification
+            Send test
           </Button>
           <Button variant="outline-dark" disabled={busy} onClick={turnOff}>
-            Turn off on this phone
+            Turn off
           </Button>
         </div>
       ) : (
         <Button disabled={busy} onClick={turnOn}>
-          {busy ? "Turning on…" : "Turn on notifications on this phone"}
+          {busy ? "Turning on…" : "Turn on"}
         </Button>
       )}
       {message && (

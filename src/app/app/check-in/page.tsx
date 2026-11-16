@@ -22,10 +22,9 @@ export default async function CheckInPage({
 
   return (
     <section className="max-w-prose">
-      <h1 className="page-title">Check in</h1>
-      <p className="mt-4 mb-8 text-lg">
-        Scan the QR code on the front desk. Once a day is all it takes.
-      </p>
+      <header className="page-header mb-4">
+        <h1 className="page-title">Check in</h1>
+      </header>
       <CheckIn key={code ?? "scan"} initialCode={code} checkIn={checkIn} />
     </section>
   );

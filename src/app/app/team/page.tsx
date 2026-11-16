@@ -25,27 +25,22 @@ export default async function TeamPage() {
 
   return (
     <section className="space-y-4">
-      <div>
+      <header className="page-header">
         <h1 className="page-title">Team</h1>
-        <p className="mt-2 max-w-prose text-sm text-muted">
-          The owner, managers and trainers. Switching someone off signs them out
-          everywhere and blocks them straight away; their history stays.
-        </p>
-      </div>
+      </header>
 
       <Disclosure
         title="Add staff"
         summary={
           signedInGuests.length === 0
-            ? "They sign in with Google first, then show up here"
-            : `${signedInGuests.length} signed-in ${signedInGuests.length === 1 ? "account" : "accounts"} waiting`
+            ? undefined
+            : `${signedInGuests.length} waiting`
         }
         icon="plus"
       >
         {signedInGuests.length === 0 ? (
-          <p className="text-sm text-muted">
-            Ask the new staff member to open the app and sign in with Google.
-            Their account then appears here, ready for a role.
+          <p className="text-center text-sm text-muted">
+            Nobody waiting · they sign in with Google first
           </p>
         ) : (
           <ul className="list-card">
@@ -71,7 +66,7 @@ export default async function TeamPage() {
                 <ActionForm
                   action={changeRole}
                   submitLabel="Give role"
-                  success="Done. They now appear in the team."
+                  success="Done"
                   className="flex items-start gap-2 [&>div]:mt-0"
                 >
                   <input type="hidden" name="profileId" value={person.id} />

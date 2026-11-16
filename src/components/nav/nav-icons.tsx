@@ -28,7 +28,16 @@ export type NavIcon =
   | "search"
   | "moon"
   | "pause"
-  | "more";
+  | "more"
+  | "qr"
+  | "markIn"
+  | "gear"
+  | "rupee"
+  | "mail"
+  | "close"
+  | "power"
+  | "refresh"
+  | "link";
 
 const paths: Record<NavIcon, ReactNode> = {
   home: (
@@ -153,6 +162,39 @@ const paths: Record<NavIcon, ReactNode> = {
       <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
       <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
     </>
+  ),
+  qr: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <path d="M13.5 13.5h3v3h-3zM20.5 13.5v.01M16.5 20.5h4v-4M13.5 20.5v.01" />
+    </>
+  ),
+  markIn: (
+    <>
+      <circle cx="9.5" cy="8" r="3.5" />
+      <path d="M3 20a6.5 6.5 0 0 1 13 0M16 11l2 2 4-4" />
+    </>
+  ),
+  gear: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.8 13.6 5l2.7-.5.9 2.6 2.6.9-.5 2.7 2.2 1.3-2.2 1.6.5 2.7-2.6.9-.9 2.6-2.7-.5L12 21.2 10.4 19l-2.7.5-.9-2.6-2.6-.9.5-2.7L2.5 12l2.2-1.6-.5-2.7 2.6-.9.9-2.6 2.7.5z" />
+    </>
+  ),
+  rupee: <path d="M7 4.5h10M7 9h10M7 4.5h3.5a4.5 4.5 0 0 1 0 9H7l7.5 7" />,
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="m3.5 7.5 8.5 6 8.5-6" />
+    </>
+  ),
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  power: <path d="M12 3.5v8M7 6.5a7 7 0 1 0 10 0" />,
+  refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4h-4" />,
+  link: (
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
   ),
 };
 

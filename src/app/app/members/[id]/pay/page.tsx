@@ -34,30 +34,29 @@ export default async function RecordPaymentPage({
 
   return (
     <section className="max-w-2xl">
-      <BackLink
-        href={`/app/members/${form.member.id}`}
-        label={form.member.fullName}
-      />
-      <h1 className="page-title">Record payment</h1>
-      <p className="mt-2 text-lg">
-        <span className="font-mono font-bold">{form.member.memberCode}</span>{" "}
-        {form.member.fullName} · agreed fee{" "}
-        <strong>
-          {form.feePaise === 0 ? "free" : `${formatPaise(form.feePaise)}/month`}
-        </strong>
-        {form.owedPaise > 0 && (
-          <>
-            {" "}
-            · owes <strong>{formatPaise(form.owedPaise)}</strong>
-          </>
-        )}
-      </p>
+      <header className="page-header">
+        <BackLink
+          href={`/app/members/${form.member.id}`}
+          label={form.member.fullName}
+          className="mb-1"
+        />
+        <h1 className="page-title">Record payment</h1>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-mono text-muted">{form.member.memberCode}</span>
+          <span className="rounded-badge bg-canvas px-2 py-1 font-medium tabular-nums">
+            {form.feePaise === 0 ? "Free" : `${formatPaise(form.feePaise)}/mo`}
+          </span>
+          {form.owedPaise > 0 && (
+            <span className="rounded-badge bg-ink px-2 py-1 font-semibold text-white tabular-nums">
+              <span className="sr-only">Owes </span>
+              {formatPaise(form.owedPaise)}
+            </span>
+          )}
+        </p>
+      </header>
 
       {form.periods.length === 0 ? (
-        <p className="mt-8 text-lg">
-          Nothing can be paid for right now: the member is free or frozen with
-          no end date.
-        </p>
+        <p className="mt-8 text-lg">Nothing to pay</p>
       ) : (
         <ActionForm
           action={recordPayment}

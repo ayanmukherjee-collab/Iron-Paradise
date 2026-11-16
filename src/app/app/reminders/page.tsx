@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "@/components/ui/link";
+import { NavIconSvg } from "@/components/nav/nav-icons";
 import { requirePermission } from "@/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
@@ -37,22 +38,42 @@ export default async function RemindersPage() {
 
   return (
     <div className="space-y-5">
-      <section>
+      <header className="page-header flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Reminders</h1>
-        <p className="mt-3 max-w-prose text-lg">
-          Every morning the app reminds members by itself: 3 days before a fee
-          is due, on the day, and 3 days after. WhatsApp messages you send from
-          here. A payment stops the next reminder.
-        </p>
-        <p className="mt-4 text-sm text-muted">
-          Automatic push: {automatic.has("push") ? "on" : "not set up"} ·
-          Automatic email: {automatic.has("email") ? "on" : "not set up"}
-        </p>
-      </section>
+        <ul className="flex gap-2" aria-label="Automatic reminders">
+          {(
+            [
+              ["push", "reminders", "Push"],
+              ["email", "mail", "Email"],
+            ] as const
+          ).map(([channel, icon, label]) => {
+            const on = automatic.has(channel);
+            return (
+              <li
+                key={channel}
+                title={`Automatic ${label.toLowerCase()} ${on ? "on" : "not set up"}`}
+                className={`inline-flex items-center gap-1.5 rounded-control px-3 py-2 text-xs font-medium ${on ? "bg-ink text-white" : "bg-white text-muted ring-1 ring-line"}`}
+              >
+                <NavIconSvg icon={icon} className="size-4" />
+                {label}
+                <span
+                  className={`size-1.5 rounded-full ${on ? "bg-white" : "bg-ink/25"}`}
+                />
+                <span className="sr-only">{on ? "on" : "off"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </header>
 
       <section className="card-section">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="section-title">To remind · {queue.items.length}</h2>
+          <h2 className="flex items-center gap-2 section-title">
+            To remind
+            <span className="rounded-badge bg-canvas px-2 py-0.5 text-sm tabular-nums">
+              {queue.items.length}
+            </span>
+          </h2>
           <OverdueQueue
             entries={overdueToSend.map((item) => ({
               membershipId: item.membershipId,
@@ -64,7 +85,7 @@ export default async function RemindersPage() {
           />
         </div>
         {queue.items.length === 0 ? (
-          <p className="mt-6 text-lg">Nobody is due in the next 3 days.</p>
+          <p className="mt-6 text-center text-muted">All clear</p>
         ) : (
           <ul className="mt-6 list-card">
             {queue.items.map((item) => (
@@ -73,25 +94,23 @@ export default async function RemindersPage() {
           </ul>
         )}
         {heldBack > 0 && (
-          <p className="mt-4 max-w-prose text-muted">
-            {heldBack === 1 ? "1 member owes" : `${heldBack} members owe`} but
-            {heldBack === 1 ? " is" : " are"} not listed:{" "}
+          <p className="mt-4 text-sm text-muted">
+            +{heldBack} hidden ·{" "}
             {[
               queue.heldBack.noConsent > 0 &&
-                `${queue.heldBack.noConsent} never agreed to reminders`,
+                `${queue.heldBack.noConsent} no consent`,
               queue.heldBack.muted > 0 && `${queue.heldBack.muted} muted`,
             ]
               .filter(Boolean)
-              .join(", ")}
-            . Change this on their member page.
+              .join(" · ")}
           </p>
         )}
       </section>
 
       <section className="card-section">
-        <h2 className="section-title">Sent messages</h2>
+        <h2 className="section-title">Sent</h2>
         {log.length === 0 ? (
-          <p className="mt-4 text-lg">No reminders sent yet.</p>
+          <p className="mt-4 text-center text-muted">Nothing yet</p>
         ) : (
           <ol className="mt-6 list-card">
             {log.map((entry) => (
@@ -104,16 +123,14 @@ export default async function RemindersPage() {
                     {entry.fullName}
                   </Link>{" "}
                   <span className="font-mono text-sm">{entry.memberCode}</span>{" "}
-                  · {channelLabels[entry.channel]} · {stageLabels[entry.stage]}{" "}
-                  · {formatPaise(entry.amountPaise)} due{" "}
-                  {formatDate(entry.dueOn)}
+                  · {channelLabels[entry.channel]} ·{" "}
+                  {formatPaise(entry.amountPaise)} · {formatDate(entry.dueOn)}
                 </p>
                 <p className="text-sm text-muted">
                   <strong className="text-ink">
                     {statusLabels[entry.status]}
                   </strong>{" "}
-                  · {formatDateTime(entry.at)} ·{" "}
-                  {entry.sentBy ? `by ${entry.sentBy}` : "daily job"}
+                  · {formatDateTime(entry.at)} · {entry.sentBy ?? "Auto"}
                   {entry.error && ` · ${entry.error}`}
                 </p>
               </li>
@@ -164,7 +181,8 @@ function QueueRow({ item }: { item: QueueItem }) {
       </div>
       {item.whatsAppSentAt ? (
         <p className="text-sm text-muted">
-          WhatsApp sent {formatDateTime(item.whatsAppSentAt)}
+          <NavIconSvg icon="check" className="mr-1 inline size-4" />
+          {formatDateTime(item.whatsAppSentAt)}
         </p>
       ) : (
         <WhatsAppButton

@@ -4,7 +4,8 @@ import { Initial } from "@/components/nav/side-nav";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import { Tabs } from "@/components/ui/tabs";
-import { formatDateTime, todayAtGym } from "@/lib/dates";
+import { NavIconSvg } from "@/components/nav/nav-icons";
+import { formatDateTime, formatShortDate, todayAtGym } from "@/lib/dates";
 import { convertGuest, linkGuest } from "@/members/actions";
 import { NewMembershipFields } from "@/members/components/new-membership-fields";
 import { formatMobile } from "@/members/phone";
@@ -32,16 +33,18 @@ export default async function GuestsPage() {
 
   return (
     <section>
-      <h1 className="page-title">Guests</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted">
-        People who signed in with Google on their own. Make each one a member,
-        or link them to the record you already have. New staff show up here too;
-        give them a role on the Team page instead.
-      </p>
+      <header className="page-header flex items-center justify-between gap-3">
+        <h1 className="page-title">Guests</h1>
+        {guests.length > 0 && (
+          <span className="rounded-badge bg-ink px-2.5 py-1 text-sm font-semibold text-white tabular-nums">
+            {guests.length}
+          </span>
+        )}
+      </header>
 
       {guests.length === 0 ? (
         <p className="mt-5 rounded-card bg-white p-6 text-center text-muted shadow-card">
-          Nobody is waiting.
+          Nobody waiting
         </p>
       ) : (
         <ul className="mt-5 space-y-4">
@@ -59,10 +62,14 @@ export default async function GuestsPage() {
                     <p className="truncate font-semibold">
                       {guest.fullName || "No name on the account"}
                     </p>
-                    <p className="truncate text-sm text-muted">
-                      {guest.email} · signed in{" "}
-                      {formatDateTime(guest.createdAt)}
-                    </p>
+                    <p className="truncate text-sm text-muted">{guest.email}</p>
+                  </div>
+                  <div
+                    className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted"
+                    title={`Signed in ${formatDateTime(guest.createdAt)}`}
+                  >
+                    <NavIconSvg icon="clock" className="size-3.5" />
+                    {formatShortDate(todayAtGym(guest.createdAt), today)}
                   </div>
                 </div>
 
@@ -112,7 +119,7 @@ export default async function GuestsPage() {
                             />
                             <Checkbox
                               name="reminderConsent"
-                              label="They agree to get payment reminders"
+                              label="Payment reminders"
                               defaultChecked
                             />
                           </ActionForm>
@@ -133,10 +140,7 @@ export default async function GuestsPage() {
                               name="profileId"
                               value={guest.id}
                             />
-                            <Field
-                              label="Their member record"
-                              hint="Only members without an app account are listed."
-                            >
+                            <Field label="Member">
                               <select
                                 name="memberId"
                                 required
@@ -146,7 +150,7 @@ export default async function GuestsPage() {
                                 <option value="" disabled>
                                   {unclaimed.length
                                     ? "Pick a member"
-                                    : "No unlinked members"}
+                                    : "None available"}
                                 </option>
                                 {unclaimed.map((member) => (
                                   <option key={member.id} value={member.id}>
