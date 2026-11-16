@@ -1,94 +1,243 @@
 import Link from "@/components/ui/link";
 import { LogoMark } from "@/components/brand/logo-mark";
-import { art, gym, hero, nav } from "@/content/landing";
+import {
+  art,
+  contact,
+  finalCta,
+  gym,
+  hero,
+  nav,
+  quickActions,
+  whatsappLink,
+} from "@/content/landing";
+import { DAY_SHORT, hourLabel, type OpenStatus } from "../open-status";
 import { ArtImage } from "./art-image";
-import { ButtonLink } from "./button-link";
+import { ButtonLink, SmartLink } from "./button-link";
+import { Icon, type LandingIcon } from "./icons";
 
-export function Hero() {
+export function SiteHeader() {
   return (
-    <>
-      <section className="relative isolate overflow-hidden bg-charcoal text-white">
-        <SiteHeader />
-
-        <div className="mx-auto grid min-h-[calc(88svh-4.5rem)] max-w-6xl grid-rows-[1fr_auto] px-4 md:min-h-[min(46rem,calc(100svh-5rem))] md:grid-cols-[1fr_1.05fr] md:grid-rows-1 md:items-center md:px-8">
-          <div className="pointer-events-none absolute inset-x-0 top-16 -z-10 flex justify-center md:relative md:top-0 md:col-start-1 md:row-start-1 md:h-full md:items-end">
-            <div className="absolute top-[4%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.12),transparent_65%)] md:top-[8%] md:h-[30rem] md:w-[30rem]" />
-            <ArtImage
-              art={art.hero}
-              priority
-              sizes="(min-width: 768px) 460px, 92vw"
-              className="relative h-auto w-[min(92vw,26rem)] md:h-[min(44rem,calc(100svh-6rem))] md:w-auto"
-            />
-          </div>
-
-          <div className="relative row-start-2 pt-8 pb-10 md:col-start-2 md:row-start-1 md:py-16">
-            <div className="absolute inset-x-[-1rem] -top-24 bottom-0 -z-10 bg-gradient-to-t from-charcoal via-charcoal/90 to-transparent md:hidden" />
-
-            <p className="text-sm font-medium text-mist">{hero.openingLine}</p>
-
-            <h1 className="mt-3 max-w-[9ch] animate-rise display text-[clamp(3.6rem,20vw,7.75rem)]">
-              {hero.headline}
-            </h1>
-
-            <p className="mt-5 max-w-[26rem] text-lg leading-snug text-mist">
-              {hero.sub}
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-2">
-              <ButtonLink href={hero.primaryCta.href}>
-                {hero.primaryCta.label}
-              </ButtonLink>
-              <ButtonLink href={hero.secondaryCta.href} variant="text-light">
-                {hero.secondaryCta.label}
-              </ButtonLink>
-            </div>
-          </div>
-        </div>
-      </section>
-      <div
-        aria-hidden
-        className="h-12 screentone [mask-image:linear-gradient(to_bottom,black,transparent)] text-charcoal md:h-20"
-      />
-    </>
-  );
-}
-
-function SiteHeader() {
-  return (
-    <header className="relative z-10 mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between px-4 md:h-20 md:px-8">
+    <header className="mx-auto flex h-18 max-w-6xl items-center justify-between gap-4 px-3 sm:px-4">
       <Link
         href="/"
         className="flex items-center gap-2.5"
         aria-label={`${gym.fullName} home`}
       >
         <LogoMark className="h-8 w-auto" />
-        <span className="font-display text-xl tracking-wide uppercase">
+        <span className="display text-2xl leading-none uppercase">
           {gym.name}
         </span>
       </Link>
 
       <nav
         aria-label="Sections"
-        className="hidden items-center gap-7 text-sm font-medium text-mist md:flex"
+        className="hidden items-center gap-1.5 md:flex"
       >
         {nav.map((item) => (
           <a
             key={item.href}
             href={item.href}
-            className="transition-colors hover:text-white"
+            className="inline-flex min-h-10 items-center gap-2 rounded-control px-3.5 text-sm font-medium text-mist transition-colors hover:bg-white/[0.08] hover:text-white"
           >
+            <Icon name={item.icon} className="size-[1.125rem]" />
             {item.label}
           </a>
         ))}
       </nav>
 
       <ButtonLink
-        href={hero.secondaryCta.href}
-        variant="light"
-        className="min-h-10 px-5 text-sm"
+        href={quickActions.signIn.href}
+        variant="blaze"
+        className="min-h-11 px-4"
       >
-        Sign in
+        <Icon name="user" className="size-5" strokeWidth={2} />
+        {quickActions.signIn.label}
       </ButtonLink>
     </header>
+  );
+}
+
+/**
+ * Goku in front of a giant word and an orange ring: the figure is cut out,
+ * so stacking order alone puts him in front. No motion, nothing on scroll.
+ */
+export function Hero({ status }: { status: OpenStatus }) {
+  return (
+    <section
+      aria-labelledby="hero-title"
+      className="relative isolate h-[clamp(34rem,150vw,42rem)] overflow-hidden landing-panel md:h-[clamp(36rem,62vw,44rem)]"
+    >
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 bg-[radial-gradient(70%_60%_at_50%_34%,#4a494e_0%,#29282b_45%,#1c1b1d_80%)]"
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 screentone [mask-image:radial-gradient(45%_45%_at_50%_36%,black,transparent)] text-white/[0.09]"
+      />
+
+      <div
+        aria-hidden
+        className="absolute top-[7%] left-1/2 -z-10 aspect-square h-[58%] -translate-x-1/2 rounded-full neon-ring md:top-[6%] md:h-[66%]"
+      />
+      <p
+        aria-hidden
+        className="absolute inset-x-0 top-[9%] -z-10 text-center display text-[clamp(7.5rem,44vw,25rem)] leading-[0.82] uppercase md:top-[6%]"
+      >
+        {hero.word}
+      </p>
+
+      <ArtImage
+        art={art.hero}
+        priority
+        sizes="(min-width: 768px) 380px, 70vw"
+        fade="none"
+        className="absolute bottom-0 left-1/2 h-[94%] w-auto max-w-none -translate-x-1/2 md:h-[97%]"
+      />
+      {/*
+       * Goku stays fully solid; this wash of the panel's own colour, laid on
+       * top with eased stops, is what melts him (and the ring behind him)
+       * into the floor.
+       */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[62%] bg-[linear-gradient(to_top,#1c1b1d_0%,#1c1b1d_22%,rgb(28_27_29/0.94)_34%,rgb(28_27_29/0.8)_46%,rgb(28_27_29/0.58)_58%,rgb(28_27_29/0.34)_70%,rgb(28_27_29/0.15)_82%,rgb(28_27_29/0.04)_92%,transparent_100%)]"
+      />
+
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-6 px-5 pb-5 md:px-8 md:pb-8">
+        <div>
+          <StatusChip status={status} />
+          <h1
+            id="hero-title"
+            className="mt-3 max-w-[11ch] display text-[clamp(2.6rem,11vw,4.75rem)]"
+          >
+            {hero.headline}
+          </h1>
+          <p className="mt-2 max-w-xs text-mist">{hero.sub}</p>
+        </div>
+
+        <div className="hidden flex-col gap-2 md:flex">
+          <SideIcon
+            href={`https://instagram.com/${contact.instagramHandle}`}
+            icon="instagram"
+            label="Instagram"
+          />
+          <SideIcon
+            href={whatsappLink(finalCta.whatsappMessage)}
+            icon="whatsapp"
+            label="WhatsApp"
+          />
+          <SideIcon href={contact.phoneHref} icon="phone" label="Call" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SideIcon({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: LandingIcon;
+  label: string;
+}) {
+  return (
+    <SmartLink
+      href={href}
+      aria-label={label}
+      className="inline-flex size-11 items-center justify-center rounded-tile bg-white/[0.08] text-white ring-1 ring-white/10 transition-colors hover:bg-white hover:text-ink"
+    >
+      <Icon name={icon} className="size-5" />
+    </SmartLink>
+  );
+}
+
+/** "Open now · till 10 PM" or "Closed · opens 4 PM", in India time. */
+export function StatusChip({ status }: { status: OpenStatus }) {
+  return (
+    <p className="inline-flex min-h-9 items-center gap-2 rounded-control bg-white/[0.08] px-3 text-sm font-semibold ring-1 ring-white/10">
+      <span
+        aria-hidden
+        className={`size-2.5 rounded-full ${status.open ? "bg-blaze" : "bg-smoke"}`}
+      />
+      {status.open ? (
+        <>
+          Open now
+          <span className="font-medium text-mist">
+            till {hourLabel(status.row.to)}
+          </span>
+        </>
+      ) : (
+        <>
+          Closed
+          <span className="font-medium text-mist">
+            opens {status.day === null ? "" : `${DAY_SHORT[status.day]} `}
+            {hourLabel(status.next.from)}
+          </span>
+        </>
+      )}
+    </p>
+  );
+}
+
+/**
+ * The picture buttons: sign in (orange, biggest), call, WhatsApp, map.
+ * Someone who can't read the labels can still tell them apart by icon.
+ */
+export function QuickActions() {
+  const { signIn, call, whatsapp, map } = quickActions;
+  return (
+    <nav
+      aria-label="Quick actions"
+      className="grid grid-cols-3 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr]"
+    >
+      <SmartLink
+        href={signIn.href}
+        className="blaze-texture col-span-3 flex min-h-24 items-center gap-4 rounded-card bg-blaze p-4 text-white transition-[background-color,transform] duration-150 hover:bg-blaze-deep active:scale-[0.99] md:col-span-1"
+      >
+        <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-tile bg-white/20 text-white ring-1 ring-white/25">
+          <Icon name="user" className="size-8" strokeWidth={2} />
+        </span>
+        <span>
+          <span className="block text-2xl leading-tight font-bold">
+            {signIn.label}
+          </span>
+          <span className="block text-sm font-semibold text-white/90">
+            {signIn.hint}
+          </span>
+        </span>
+        <Icon name="arrow" className="ml-auto size-7" strokeWidth={2.25} />
+      </SmartLink>
+
+      <ActionTile href={contact.phoneHref} icon="phone" label={call.label} />
+      <ActionTile
+        href={whatsappLink(finalCta.whatsappMessage)}
+        icon="whatsapp"
+        label={whatsapp.label}
+      />
+      <ActionTile href={map.href} icon="pin" label={map.label} />
+    </nav>
+  );
+}
+
+function ActionTile({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: LandingIcon;
+  label: string;
+}) {
+  return (
+    <SmartLink
+      href={href}
+      className="flex min-h-24 flex-col items-center justify-center gap-2 landing-tile px-2 py-4 transition-colors hover:bg-ash"
+    >
+      <Icon name={icon} className="size-8" />
+      <span className="text-sm font-semibold">{label}</span>
+    </SmartLink>
   );
 }

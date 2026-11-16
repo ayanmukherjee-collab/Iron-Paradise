@@ -74,6 +74,7 @@ Every variable is listed and explained in [.env.example](.env.example).
 | `npm run cf:size`    | Check the Worker stays under the free plan's 3 MiB limit             |
 | `npm run db:push`    | Apply new migrations to the linked Supabase project                  |
 | `npm run art`        | Rebuild landing page art from `assets/art`                           |
+| `npm run map`        | Redraw the landing page map from OpenStreetMap (needs network)       |
 | `npm run icons`      | Rebuild app icons from `public/brand/logo.svg`                       |
 | `npm run vapid`      | Print a new key pair for push notifications                          |
 
@@ -119,6 +120,8 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/c
 ## Landing page content
 
 All landing page text, plans, timings and contact details live in `src/content/landing.ts`. Edit that one file to change what the public page says.
+
+The page is built to be read in pictures first (icons, big numbers, one orange Sign in button), so keep labels to a word or two. The map preview is drawn from OpenStreetMap road data around `contact.location`; after moving the pin, run `npm run map` and commit `src/landing/map-roads.ts`.
 
 ## Deploying (Cloudflare Workers)
 
