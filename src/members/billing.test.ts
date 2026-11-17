@@ -64,6 +64,14 @@ describe("due dates follow the joining date", () => {
     ).toEqual(["2026-02-28", "2026-03-31", "2026-04-30"]);
   });
 
+  it("follows the first payment's day once the member has paid", () => {
+    // Joined 6 Jan, first paid 8 Jan: every later fee falls due on the 8th.
+    expect(
+      [0, 1, 2].map((period) => dueDate("2026-01-08", period, [])),
+    ).toEqual(["2026-01-08", "2026-02-08", "2026-03-08"]);
+    expect(nextDueDate("2026-01-08", [], "2026-01-09")).toBe("2026-02-08");
+  });
+
   it("finds the next due date from any day", () => {
     expect(nextDueDate("2026-03-12", [], "2026-04-12")).toBe("2026-04-12");
     expect(nextDueDate("2026-03-12", [], "2026-04-13")).toBe("2026-05-12");
@@ -118,6 +126,7 @@ describe("agreed fees", () => {
   it("applies a change from the next due date, never to months already due", () => {
     const membership: MembershipFacts = {
       startsOn: "2026-03-12",
+      billingStartsOn: "2026-03-12",
       endedOn: null,
       freezes: [],
       fees: [fee(60000, "2026-03-12")],
@@ -130,6 +139,7 @@ describe("agreed fees", () => {
 describe("membership status", () => {
   const base: MembershipFacts = {
     startsOn: "2026-03-12",
+    billingStartsOn: "2026-03-12",
     endedOn: null,
     freezes: [],
     fees: [fee(60000, "2026-03-12")],

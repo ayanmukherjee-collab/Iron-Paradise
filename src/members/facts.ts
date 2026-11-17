@@ -9,6 +9,8 @@ export interface MembershipRow {
   id: string;
   memberId: string;
   startsOn: IsoDate;
+  /** Null until the first payment; see memberships.billing_starts_on. */
+  billingStartsOn: IsoDate | null;
   endedOn: IsoDate | null;
   planId: string | null;
 }
@@ -43,6 +45,7 @@ export async function loadFacts(
   for (const row of rows) {
     facts.set(row.id, {
       startsOn: row.startsOn,
+      billingStartsOn: row.billingStartsOn ?? row.startsOn,
       endedOn: row.endedOn,
       fees: canSeeFees
         ? feeRows

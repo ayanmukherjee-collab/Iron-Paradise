@@ -97,7 +97,7 @@ The security tests in `src/db/rls.test.ts` load every migration into an in-memor
 
 Nothing about what a member owes is stored; it is computed from the ledger each time (`src/payments/ledger.ts`, pure and unit tested).
 
-- A membership has numbered periods. Period 0 falls due on the joining day, period _n_ on the joining date _n_ months later (the last day of shorter months), pushed back by any freezes.
+- A membership has numbered periods. Period 0 falls due on the day of the first payment (the joining day until the member first pays), period _n_ on that date _n_ months later (the last day of shorter months), pushed back by any freezes. The database keeps that day in `memberships.billing_starts_on`, set by triggers on payments and voids.
 - Each period owes the agreed fee in force on its due date (`membership_fees`), so a fee change never rewrites months already due.
 - A payment names the period it starts from. It fills that period up to its fee, then flows on to the next, so a short payment is partial and a large one is an advance.
 - Payments are never edited or deleted. The owner voids a wrong entry (`payment_voids`) and, for a correction, records the right one in the same transaction.

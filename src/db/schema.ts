@@ -105,9 +105,12 @@ export const memberships = pgTable("memberships", {
     .notNull()
     .references(() => members.id),
   planId: uuid("plan_id").references(() => plans.id),
-  // Sets the monthly due day (brief §4.2).
   startsOn: date("starts_on").notNull(),
   endedOn: date("ended_on"),
+  // The first payment's day, which sets the monthly due day; null until the
+  // first payment, meaning the joining day. Written only by database
+  // triggers on payments and voids.
+  billingStartsOn: date("billing_starts_on"),
   createdBy: uuid("created_by").default(currentUser),
   ...timestamps,
 });

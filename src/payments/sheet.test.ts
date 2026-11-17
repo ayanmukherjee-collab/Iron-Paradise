@@ -39,6 +39,7 @@ function withLedger(
 
 const base: MembershipWithFees = {
   startsOn: "2026-03-12",
+  billingStartsOn: "2026-03-12",
   endedOn: null,
   freezes: [],
   fees: [fee(60000, "2026-03-12")],
@@ -120,6 +121,7 @@ describe("sheet cells", () => {
     // and 29 Mar.
     const facts: MembershipWithFees = {
       startsOn: "2026-01-03",
+      billingStartsOn: "2026-01-03",
       endedOn: null,
       freezes: [{ startsOn: "2026-02-03", endsOn: "2026-02-28" }],
       fees: [fee(60000, "2026-01-03")],

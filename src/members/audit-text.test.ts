@@ -73,3 +73,16 @@ describe("describeAuditEntry for account links", () => {
     ).toBe("IP-0003 Test Member unlinked from its account");
   });
 });
+
+describe("describeAuditEntry for due-day changes", () => {
+  it("says when the first payment moves the due day", () => {
+    expect(
+      describeAuditEntry({
+        tableName: "memberships",
+        action: "update",
+        before: { starts_on: "2026-01-06", billing_starts_on: null },
+        after: { starts_on: "2026-01-06", billing_starts_on: "2026-01-08" },
+      }),
+    ).toBe("Dues now fall monthly from 2026-01-08");
+  });
+});
