@@ -57,7 +57,18 @@ for (const name of ["reminders", "send-test-push"]) {
     alias: { "@": "./src" },
     plugins: [nextOnly, nodeBuiltins],
     banner: {
-      js: "// Built by scripts/build-functions.mjs from supabase/functions-src. Do not edit.",
+      // Supabase's runtime has no Node globals; the Postgres driver expects
+      // Buffer, process and setImmediate to exist.
+      js: [
+        "// Built by scripts/build-functions.mjs from supabase/functions-src. Do not edit.",
+        'import { Buffer as __Buffer } from "node:buffer";',
+        'import __process from "node:process";',
+        "globalThis.Buffer ??= __Buffer;",
+        "globalThis.process ??= __process;",
+        'import { setImmediate as __setImmediate, clearImmediate as __clearImmediate } from "node:timers";',
+        "globalThis.setImmediate ??= __setImmediate;",
+        "globalThis.clearImmediate ??= __clearImmediate;",
+      ].join(String.fromCharCode(10)),
     },
     logLevel: "warning",
   });

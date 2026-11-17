@@ -1,4 +1,11 @@
 // Built by scripts/build-functions.mjs from supabase/functions-src. Do not edit.
+import { Buffer as __Buffer } from "node:buffer";
+import __process from "node:process";
+globalThis.Buffer ??= __Buffer;
+globalThis.process ??= __process;
+import { setImmediate as __setImmediate, clearImmediate as __clearImmediate } from "node:timers";
+globalThis.setImmediate ??= __setImmediate;
+globalThis.clearImmediate ??= __clearImmediate;
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)

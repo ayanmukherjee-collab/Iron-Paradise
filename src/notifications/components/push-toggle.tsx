@@ -45,6 +45,18 @@ async function registration(): Promise<ServiceWorkerRegistration | null> {
   return (await navigator.serviceWorker.getRegistration("/")) ?? null;
 }
 
+/** Whether a subscription was made with this app's current public key. */
+function sameKey(subscription: PushSubscription, vapidPublicKey: string) {
+  const used = subscription.options.applicationServerKey;
+  if (!used) return true;
+  const wanted = keyBytes(vapidPublicKey);
+  const bytes = new Uint8Array(used);
+  return (
+    bytes.length === wanted.length &&
+    bytes.every((byte, index) => byte === wanted[index])
+  );
+}
+
 function toSaved(subscription: PushSubscription) {
   const json = subscription.toJSON();
   return {
@@ -82,18 +94,30 @@ export function PushToggle({
       if (Notification.permission === "denied") return "blocked";
       const worker = await registration();
       if (!worker) return "not-ready";
-      const subscription = await worker.pushManager.getSubscription();
+      let subscription = await worker.pushManager.getSubscription();
       if (!subscription) return "off";
+      // Made with an older key pair (the keys were replaced on 2026-11-17)?
+      // Push services refuse those, so swap it for one made with the
+      // current key. Permission is already granted, so nothing is asked.
+      if (!sameKey(subscription, vapidPublicKey)) {
+        await subscription.unsubscribe();
+        subscription = await worker.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: keyBytes(vapidPublicKey),
+        });
+      }
       // Someone else may have used this phone since; reminders sent here
       // should go to whoever is signed in now.
       void savePushSubscription(toSaved(subscription));
       return "on";
     }
-    check().then((next) => !cancelled && setState(next));
+    check()
+      .catch((): State => "off")
+      .then((next) => !cancelled && setState(next));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [vapidPublicKey]);
 
   async function turnOn() {
     setBusy(true);
