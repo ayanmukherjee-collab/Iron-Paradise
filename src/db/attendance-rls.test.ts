@@ -1,10 +1,16 @@
 // Phase 4 rules (brief §4.3): QR check-in, desk displays and the printed
 // code, checked against the real migrations through withUserContext.
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { attendance, deskDisplays, gymSettings } from "@/db/schema";
+import {
+  attendance,
+  deskDisplays,
+  gymClosures,
+  gymSettings,
+} from "@/db/schema";
 import {
   createTestDatabase,
+  roundTheClock,
   type TestDatabase,
 } from "@/db/testing/test-database";
 import { rowsOf, withUserContext } from "@/db/user-context";
@@ -71,6 +77,10 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await t.client.query("delete from public.attendance");
+  await t.client.query("delete from public.gym_closures");
+  await t.client.query("update public.gym_settings set weekly_hours = $1", [
+    roundTheClock,
+  ]);
   await t.client.query(
     "update public.gym_settings set printed_qr_enabled = true",
   );
@@ -325,11 +335,32 @@ describe("the printed code", () => {
   });
 });
 
-describe("training batches", () => {
-  // 05:00–11:00 and 16:00–22:00 gym time, the defaults the migration sets.
-  async function useRealBatches() {
-    await t.client.query(
-      "update public.gym_settings set morning_opens = '05:00', morning_closes = '11:00', evening_opens = '16:00', evening_closes = '22:00'",
+describe("opening hours and closures", () => {
+  // 2026-11-16 is a Monday, 2026-11-22 a Sunday.
+  const twoBatches = [
+    { open: "05:00", close: "11:00" },
+    { open: "16:00", close: "22:00" },
+  ];
+  const usualWeek = {
+    sun: [],
+    mon: twoBatches,
+    tue: twoBatches,
+    wed: twoBatches,
+    thu: twoBatches,
+    fri: twoBatches,
+    sat: twoBatches,
+  };
+
+  async function useHours(overrides: Record<string, unknown> = {}) {
+    await t.client.query("update public.gym_settings set weekly_hours = $1", [
+      { ...usualWeek, ...overrides },
+    ]);
+  }
+
+  function closeOn(date: string, hours: unknown[] | null) {
+    return t.client.query(
+      "insert into public.gym_closures (closes_on, hours, created_by) values ($1, $2, $3)",
+      [date, hours === null ? null : JSON.stringify(hours), owner],
     );
   }
 
@@ -341,6 +372,15 @@ describe("training batches", () => {
     );
   }
 
+  async function refusalAt(istMoment: string): Promise<string> {
+    try {
+      await checkInAt(istMoment);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    return "accepted";
+  }
+
   async function batchAt(istMoment: string): Promise<string | null> {
     const result = await t.client.query<{ batch: string | null }>(
       "select public.batch_at($1::timestamp at time zone 'Asia/Kolkata') as batch",
@@ -350,7 +390,7 @@ describe("training batches", () => {
   }
 
   it("names the batch a moment falls in, in gym time", async () => {
-    await useRealBatches();
+    await useHours();
     expect(await batchAt("2026-11-16 05:00")).toBe("morning");
     expect(await batchAt("2026-11-16 10:59")).toBe("morning");
     expect(await batchAt("2026-11-16 11:00")).toBeNull();
@@ -359,51 +399,115 @@ describe("training batches", () => {
     expect(await batchAt("2026-11-16 02:00")).toBeNull();
   });
 
-  it("refuses a check-in outside both batches, and says when it's open", async () => {
-    await useRealBatches();
-    let message = "";
-    try {
-      await checkInAt("2026-11-16 13:00");
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).toBe("Check-in is open 05:00–11:00 and 16:00–22:00 only.");
+  it("refuses a check-in outside the day's hours, and says when it's open", async () => {
+    await useHours();
+    expect(await refusalAt("2026-11-16 13:00")).toBe(
+      "Check-in is open 05:00–11:00 and 16:00–22:00 today.",
+    );
     const rows = await t.client.query("select 1 from public.attendance");
     expect(rows.rows).toHaveLength(0);
   });
 
+  it("refuses every check-in on a day with no hours", async () => {
+    await useHours();
+    expect(await refusalAt("2026-11-22 10:00")).toBe(
+      "The gym is closed today.",
+    );
+  });
+
   it("accepts check-ins inside either batch", async () => {
-    await useRealBatches();
+    await useHours();
     await checkInAt("2026-11-16 06:15");
     await checkInAt("2026-11-17 19:45");
     const rows = await t.client.query("select 1 from public.attendance");
     expect(rows.rows).toHaveLength(2);
   });
 
-  it("keeps the batches in order", async () => {
-    let message = "";
-    try {
-      await t.client.query(
-        "update public.gym_settings set morning_closes = '17:00', evening_opens = '16:00'",
-      );
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).toMatch(/gym_settings_batches_in_order/);
+  it("follows a full-day closure", async () => {
+    await useHours();
+    await closeOn("2026-11-18", null);
+    expect(await refusalAt("2026-11-18 06:15")).toBe(
+      "The gym is closed today.",
+    );
   });
 
-  it("lets only the owner change the batch hours", async () => {
-    await useRealBatches();
-    await as(manager, (tx) =>
-      tx.update(gymSettings).set({ morningOpens: "04:00" }),
+  it("follows a closed batch and keeps the other one open", async () => {
+    await useHours();
+    await closeOn("2026-11-19", [twoBatches[1]]);
+    expect(await refusalAt("2026-11-19 06:15")).toBe(
+      "Check-in is open 16:00–22:00 today.",
     );
-    let [row] = await as(owner, (tx) => tx.select().from(gymSettings));
-    expect(row.morningOpens).toBe("05:00:00");
+    expect(await refusalAt("2026-11-19 17:00")).toBe("accepted");
+  });
 
-    await as(owner, (tx) =>
-      tx.update(gymSettings).set({ morningOpens: "04:30" }),
+  it("keeps a late opening open past midnight", async () => {
+    await useHours({ fri: [{ open: "18:00", close: "02:00" }] });
+    expect(await batchAt("2026-11-20 23:30")).toBe("evening");
+    expect(await batchAt("2026-11-21 01:30")).toBe("evening");
+    expect(await batchAt("2026-11-21 02:00")).toBeNull();
+  });
+
+  it("lets only the owner change the hours", async () => {
+    await useHours();
+    const shut = { ...usualWeek, mon: [] };
+    await as(manager, (tx) =>
+      tx.update(gymSettings).set({ weeklyHours: shut }),
     );
-    [row] = await as(owner, (tx) => tx.select().from(gymSettings));
-    expect(row.morningOpens).toBe("04:30:00");
+    let [row] = await as(owner, (tx) =>
+      tx.select({ hours: gymSettings.weeklyHours }).from(gymSettings),
+    );
+    expect(row.hours.mon).toEqual(twoBatches);
+
+    await as(owner, (tx) => tx.update(gymSettings).set({ weeklyHours: shut }));
+    [row] = await as(owner, (tx) =>
+      tx.select({ hours: gymSettings.weeklyHours }).from(gymSettings),
+    );
+    expect(row.hours.mon).toEqual([]);
+  });
+
+  it("lets the owner and managers close the gym, and no one else", async () => {
+    await as(manager, (tx) =>
+      tx
+        .insert(gymClosures)
+        .values({ closesOn: "2026-12-25", hours: null, createdBy: manager }),
+    );
+    expect(
+      await rejectionMessage(
+        as(trainer, (tx) =>
+          tx
+            .insert(gymClosures)
+            .values({
+              closesOn: "2026-12-26",
+              hours: null,
+              createdBy: trainer,
+            }),
+        ),
+      ),
+    ).toMatch(/row-level security/);
+    // Trainers still see closures, so they know the gym is shut.
+    const seen = await as(trainer, (tx) =>
+      tx.select({ on: gymClosures.closesOn }).from(gymClosures),
+    );
+    expect(seen.map((row) => row.on)).toContain("2026-12-25");
+
+    await as(manager, (tx) =>
+      tx.delete(gymClosures).where(eq(gymClosures.closesOn, "2026-12-25")),
+    );
+    const left = await t.client.query(
+      "select 1 from public.gym_closures where closes_on = '2026-12-25'",
+    );
+    expect(left.rows).toHaveLength(0);
+  });
+
+  it("refuses closure hours that aren't openings", async () => {
+    expect(
+      await rejectionMessage(
+        as(owner, (tx) =>
+          tx.execute(
+            sql`insert into public.gym_closures (closes_on, hours, created_by) values ('2026-12-31', '[{"open":"9am"}]'::jsonb, ${owner})`,
+          ),
+        ),
+      ),
+    ).toMatch(/gym_closures_hours_check/);
   });
 });

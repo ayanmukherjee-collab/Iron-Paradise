@@ -22,6 +22,8 @@ beforeAll(async () => {
   manager = await t.createUser("manager");
   trainer = await t.createUser("trainer");
   member = await t.createUser("member");
+  // The harness opens round the clock; these tests read the real defaults.
+  await t.client.query("update public.gym_settings set weekly_hours = default");
 }, 60_000);
 
 /** The database's own message: Drizzle wraps it as the error's cause. */
@@ -167,5 +169,62 @@ describe("weekly hours", () => {
     await setHoursAs(manager, closedAllWeek);
     const parsed = bulletin.parse(JSON.parse(await publishAs(owner)));
     expect(parsed.hours.mon).toEqual(mondayMorning);
+  });
+});
+
+describe("closures and announcements in the bulletin", () => {
+  it("carries closures from today on, soonest first", async () => {
+    await t.client.query(
+      `insert into public.gym_closures (closes_on, reason, hours, created_by) values
+        (current_date - 3, 'Past', null, $1),
+        (current_date + 9, 'Later', '[{"open":"06:00","close":"12:00"}]', $1),
+        (current_date + 2, 'Soon', null, $1)`,
+      [owner],
+    );
+    const parsed = bulletin.parse(JSON.parse(await publishAs(owner)));
+    expect(parsed.closures.map((c) => c.reason)).toEqual(["Soon", "Later"]);
+    expect(parsed.closures[1].hours).toEqual([
+      { open: "06:00", close: "12:00" },
+    ]);
+    expect(parsed.closures[0].hours).toBeNull();
+  });
+
+  it("carries live announcements, pinned first, then newest, at most 20", async () => {
+    await t.client.query(
+      `insert into public.announcements (title, body, pinned, expires_at, created_by, created_at)
+       select 'Old ' || n, '', false, null, $1, now() - make_interval(mins => n)
+       from generate_series(1, 25) n`,
+      [owner],
+    );
+    // created_at is stamped by the server on insert, so age them afterwards
+    // as the database owner (no grant lets the app do this).
+    await t.client.query(
+      "update public.announcements set created_at = now() - make_interval(mins => substr(title, 5)::int)",
+    );
+    await t.client.query(
+      `insert into public.announcements (title, body, pinned, expires_at, created_by) values
+        ('Pinned', '<b>not html</b>', true, null, $1),
+        ('Expired', '', true, now() - interval '1 minute', $1)`,
+      [owner],
+    );
+    const parsed = bulletin.parse(JSON.parse(await publishAs(owner)));
+    const titles = parsed.announcements.map((a) => a.title);
+    expect(titles).toHaveLength(20);
+    expect(titles[0]).toBe("Pinned");
+    expect(titles[1]).toBe("Old 1");
+    expect(titles).not.toContain("Expired");
+    // Bodies travel as plain text; the phone renders them as text too.
+    expect(parsed.announcements[0].body).toBe("<b>not html</b>");
+  });
+
+  it("keeps announcements away from trainers and members", async () => {
+    const read = (userId: string) =>
+      withUserContext(t.db, userId, (tx) =>
+        tx.execute(sql`select count(*)::int as n from public.announcements`),
+      );
+    const [trainerSees] = rowsOf<{ n: number }>(await read(trainer));
+    const [memberSees] = rowsOf<{ n: number }>(await read(member));
+    expect(trainerSees.n).toBe(0);
+    expect(memberSees.n).toBe(0);
   });
 });

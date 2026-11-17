@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "@/components/ui/link";
 import { markAttendance } from "@/attendance/actions";
-import { batchAt } from "@/attendance/batches";
+import { batchAt, visitBatch } from "@/attendance/batches";
 import { TodayCard } from "@/attendance/components/today-card";
 import {
   daysInMonth,
@@ -80,7 +80,7 @@ export default async function AttendancePage({
 
   const withBatch = visits.map((visit) => ({
     ...visit,
-    batch: batchAt(visit.checkedInAt, batches),
+    batch: visitBatch(visit.checkedInAt, batches),
   }));
   const morning = withBatch.filter((visit) => visit.batch === "morning").length;
   const evening = withBatch.filter((visit) => visit.batch === "evening").length;

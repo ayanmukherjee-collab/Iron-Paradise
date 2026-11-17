@@ -14,11 +14,10 @@ import {
   pgTable,
   smallint,
   text,
-  time,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { WeeklyHours } from "@/bulletin/types";
+import type { TimeRange, WeeklyHours } from "@/bulletin/types";
 
 const bytea = customType<{ data: Uint8Array }>({ dataType: () => "bytea" });
 
@@ -150,12 +149,8 @@ export const gymSettings = pgTable("gym_settings", {
   id: boolean("id").primaryKey().default(true),
   goneQuietDays: smallint("gone_quiet_days").notNull().default(30),
   printedQrEnabled: boolean("printed_qr_enabled").notNull().default(true),
-  // Gym-time "HH:MM:SS"; check-ins outside both batches are refused.
-  morningOpens: time("morning_opens").notNull().default("05:00"),
-  morningCloses: time("morning_closes").notNull().default("11:00"),
-  eveningOpens: time("evening_opens").notNull().default("16:00"),
-  eveningCloses: time("evening_closes").notNull().default("22:00"),
-  // Published to members in bulletin.json (src/bulletin/types.ts).
+  // Opening hours, published to members in bulletin.json
+  // (src/bulletin/types.ts). Check-ins outside them are refused.
   weeklyHours: jsonb("weekly_hours").$type<WeeklyHours>().notNull(),
   crowdCapacity: smallint("crowd_capacity").notNull().default(40),
   crowdMultiplier: numeric("crowd_multiplier", { precision: 3, scale: 2 })
@@ -166,6 +161,27 @@ export const gymSettings = pgTable("gym_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/** A day shut, or kept to fewer openings (hours). */
+export const gymClosures = pgTable("gym_closures", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  closesOn: date("closes_on").notNull().unique(),
+  reason: text("reason").notNull().default(""),
+  /** null: closed all day; otherwise the openings that still run. */
+  hours: jsonb("hours").$type<TimeRange[] | null>(),
+  createdBy: uuid("created_by").notNull().default(currentUser),
+  ...timestamps,
+});
+
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  pinned: boolean("pinned").notNull().default(false),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdBy: uuid("created_by").notNull().default(currentUser),
+  ...timestamps,
 });
 
 export const payments = pgTable("payments", {

@@ -4,15 +4,13 @@ import {
   batchHours,
   formatClock,
   gymClock,
-  toTimeInput,
+  visitBatch,
   type Batches,
 } from "@/attendance/batches";
 
 const batches: Batches = {
-  morningOpens: "05:00:00",
-  morningCloses: "11:00:00",
-  eveningOpens: "16:00:00",
-  eveningCloses: "22:00:00",
+  morning: { open: "05:00", close: "11:00" },
+  evening: { open: "16:00", close: "22:00" },
 };
 
 // India is UTC+5:30 all year, so these are fixed gym times.
@@ -33,12 +31,34 @@ describe("batches", () => {
     expect(batchAt(ist("02:00:00"), batches)).toBeNull();
   });
 
+  it("follows an evening batch past midnight", () => {
+    const late: Batches = {
+      morning: null,
+      evening: { open: "18:00", close: "02:00" },
+    };
+    expect(batchAt(ist("23:30:00"), late)).toBe("evening");
+    expect(batchAt(ist("01:59:00"), late)).toBe("evening");
+    expect(batchAt(ist("02:00:00"), late)).toBeNull();
+  });
+
+  it("knows nothing is open on a day without batches", () => {
+    expect(batchAt(ist("06:00:00"), { morning: null, evening: null })).toBe(
+      null,
+    );
+  });
+
+  it("files a visit by half-day when its batch has since closed", () => {
+    const eveningOnly: Batches = { morning: null, evening: batches.evening };
+    expect(visitBatch(ist("06:00:00"), eveningOnly)).toBe("morning");
+    expect(visitBatch(ist("17:00:00"), eveningOnly)).toBe("evening");
+  });
+
   it("writes hours the way people say them", () => {
-    expect(formatClock("05:00:00")).toBe("5 am");
-    expect(formatClock("16:30:00")).toBe("4:30 pm");
-    expect(formatClock("12:00:00")).toBe("12 pm");
-    expect(formatClock("24:00:00")).toBe("midnight");
+    expect(formatClock("05:00")).toBe("5 am");
+    expect(formatClock("16:30")).toBe("4:30 pm");
+    expect(formatClock("12:00")).toBe("12 pm");
+    expect(formatClock("00:00")).toBe("midnight");
     expect(batchHours(batches, "evening")).toBe("4 pm – 10 pm");
-    expect(toTimeInput("5:00")).toBe("05:00");
+    expect(batchHours({ morning: null, evening: null }, "morning")).toBe("—");
   });
 });

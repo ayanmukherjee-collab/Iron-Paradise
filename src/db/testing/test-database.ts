@@ -25,6 +25,17 @@ export interface TestDatabase {
   createMember(fields?: { profileId?: string; name?: string }): Promise<string>;
 }
 
+/** Open every minute of every day: before noon, then noon to midnight. */
+export const roundTheClock = Object.fromEntries(
+  ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day) => [
+    day,
+    [
+      { open: "00:00", close: "12:00" },
+      { open: "12:00", close: "00:00" },
+    ],
+  ]),
+);
+
 /** A fresh in-memory Postgres with the Supabase stub and every migration applied. */
 export async function createTestDatabase(): Promise<TestDatabase> {
   const client = new PGlite();
@@ -36,11 +47,11 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   for (const file of migrations) {
     await client.exec(readFileSync(join(migrationsDir, file), "utf8"));
   }
-  // Check-ins are refused outside the training batches. Open them round the
-  // clock so tests pass whatever time they run; batch tests set real hours.
-  await client.exec(
-    "update public.gym_settings set morning_opens = '00:00', morning_closes = '12:00', evening_opens = '12:00', evening_closes = '24:00'",
-  );
+  // Check-ins are refused outside opening hours. Open round the clock so
+  // tests pass whatever time they run; hours tests set real ones.
+  await client.query("update public.gym_settings set weekly_hours = $1", [
+    roundTheClock,
+  ]);
 
   const db = drizzle(client, { schema }) as unknown as Database;
 
