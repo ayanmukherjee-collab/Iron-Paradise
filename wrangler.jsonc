@@ -26,6 +26,19 @@
   "placement": {
     "region": "aws:ap-south-1",
   },
+  // Database connections go through Hyperdrive (free plan): it keeps warm,
+  // logged-in connections to Supabase, so a request no longer pays for its
+  // own TLS handshake and password exchange. src/db/client.ts picks this up
+  // and falls back to DATABASE_URL without it. The config ("iron-paradise-db",
+  // Supabase direct connection) has query caching OFF and must stay that way:
+  // the cache ignores which user ran a query (RLS) and is not cleared on
+  // writes. See README "Database connection (Hyperdrive)".
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "6f7e4f78d4f644f08c519697648b1f83",
+    },
+  ],
   // Due reminders (brief §4.6): every 15 minutes from 08:30 to 11:15 in
   // India (03:00–05:45 UTC). Each run sends what fits in Cloudflare's
   // free-plan request limit and later runs carry on; nothing is sent twice.

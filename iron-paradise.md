@@ -281,5 +281,5 @@ Done 2026-11-16: the migration is applied, and `CRON_SECRET`, `VAPID_PUBLIC_KEY`
 **Optional**
 
 11. A custom domain instead of `workers.dev`. Update `NEXT_PUBLIC_SITE_URL` and the Supabase redirect URL when it changes.
-12. Hyperdrive for faster database connections. Less important now that the Worker runs in Mumbai.
+12. Hyperdrive. Added 2026-11-17. Each request used to open its own database connection (TLS handshake plus Postgres password exchange); Hyperdrive keeps warm, logged-in connections, so requests skip those round trips. It is a latency and connection-stability gain with a small CPU saving. It is not the fix for the free plan's 10 ms CPU errors (`exceededCpu`), because most request CPU is rendering. Caching is off so RLS-filtered rows, roles and balances are never served stale or to the wrong user (README → "Database connection (Hyperdrive)"). Still to do: compare `cpuTimeMs`, `wallTimeMs` and the `exceededCpu` count in Workers observability before and after the deploy.
 13. Remove the Dependabot ignore rule for TypeScript majors once `eslint-config-next` supports TypeScript 7.
