@@ -1,7 +1,11 @@
 import "server-only";
 import { inArray, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { membershipFees, membershipFreezes } from "@/db/schema";
+import {
+  membershipFees,
+  membershipFreezes,
+  type DueChangeRow,
+} from "@/db/schema";
 import type { UserTransaction } from "@/db/user-context";
 import type { IsoDate } from "@/lib/dates";
 import type { FeeChange, Freeze, MembershipFacts } from "@/members/billing";
@@ -12,6 +16,7 @@ export interface MembershipRow {
   startsOn: IsoDate;
   /** Null until the first payment; see memberships.billing_starts_on. */
   billingStartsOn: IsoDate | null;
+  dueChanges: DueChangeRow[];
   endedOn: IsoDate | null;
   planId: string | null;
 }
@@ -98,6 +103,10 @@ export async function loadFacts(
     facts.set(row.id, {
       startsOn: row.startsOn,
       billingStartsOn: row.billingStartsOn ?? row.startsOn,
+      dueChanges: row.dueChanges.map((change) => ({
+        fromPeriod: change.from_period,
+        dueOn: change.due_on,
+      })),
       endedOn: row.endedOn,
       fees: canSeeFees
         ? (fees.get(row.id) ?? []).map<FeeChange>((fee) => ({

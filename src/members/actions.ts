@@ -25,6 +25,7 @@ import { formatDate, todayAtGym, type IsoDate } from "@/lib/dates";
 import { publicEnv } from "@/lib/env";
 import { feeChangeEffectiveFrom } from "@/members/billing";
 import { getMembershipFacts } from "@/members/queries";
+import { moveDueDate } from "@/payments/queries";
 import {
   checkbox,
   feeRupees,
@@ -154,6 +155,23 @@ export const changeFee = guardedAction({
       },
     );
     return { message: `Saved. Applies from ${formatDate(effectiveFrom)}.` };
+  },
+});
+
+// Moves the next due date; every later due follows on the same day of the
+// month. Months already owed move too (see moveDueDate).
+export const changeDueDate = guardedAction({
+  permission: "memberships.edit",
+  input: z.object({
+    memberId: z.uuid(),
+    membershipId: z.uuid(),
+    dueOn: isoDate,
+  }),
+  run: async ({ membershipId, dueOn }, viewer) => {
+    await withUserContext(getDb(), viewer.userId, (tx) =>
+      moveDueDate(tx, membershipId, dueOn, todayAtGym()),
+    );
+    return { message: `Saved. Next due ${formatDate(dueOn)}.` };
   },
 });
 

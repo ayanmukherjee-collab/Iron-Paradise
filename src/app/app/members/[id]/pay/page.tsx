@@ -65,23 +65,37 @@ export default async function RecordPaymentPage({
         >
           <input type="hidden" name="memberId" value={form.member.id} />
           <input type="hidden" name="membershipId" value={form.membershipId} />
-          <Field
-            label="Pays from"
-            hint="Anything above this month's fee goes to the months after it."
-          >
-            <select
-              name="firstPeriod"
-              defaultValue={chosen?.index}
-              className={inputClass}
+          {form.firstPayment ? (
+            <>
+              {/* The first payment starts the dues, from any day. */}
+              <input
+                type="hidden"
+                name="firstPeriod"
+                value={form.periods[0].index}
+              />
+              <Field label="Due from" hint="Blank: same as paid on.">
+                <input name="duesFrom" type="date" className={inputClass} />
+              </Field>
+            </>
+          ) : (
+            <Field
+              label="Pays from"
+              hint="Anything above this month's fee goes to the months after it."
             >
-              {form.periods.map((option) => (
-                <option key={option.index} value={option.index}>
-                  {describePeriod(option)}
-                  {option.status === "overdue" ? " · overdue" : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
+              <select
+                name="firstPeriod"
+                defaultValue={chosen?.index}
+                className={inputClass}
+              >
+                {form.periods.map((option) => (
+                  <option key={option.index} value={option.index}>
+                    {describePeriod(option)}
+                    {option.status === "overdue" ? " · overdue" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <PaymentFields
             today={todayAtGym()}
             defaults={{

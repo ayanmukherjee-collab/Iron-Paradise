@@ -5,6 +5,7 @@ import { buildLedger, type MembershipWithFees } from "@/payments/ledger";
 const membership: MembershipWithFees = {
   startsOn: "2026-03-12",
   billingStartsOn: "2026-03-12",
+  dueChanges: [],
   endedOn: null,
   freezes: [],
   fees: [

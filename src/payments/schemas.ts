@@ -38,6 +38,12 @@ export const paidOn = isoDate.refine(
   "The payment date can't be in the future",
 );
 
+/** First payment only: when dues start. Any date; blank follows paidOn. */
+export const duesFrom = z
+  .union([z.literal(""), isoDate])
+  .optional()
+  .transform((value) => value || null);
+
 export const period = z.coerce
   .number("Pick the month this payment starts from")
   .int()

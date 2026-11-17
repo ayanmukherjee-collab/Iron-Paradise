@@ -19,6 +19,22 @@ const num = (row: Row, key: string) =>
 const money = (paise: number | null) =>
   paise === null ? "?" : paise === 0 ? "free" : formatPaise(paise);
 
+function dueChanges(row: Row): Row[] {
+  return Array.isArray(row?.due_changes) ? (row.due_changes as Row[]) : [];
+}
+
+function startsFromDueChange(row: Row): boolean {
+  return num(dueChanges(row)[0] ?? null, "from_period") === 0;
+}
+
+function dueChangeText(after: Row): string {
+  const last = dueChanges(after).at(-1) ?? null;
+  const on = str(last, "due_on");
+  return on
+    ? `Due date moved: dues now fall monthly from ${on}`
+    : "Due date moved";
+}
+
 export function describeAuditEntry(entry: AuditEntryInput): string {
   const before = entry.before as Row;
   const after = entry.after as Row;
@@ -46,10 +62,18 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
         return `Membership started ${str(after, "starts_on")}`;
       if (!before?.ended_on && after?.ended_on)
         return `Membership ended ${str(after, "ended_on")}`;
+      if (
+        JSON.stringify(before?.due_changes ?? []) !==
+        JSON.stringify(after?.due_changes ?? [])
+      )
+        return dueChangeText(after);
       if (str(before, "billing_starts_on") !== str(after, "billing_starts_on"))
-        return str(after, "billing_starts_on")
-          ? `Dues now fall monthly from ${str(after, "billing_starts_on")}`
-          : "Dues back on the joining day: no payment counts";
+        // Staff's date at period 0 wins over the first payment's day.
+        return startsFromDueChange(after)
+          ? dueChangeText(after)
+          : str(after, "billing_starts_on")
+            ? `Dues now fall monthly from ${str(after, "billing_starts_on")}`
+            : "Dues back on the joining day: no payment counts";
       return "Membership edited";
     case "membership_fees":
       return `Agreed fee set to ${money(num(after, "fee_paise"))} from ${str(after, "effective_from")}`;

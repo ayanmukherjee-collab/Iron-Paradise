@@ -7,8 +7,10 @@ import { describe, expect, it } from "vitest";
 import { addDays, addMonthsClamped, daysBetween } from "@/lib/dates";
 import {
   dueDate,
+  dueDates,
   maxPeriods,
   nextDueDate,
+  rescheduled,
   type FeeChange,
   type Freeze,
 } from "@/members/billing";
@@ -68,7 +70,14 @@ function someMembership(r: Random): MembershipWithFees {
       createdAt: new Date(1000),
     });
   }
-  return { startsOn, billingStartsOn, endedOn: null, freezes, fees };
+  return {
+    startsOn,
+    billingStartsOn,
+    dueChanges: [],
+    endedOn: null,
+    freezes,
+    fees,
+  };
 }
 
 function somePayments(r: Random): LedgerPayment[] {
@@ -119,6 +128,22 @@ function originalNextDueDate(
   return null;
 }
 
+/** someMembership with its due date moved by staff up to three times. */
+function someMovedMembership(r: Random): MembershipWithFees {
+  const membership = someMembership(r);
+  for (let i = r.int(1, 3); i > 0; i--) {
+    const period = r.pick([0, r.int(1, 40)]);
+    const previous = period > 0 ? dueDate(membership, period - 1) : null;
+    if (period > 0 && previous === null) continue;
+    const wanted = previous
+      ? addDays(previous, r.int(-5, 60))
+      : addDays(membership.billingStartsOn, r.int(-90, 90));
+    const changes = rescheduled(membership, period, wanted);
+    if (changes) membership.dueChanges = changes;
+  }
+  return membership;
+}
+
 /** The ledger with `coverage` left out: everything a list shows. */
 function shown(ledger: Ledger) {
   const { coverage, ...rest } = ledger;
@@ -149,10 +174,37 @@ describe("due dates", () => {
     for (let i = 0; i < 2000; i++) {
       const { billingStartsOn, freezes } = someMembership(r);
       for (let period = 0; period < 70; period += r.int(1, 5)) {
-        expect(dueDate(billingStartsOn, period, freezes)).toBe(
-          originalDueDate(billingStartsOn, period, freezes),
-        );
+        expect(
+          dueDate({ billingStartsOn, dueChanges: [], freezes }, period),
+        ).toBe(originalDueDate(billingStartsOn, period, freezes));
       }
+    }
+  });
+
+  it("moved due dates never go backwards and nextDueDate still finds them", () => {
+    const r = random(5);
+    for (let i = 0; i < 800; i++) {
+      const membership = someMovedMembership(r);
+      const dueOn = dueDates(membership);
+      const dates: string[] = [];
+      for (let period = 0; period < 80; period++) {
+        const due = dueOn(period);
+        if (due === null) break;
+        dates.push(due);
+      }
+      for (let k = 1; k < dates.length; k++) {
+        expect(dates[k] > dates[k - 1], `case ${i}, period ${k}`).toBe(true);
+      }
+      const date = addDays(membership.billingStartsOn, r.int(-100, 2400));
+      let expected: string | null = null;
+      for (let period = 0; period < maxPeriods; period++) {
+        const due = dueOn(period);
+        if (due === null || due >= date) {
+          expected = due;
+          break;
+        }
+      }
+      expect(nextDueDate(membership, date), `case ${i}`).toBe(expected);
     }
   });
 
@@ -167,9 +219,10 @@ describe("due dates", () => {
         addDays(billingStartsOn, r.int(17000, 19000)),
         billingStartsOn,
       ]);
-      expect(nextDueDate(billingStartsOn, freezes, date), `case ${i}`).toBe(
-        originalNextDueDate(billingStartsOn, freezes, date),
-      );
+      expect(
+        nextDueDate({ billingStartsOn, dueChanges: [], freezes }, date),
+        `case ${i}`,
+      ).toBe(originalNextDueDate(billingStartsOn, freezes, date));
     }
   });
 });

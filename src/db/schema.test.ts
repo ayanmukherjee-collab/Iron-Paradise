@@ -85,6 +85,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "save_push_subscription",
       "set_user_active",
       "set_user_role",
+      "valid_due_changes",
     ]);
   });
 });

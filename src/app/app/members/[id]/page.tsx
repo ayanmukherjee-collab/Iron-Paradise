@@ -22,6 +22,7 @@ import {
 } from "@/lib/dates";
 import { formatPaise, paiseToInput } from "@/lib/money";
 import {
+  changeDueDate,
   changeFee,
   createClaimLink,
   deactivateMember,
@@ -96,6 +97,15 @@ export default async function MemberPage({
             id: "details",
             label: "Edit details",
             content: <DetailsForm detail={detail} />,
+          },
+        ]
+      : []),
+    ...(canEditMembership && membership && payments
+      ? [
+          {
+            id: "due",
+            label: "Due date",
+            content: <DueDateForm detail={detail} dueOn={payments.dueToMove} />,
           },
         ]
       : []),
@@ -469,6 +479,34 @@ function FeeForm({ detail }: { detail: MemberDetail }) {
         </History>
       )}
     </>
+  );
+}
+
+function DueDateForm({
+  detail,
+  dueOn,
+}: {
+  detail: MemberDetail;
+  dueOn: string | null;
+}) {
+  return (
+    <ActionForm
+      action={changeDueDate}
+      submitLabel="Change due date"
+      className="max-w-lg space-y-4"
+    >
+      <input type="hidden" name="memberId" value={detail.member.id} />
+      <input type="hidden" name="membershipId" value={detail.membership!.id} />
+      <Field label="Next due" hint="Later months follow this day.">
+        <input
+          name="dueOn"
+          type="date"
+          required
+          defaultValue={dueOn ?? undefined}
+          className={inputClass}
+        />
+      </Field>
+    </ActionForm>
   );
 }
 

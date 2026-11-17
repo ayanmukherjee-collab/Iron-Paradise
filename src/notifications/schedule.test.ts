@@ -24,6 +24,7 @@ const pay = (amountPaise: number, firstPeriod: number): LedgerPayment => ({
 const membership: MembershipWithFees = {
   startsOn: "2026-03-12",
   billingStartsOn: "2026-03-12",
+  dueChanges: [],
   endedOn: null,
   freezes: [],
   fees: [fee(60000, "2026-03-12")],
@@ -126,6 +127,7 @@ describe("a late payment never moves the due date", () => {
   const joinedJan6: MembershipWithFees = {
     startsOn: "2026-01-06",
     billingStartsOn: "2026-01-06",
+    dueChanges: [],
     endedOn: null,
     freezes: [],
     fees: [fee(60000, "2026-01-06")],
