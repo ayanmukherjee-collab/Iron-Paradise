@@ -7,6 +7,7 @@ import { requireViewer, viewerCan } from "@/auth/session";
 import { signOut } from "@/auth/sign-in-actions";
 import { LogoMark } from "@/components/brand/logo-mark";
 import { BottomNav, type NavItem } from "@/components/nav/bottom-nav";
+import { MemberNav } from "@/components/nav/member-nav";
 import type { NavIcon } from "@/components/nav/nav-icons";
 import { SideNav } from "@/components/nav/side-nav";
 import { InstallGuide } from "@/pwa/install-guide";
@@ -156,7 +157,17 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
         </div>
       </div>
       <InstallGuide />
-      <BottomNav items={tabs} more={more} signOut={signOut} />
+      {viewer.role === "member" ? (
+        <MemberNav
+          home={home}
+          checkIn={checkIn[0] ?? null}
+          more={more}
+          person={{ name, role: roleLabels[viewer.role] }}
+          signOut={signOut}
+        />
+      ) : (
+        <BottomNav items={tabs} more={more} signOut={signOut} />
+      )}
     </div>
   );
 }

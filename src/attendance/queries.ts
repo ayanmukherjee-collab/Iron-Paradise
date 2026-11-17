@@ -11,6 +11,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { Batches } from "@/attendance/batches";
+import { visitWindowStart } from "@/attendance/visit-stats";
 import { splitBatches } from "@/bulletin/hours";
 import type { TimeRange } from "@/bulletin/types";
 import type { Viewer } from "@/auth/session";
@@ -144,46 +145,47 @@ export function daysInMonth(month: MonthKey): IsoDate[] {
   return days;
 }
 
-export interface OwnAttendance {
-  today: Date | null;
-  thisMonth: number;
-  recent: { gymDate: IsoDate; checkedInAt: Date; method: "qr" | "manual" }[];
+export interface OwnVisit {
+  gymDate: IsoDate;
+  checkedInAt: Date;
+  method: "qr" | "manual";
 }
 
-/** The member's own visits, for their home screen. */
+export interface OwnAttendance {
+  today: Date | null;
+  /** Every visit since visitWindowStart, newest first: what the charts draw. */
+  visits: OwnVisit[];
+}
+
+/**
+ * The member's own visits for their home screen: one small query over the
+ * weeks the charts cover (at most one row a day), and the figures are worked
+ * out from the same rows.
+ */
 export async function getOwnAttendance(
   viewer: Viewer,
   memberId: string,
 ): Promise<OwnAttendance> {
   const today = todayAtGym();
-  const { first } = monthBounds(today.slice(0, 7));
   return withUserContext(getDb(), viewer.userId, async (tx) => {
-    const [recent, [month]] = await Promise.all([
-      tx
-        .select({
-          gymDate: attendance.gymDate,
-          checkedInAt: attendance.checkedInAt,
-          method: attendance.method,
-        })
-        .from(attendance)
-        .where(eq(attendance.memberId, memberId))
-        .orderBy(desc(attendance.gymDate))
-        .limit(30),
-      tx
-        .select({ visits: count() })
-        .from(attendance)
-        .where(
-          and(
-            eq(attendance.memberId, memberId),
-            gte(attendance.gymDate, first),
-          ),
+    const visits = await tx
+      .select({
+        gymDate: attendance.gymDate,
+        checkedInAt: attendance.checkedInAt,
+        method: attendance.method,
+      })
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.memberId, memberId),
+          gte(attendance.gymDate, visitWindowStart(today)),
         ),
-    ]);
+      )
+      .orderBy(desc(attendance.gymDate));
     return {
       today:
-        recent.find((visit) => visit.gymDate === today)?.checkedInAt ?? null,
-      thisMonth: month?.visits ?? 0,
-      recent,
+        visits.find((visit) => visit.gymDate === today)?.checkedInAt ?? null,
+      visits,
     };
   });
 }
