@@ -6,7 +6,13 @@ import {
   splitBatches,
   type Batches,
 } from "@/bulletin/hours";
-import { DAY_KEYS, type DayKey, type TimeRange } from "@/bulletin/types";
+import { CrowdZones, FadeCurve } from "@/bulletin/components/crowd-charts";
+import {
+  DAY_KEYS,
+  type CrowdSettings,
+  type DayKey,
+  type TimeRange,
+} from "@/bulletin/types";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
@@ -16,9 +22,11 @@ import {
   deleteClosure,
   publishBulletinNow,
   saveClosure,
+  saveCrowdSettings,
   saveDayHours,
 } from "../actions/bulletin";
 import { saveGoneQuietDays, savePlan } from "../actions/members";
+import { useViewer, viewerCan } from "../auth/viewer";
 import { getHoursSettings, type ClosureRow } from "../data/attendance";
 import { getGoneQuietDays, listPlans, type Plan } from "../data/members";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
@@ -44,6 +52,7 @@ export function SettingsPage() {
 
 function SettingsView({ plans, quietDays, hours }: SettingsData) {
   const today = todayAtGym();
+  const viewer = useViewer();
 
   return (
     <div className="space-y-6">
@@ -229,6 +238,13 @@ function SettingsView({ plans, quietDays, hours }: SettingsData) {
       <section>
         <h2 className="px-1 section-title">Members&apos; app</h2>
         <ul className="mt-3 list-card">
+          {viewerCan(viewer, "checkin.settings") && (
+            <li className="list-row">
+              <Row title="Crowd meter" detail={crowdSummary(hours.crowd)}>
+                <CrowdForm crowd={hours.crowd} />
+              </Row>
+            </li>
+          )}
           <li className="list-row">
             <Row
               title="Bulletin"
@@ -359,6 +375,65 @@ const CLOSE_PARTS = [
 
 function daySummary(openings: TimeRange[]): string {
   return openings.length ? openings.map(rangeLabel).join(" · ") : "Closed";
+}
+
+function crowdSummary(crowd: CrowdSettings): string {
+  return `${crowd.comfortableCapacity} people · ×${crowd.calibrationMultiplier} · ${crowd.fullMinutes}–${crowd.goneMinutes} min`;
+}
+
+/** Members see only the level and the bar, never a number. */
+function CrowdForm({ crowd }: { crowd: CrowdSettings }) {
+  const number = (
+    name: string,
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    step = 1,
+  ) => (
+    <Field label={label}>
+      <input
+        name={name}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        required
+        defaultValue={value}
+        className={inputClass}
+      />
+    </Field>
+  );
+  return (
+    <ActionForm
+      action={saveCrowdSettings}
+      submitLabel="Save"
+      success="Saved."
+      className="space-y-5"
+    >
+      <CrowdZones
+        share={0}
+        capacity={crowd.comfortableCapacity}
+        label={`Quiet under ${Math.round(crowd.comfortableCapacity * 0.3)} people, busy over ${Math.round(crowd.comfortableCapacity * 0.7)}`}
+      />
+      <div className="grid grid-cols-2 gap-3">
+        {number("capacity", "Capacity", crowd.comfortableCapacity, 1, 1000)}
+        {number(
+          "multiplier",
+          "Multiplier",
+          crowd.calibrationMultiplier,
+          0.5,
+          5,
+          0.05,
+        )}
+      </div>
+      <FadeCurve full={crowd.fullMinutes} gone={crowd.goneMinutes} />
+      <div className="grid grid-cols-2 gap-3">
+        {number("fullMinutes", "Full (min)", crowd.fullMinutes, 5, 235)}
+        {number("goneMinutes", "Gone (min)", crowd.goneMinutes, 10, 240)}
+      </div>
+    </ActionForm>
+  );
 }
 
 /** One weekday's morning and evening batch, each of which can be off. */

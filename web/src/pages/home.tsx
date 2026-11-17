@@ -9,6 +9,7 @@ import {
   WaitingForGym,
 } from "@/auth/components/waiting-screens";
 import { CloseToday, Notices } from "@/bulletin/components/gym-controls";
+import { CrowdCard } from "@/bulletin/components/crowd-card";
 import { MemberBulletin } from "@/bulletin/components/member-bulletin";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -116,6 +117,7 @@ function StaffHome({ viewer }: { viewer: Viewer }) {
                 seesFees={seesFees}
                 canAdd={viewerCan(viewer, "members.edit")}
               />
+              <CrowdCard className="col-span-2" />
               {seesFees && (
                 <MoneyCards
                   monthLabel={shortMonth(thisMonth)}
@@ -332,6 +334,8 @@ function MemberHome({ viewer }: { viewer: Viewer }) {
                 We couldn&apos;t find your member record. Ask at the front desk.
               </p>
               <MemberBulletin className="mt-6" />
+              {/* The gym's crowd still applies to them. */}
+              <CrowdCard className="mt-4" />
             </section>
           );
         }
@@ -366,6 +370,7 @@ function MemberHome({ viewer }: { viewer: Viewer }) {
               </div>
 
               <div className="space-y-4">
+                <CrowdCard />
                 <MemberBulletin />
                 <FeeReminders
                   status={membership.status}

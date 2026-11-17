@@ -13,7 +13,7 @@ import type {
   ClosureRow,
   TodayControls,
 } from "@/bulletin/queries";
-import type { TimeRange, WeeklyHours } from "@/bulletin/types";
+import type { CrowdSettings, TimeRange, WeeklyHours } from "@/bulletin/types";
 import { addDays, todayAtGym, type IsoDate } from "@/lib/dates";
 import { weekdayKey } from "../actions/bulletin";
 import { dataOf } from "./action";
@@ -231,21 +231,46 @@ export async function getTodayControls(): Promise<TodayControls> {
   };
 }
 
+interface HoursSettingsRow {
+  weekly_hours: WeeklyHours;
+  crowd_capacity: number;
+  crowd_multiplier: number | string;
+  crowd_full_minutes: number;
+  crowd_gone_minutes: number;
+}
+
+/**
+ * The week's hours, every closure from today on and the crowd meter's
+ * settings, for Settings.
+ */
 export async function getHoursSettings(): Promise<{
   weekly: WeeklyHours;
   closures: ClosureRow[];
+  crowd: CrowdSettings;
 }> {
   const today = todayAtGym();
   const [settings, closures] = await Promise.all([
     table("gym_settings")
-      .select("weekly_hours")
+      .select(
+        "weekly_hours, crowd_capacity, crowd_multiplier, crowd_full_minutes, crowd_gone_minutes",
+      )
       .maybeSingle()
-      .then(dataOf<{ weekly_hours: WeeklyHours } | null>),
+      .then(dataOf<HoursSettingsRow | null>),
     table("gym_closures")
       .select("id, date:closes_on, reason, hours")
       .gte("closes_on", today)
       .order("closes_on")
       .then(dataOf<ClosureRow[]>),
   ]);
-  return { weekly: settings!.weekly_hours, closures };
+  const row = settings!;
+  return {
+    weekly: row.weekly_hours,
+    closures,
+    crowd: {
+      comfortableCapacity: row.crowd_capacity,
+      calibrationMultiplier: Number(row.crowd_multiplier),
+      fullMinutes: row.crowd_full_minutes,
+      goneMinutes: row.crowd_gone_minutes,
+    },
+  };
 }
