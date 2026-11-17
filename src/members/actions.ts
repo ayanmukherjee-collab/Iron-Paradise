@@ -245,6 +245,29 @@ export const reactivateMember = guardedAction({
   },
 });
 
+// Permanent: removes the member and every row about them, audit entries
+// included (see the delete_member migration). Owner only, the member must
+// already be inactive, and the owner types the member's ID to confirm. All
+// three are checked again inside the database. One statement, one round
+// trip: the Worker only forwards the request, Postgres does the work.
+export const deleteMember = guardedAction({
+  permission: "members.delete",
+  input: z.object({
+    memberId: z.uuid(),
+    confirmCode: z
+      .string()
+      .trim()
+      .min(1, "Type the member ID to confirm")
+      .max(20),
+  }),
+  run: async ({ memberId, confirmCode }, viewer) => {
+    await withUserContext(getDb(), viewer.userId, (tx) =>
+      tx.execute(sql`select public.delete_member(${memberId}, ${confirmCode})`),
+    );
+    return { redirectTo: "/app/members" };
+  },
+});
+
 // The raw token exists only in this response: the database keeps a hash, so
 // the link can be shown once and never looked up again. Lost links are
 // replaced by generating a new one, which cancels the old.
