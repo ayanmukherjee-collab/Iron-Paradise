@@ -21,16 +21,32 @@ export interface FeeChange {
   createdAt: Date;
 }
 
-export interface MembershipFacts {
-  /** The joining day. */
-  startsOn: IsoDate;
+/**
+ * Staff moved the due date: period `fromPeriod` falls due on `dueOn` and
+ * every later period on the same day of later months. `dueOn` is the date
+ * before freezes push it (see dueBaseFor). See memberships.due_changes.
+ */
+export interface DueChange {
+  fromPeriod: number;
+  dueOn: IsoDate;
+}
+
+/** What fixes a membership's due dates. */
+export interface Schedule {
   /**
    * The day period 0 falls due: the first payment's day, or the joining day
    * until the member first pays. Sets the monthly due day.
    */
   billingStartsOn: IsoDate;
-  endedOn: IsoDate | null;
+  /** Oldest first, with strictly later periods and dates. */
+  dueChanges: DueChange[];
   freezes: Freeze[];
+}
+
+export interface MembershipFacts extends Schedule {
+  /** The joining day. */
+  startsOn: IsoDate;
+  endedOn: IsoDate | null;
   /** Null when the viewer may not see fees (trainers). */
   fees: FeeChange[] | null;
 }
@@ -47,16 +63,13 @@ function freezeLength(freeze: Freeze & { endsOn: IsoDate }): number {
 /**
  * The date period `period` falls due. Period 0 falls due on the billing
  * start (the first payment's day, else the joining day); period n is that
- * date n months on, clamped to month end. Every freeze that starts on or
+ * date n months on, clamped to month end. From a due change on, periods
+ * count months from the change instead. Every freeze that starts on or
  * before a due date pushes it (and all later ones) back by the freeze's
  * length. Returns null while an open-ended freeze holds it.
  */
-export function dueDate(
-  billingStartsOn: IsoDate,
-  period: number,
-  freezes: Freeze[],
-): IsoDate | null {
-  return dueDates(billingStartsOn, freezes)(period);
+export function dueDate(schedule: Schedule, period: number): IsoDate | null {
+  return dueDates(schedule)(period);
 }
 
 /**
@@ -65,15 +78,35 @@ export function dueDate(
  * rather than on every call.
  */
 export function dueDates(
-  billingStartsOn: IsoDate,
-  freezes: Freeze[],
+  schedule: Schedule,
 ): (period: number) => IsoDate | null {
-  const baseOf = monthsAfter(billingStartsOn);
+  const { billingStartsOn, dueChanges, freezes } = schedule;
+  const segments = [
+    { fromPeriod: 0, monthsOn: monthsAfter(billingStartsOn) },
+    ...dueChanges.map((change) => ({
+      fromPeriod: change.fromPeriod,
+      monthsOn: monthsAfter(change.dueOn),
+    })),
+  ];
+  // Most memberships never had their due date moved.
+  const baseOf =
+    segments.length === 1
+      ? segments[0].monthsOn
+      : (period: number) => {
+          let segment = segments[0];
+          for (const next of segments) {
+            if (next.fromPeriod > period) break;
+            segment = next;
+          }
+          return segment.monthsOn(period - segment.fromPeriod);
+        };
   // Most memberships were never frozen; nothing would move their dates.
   if (freezes.length === 0) return baseOf;
 
+  const firstDue =
+    dueChanges[0]?.fromPeriod === 0 ? dueChanges[0].dueOn : billingStartsOn;
   const pending = [...freezes]
-    .filter((freeze) => freeze.startsOn >= billingStartsOn)
+    .filter((freeze) => freeze.startsOn >= firstDue)
     .sort((a, b) => a.startsOn.localeCompare(b.startsOn));
   return (period) => {
     const base = baseOf(period);
@@ -89,6 +122,53 @@ export function dueDates(
 }
 
 /**
+ * The schedule after moving period `period` to fall due on `wanted`, with
+ * every later period following on from it; or null when `wanted` cannot be
+ * that period's due date. Changes from `period` on are replaced, so the
+ * newest change wins.
+ *
+ * A change stores the date before freezes push it, so a freeze added later
+ * pushes the moved dates like any other. Here that date is found so the
+ * period falls due on exactly `wanted` under today's freezes: going back a
+ * day at a time from `wanted`, at most the total of the freezes' lengths.
+ * Null when `wanted` is a frozen day, an open-ended freeze holds it, or it
+ * is not after the previous period's due date (dates never go backwards).
+ */
+export function rescheduled(
+  schedule: Schedule,
+  period: number,
+  wanted: IsoDate,
+): DueChange[] | null {
+  if (period < 0 || period >= maxPeriods) return null;
+  if (period > 0) {
+    const previous = dueDate(schedule, period - 1);
+    if (previous === null || wanted <= previous) return null;
+  }
+  const kept = schedule.dueChanges.filter(
+    (change) => change.fromPeriod < period,
+  );
+  const frozenDays = schedule.freezes.reduce(
+    (total, freeze) =>
+      freeze.endsOn === null
+        ? total
+        : total + freezeLength({ ...freeze, endsOn: freeze.endsOn }),
+    0,
+  );
+  for (let back = 0; back <= frozenDays; back++) {
+    const dueChanges = [
+      ...kept,
+      { fromPeriod: period, dueOn: addDays(wanted, -back) },
+    ];
+    // Bases must rise like the dates (memberships_due_changes_valid).
+    const prior = kept.at(-1);
+    if (prior && dueChanges.at(-1)!.dueOn <= prior.dueOn) return null;
+    if (dueDate({ ...schedule, dueChanges }, period) === wanted)
+      return dueChanges;
+  }
+  return null;
+}
+
+/**
  * The first due date on or after `date`, or null while frozen indefinitely.
  *
  * That is the first period that is "reached": due on or after `date`, or held
@@ -99,12 +179,8 @@ export function dueDates(
  * reached period and then halve the gap: about 2·log₂ months of work instead
  * of one dueDate per month, for exactly the same answer.
  */
-export function nextDueDate(
-  billingStartsOn: IsoDate,
-  freezes: Freeze[],
-  date: IsoDate,
-): IsoDate | null {
-  const dueOn = dueDates(billingStartsOn, freezes);
+export function nextDueDate(schedule: Schedule, date: IsoDate): IsoDate | null {
+  const dueOn = dueDates(schedule);
   const reached = (due: IsoDate | null) => due === null || due >= date;
   let before = -1; // A period known to fall due before `date` (-1: none yet).
   let after = maxPeriods; // A reached period (maxPeriods: none found).
@@ -145,11 +221,22 @@ export function activeFreeze(freezes: Freeze[], today: IsoDate): Freeze | null {
 
 /**
  * The agreed fee on `date`: the newest change effective by then. A later
- * correction for the same date wins over an earlier entry.
+ * correction for the same date wins over an earlier entry. Before the first
+ * fee took effect, the first fee: dues can start before the joining day
+ * when staff move them there.
  */
 export function feeOn(fees: FeeChange[], date: IsoDate): number | null {
   let current: FeeChange | null = null;
+  let first: FeeChange | null = null;
   for (const fee of fees) {
+    if (
+      !first ||
+      fee.effectiveFrom < first.effectiveFrom ||
+      (fee.effectiveFrom === first.effectiveFrom &&
+        fee.createdAt > first.createdAt)
+    ) {
+      first = fee;
+    }
     if (fee.effectiveFrom > date) continue;
     if (
       !current ||
@@ -160,7 +247,7 @@ export function feeOn(fees: FeeChange[], date: IsoDate): number | null {
       current = fee;
     }
   }
-  return current?.feePaise ?? null;
+  return (current ?? first)?.feePaise ?? null;
 }
 
 /**
@@ -171,9 +258,7 @@ export function feeChangeEffectiveFrom(
   membership: MembershipFacts,
   today: IsoDate,
 ): IsoDate {
-  return (
-    nextDueDate(membership.billingStartsOn, membership.freezes, today) ?? today
-  );
+  return nextDueDate(membership, today) ?? today;
 }
 
 export function membershipStatus(

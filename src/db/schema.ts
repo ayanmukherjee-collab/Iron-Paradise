@@ -19,6 +19,13 @@ import {
 } from "drizzle-orm/pg-core";
 import type { TimeRange, WeeklyHours } from "@/bulletin/types";
 
+/** One entry of memberships.due_changes, as stored. */
+export interface DueChangeRow {
+  from_period: number;
+  /** The date before freezes push it. */
+  due_on: string;
+}
+
 const bytea = customType<{ data: Uint8Array }>({ dataType: () => "bytea" });
 
 const timestamps = {
@@ -112,6 +119,12 @@ export const memberships = pgTable("memberships", {
   // first payment, meaning the joining day. Written only by database
   // triggers on payments and voids.
   billingStartsOn: date("billing_starts_on"),
+  // Where staff moved the due date, oldest first; see the due_date_changes
+  // migration. A change at period 0 replaces billingStartsOn.
+  dueChanges: jsonb("due_changes")
+    .$type<DueChangeRow[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   createdBy: uuid("created_by").default(currentUser),
   ...timestamps,
 });

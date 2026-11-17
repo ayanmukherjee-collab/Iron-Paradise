@@ -335,6 +335,7 @@ const membershipFields = {
   memberId: memberships.memberId,
   startsOn: memberships.startsOn,
   billingStartsOn: memberships.billingStartsOn,
+  dueChanges: memberships.dueChanges,
   endedOn: memberships.endedOn,
   planId: memberships.planId,
 };
@@ -470,10 +471,7 @@ function originalListMembers(viewer: Viewer): Promise<MemberSummary[]> {
         hasAccount: member.profileId !== null,
         status,
         feePaise: current && fact.fees ? feeOn(fact.fees, today) : null,
-        nextDue:
-          current && status !== "free"
-            ? nextDueDate(fact.billingStartsOn, fact.freezes, today)
-            : null,
+        nextDue: current && status !== "free" ? nextDueDate(fact, today) : null,
         goneQuiet:
           !!current &&
           status !== "frozen" &&

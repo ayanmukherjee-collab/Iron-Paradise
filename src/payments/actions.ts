@@ -10,8 +10,13 @@ import { paymentVoids, payments } from "@/db/schema";
 import { withUserContext, type UserTransaction } from "@/db/user-context";
 import { todayAtGym } from "@/lib/dates";
 import { describeRecordedPayment } from "@/payments/describe";
-import { ledgerInTransaction } from "@/payments/queries";
-import { paymentDetails, period, voidReason } from "@/payments/schemas";
+import { ledgerInTransaction, moveDueDate } from "@/payments/queries";
+import {
+  duesFrom,
+  paymentDetails,
+  period,
+  voidReason,
+} from "@/payments/schemas";
 
 export const recordPayment = guardedAction({
   permission: "payments.record",
@@ -20,6 +25,7 @@ export const recordPayment = guardedAction({
     membershipId: z.uuid(),
     firstPeriod: period,
     ...paymentDetails,
+    duesFrom,
   }),
   run: async (input, viewer) => {
     const today = todayAtGym();
@@ -27,6 +33,12 @@ export const recordPayment = guardedAction({
       getDb(),
       viewer.userId,
       async (tx) => {
+        // First payment only: dues start on the day staff picked, any day.
+        if (input.duesFrom) {
+          await moveDueDate(tx, input.membershipId, input.duesFrom, today, {
+            firstPayment: true,
+          });
+        }
         const [row] = await tx
           .insert(payments)
           .values({

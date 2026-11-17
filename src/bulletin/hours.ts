@@ -203,6 +203,33 @@ export function closuresWithin(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Minutes from the gym's midnight, for drawing a day on a 24-hour bar. */
+export interface OpenBlock {
+  from: number;
+  to: number;
+}
+
+/**
+ * When the gym is open on `date`, as blocks on that day's 24 hours: its own
+ * openings (one running past midnight is cut at midnight) plus the tail of
+ * the night before's. Sorted, for the bulletin's week of hours.
+ */
+export function openBlocksOn(source: HoursSource, date: IsoDate): OpenBlock[] {
+  const blocks: OpenBlock[] = [];
+  for (const range of hoursOn(source, addDays(date, -1)).openings) {
+    if (crossesMidnight(range) && toMinutes(range.close) > 0) {
+      blocks.push({ from: 0, to: toMinutes(range.close) });
+    }
+  }
+  for (const range of hoursOn(source, date).openings) {
+    blocks.push({
+      from: toMinutes(range.open),
+      to: crossesMidnight(range) ? 24 * 60 : toMinutes(range.close),
+    });
+  }
+  return blocks.sort((a, b) => a.from - b.from);
+}
+
 // ---- Batches -------------------------------------------------------------
 
 export type Batch = "morning" | "evening";

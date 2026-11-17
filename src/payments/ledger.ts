@@ -4,7 +4,8 @@
 //
 // A membership has numbered periods: period 0 falls due on the billing start
 // (the first payment's day, or the joining day until then), period n on that
-// date n months later (pushed back by freezes). Each
+// date n months later (moved by staff's due changes, pushed back by
+// freezes). Each
 // period owes the agreed fee in force on its due date. A payment fills its
 // first period up to that fee, then flows on to the next, so a short payment
 // is partial and a large one is an advance, with no special cases.
@@ -82,7 +83,7 @@ interface Period {
  */
 function periodSource(membership: MembershipWithFees) {
   const periods: Period[] = [];
-  const dueOnFor = dueDates(membership.billingStartsOn, membership.freezes);
+  const dueOnFor = dueDates(membership);
   let exhausted = false;
 
   return function periodAt(index: number): Period | null {
@@ -216,6 +217,21 @@ export function nextDueFromLedger(
   today: IsoDate,
 ): IsoDate | null {
   return ledger.periods.find((period) => period.dueOn >= today)?.dueOn ?? null;
+}
+
+/**
+ * The period a due-date change moves (with every later one): the first not
+ * paid in full, so months already owed move too while months already paid
+ * keep their dates. Free months in the past are skipped; with every listed
+ * month paid ahead, the month after them.
+ */
+export function reschedulablePeriod(ledger: Ledger, today: IsoDate): number {
+  const open = ledger.periods.find(
+    (period) =>
+      period.paidPaise < period.feePaise ||
+      (period.feePaise === 0 && period.dueOn >= today),
+  );
+  return open?.index ?? (ledger.periods.at(-1)?.index ?? -1) + 1;
 }
 
 /**

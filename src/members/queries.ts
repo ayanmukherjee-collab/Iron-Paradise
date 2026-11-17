@@ -89,6 +89,7 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
             memberId: memberships.memberId,
             startsOn: memberships.startsOn,
             billingStartsOn: memberships.billingStartsOn,
+            dueChanges: memberships.dueChanges,
             endedOn: memberships.endedOn,
             planId: memberships.planId,
           })
@@ -155,7 +156,7 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
           current && status !== "free"
             ? ledger
               ? nextDueFromLedger(ledger, today)
-              : nextDueDate(fact.billingStartsOn, fact.freezes, today)
+              : nextDueDate(fact, today)
             : null,
         goneQuiet:
           !!current &&
@@ -207,6 +208,7 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
           memberId: memberships.memberId,
           startsOn: memberships.startsOn,
           billingStartsOn: memberships.billingStartsOn,
+          dueChanges: memberships.dueChanges,
           endedOn: memberships.endedOn,
           planId: memberships.planId,
           planName: plans.name,
@@ -280,14 +282,7 @@ export async function getMemberDetail(viewer: Viewer, memberId: string) {
               startsOn: open.startsOn,
               planName: open.planName,
               feePaise: openFacts.fees ? feeOn(openFacts.fees, today) : null,
-              nextDue:
-                status === "free"
-                  ? null
-                  : nextDueDate(
-                      openFacts.billingStartsOn,
-                      openFacts.freezes,
-                      today,
-                    ),
+              nextDue: status === "free" ? null : nextDueDate(openFacts, today),
               activeFreeze: activeFreeze(openFacts.freezes, today),
               freezes: freezeRows,
               fees: feeRows,
@@ -326,6 +321,7 @@ export async function getMembershipFacts(
       memberId: memberships.memberId,
       startsOn: memberships.startsOn,
       billingStartsOn: memberships.billingStartsOn,
+      dueChanges: memberships.dueChanges,
       endedOn: memberships.endedOn,
       planId: memberships.planId,
     })
@@ -410,6 +406,7 @@ export async function getOwnMembership(viewer: Viewer) {
           memberId: memberships.memberId,
           startsOn: memberships.startsOn,
           billingStartsOn: memberships.billingStartsOn,
+          dueChanges: memberships.dueChanges,
           endedOn: memberships.endedOn,
           planId: memberships.planId,
         })
@@ -436,10 +433,7 @@ export async function getOwnMembership(viewer: Viewer) {
         member.reminderConsentAt !== null && !member.remindersMuted,
       startsOn: fact?.startsOn ?? null,
       feePaise: fact?.fees ? feeOn(fact.fees, today) : null,
-      nextDue:
-        fact && status !== "free"
-          ? nextDueDate(fact.billingStartsOn, fact.freezes, today)
-          : null,
+      nextDue: fact && status !== "free" ? nextDueDate(fact, today) : null,
     };
   });
 }
