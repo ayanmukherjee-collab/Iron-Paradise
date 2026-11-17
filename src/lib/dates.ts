@@ -7,15 +7,91 @@ export type IsoDate = string;
 const isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const dayMs = 86_400_000;
 
-function toEpochDay(date: IsoDate): number {
-  const match = isoPattern.exec(date);
-  if (!match) throw new RangeError(`Not a YYYY-MM-DD date: ${date}`);
+// Ledgers and due dates do this date arithmetic thousands of times per page
+// (every member, every month since they joined), and building a Date and
+// calling toISOString each time cost most of the Worker's 10 ms CPU
+// allowance. Real calendar dates in years 1000–9999 take the plain integer
+// path below, several times faster; anything else (malformed, overflowing,
+// odd years) takes the original Date path, so every result is unchanged.
+const firstFastYear = 1000;
+const lastFastYear = 9999;
+const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function daysInMonth(year: number, month: number): number {
+  return month === 2 && isLeapYear(year) ? 29 : monthLengths[month - 1];
+}
+
+function isFastDate(year: number, month: number, day: number): boolean {
   return (
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / dayMs
+    year >= firstFastYear &&
+    year <= lastFastYear &&
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month)
   );
 }
 
+/** Days since 1970-01-01 (proleptic Gregorian; H. Hinnant's algorithm). */
+function civilToEpochDay(year: number, month: number, day: number): number {
+  const y = month <= 2 ? year - 1 : year;
+  const era = Math.floor(y / 400);
+  const yearOfEra = y - era * 400;
+  const dayOfYear =
+    Math.floor((153 * (month > 2 ? month - 3 : month + 9) + 2) / 5) + day - 1;
+  const dayOfEra =
+    yearOfEra * 365 +
+    Math.floor(yearOfEra / 4) -
+    Math.floor(yearOfEra / 100) +
+    dayOfYear;
+  return era * 146097 + dayOfEra - 719468;
+}
+
+function formatIso(year: number, month: number, day: number): IsoDate {
+  return `${year}-${month < 10 ? "0" : ""}${month}-${day < 10 ? "0" : ""}${day}`;
+}
+
+const firstFastDay = civilToEpochDay(firstFastYear, 1, 1);
+const lastFastDay = civilToEpochDay(lastFastYear, 12, 31);
+
+function toEpochDay(date: IsoDate): number {
+  const match = isoPattern.exec(date);
+  if (!match) throw new RangeError(`Not a YYYY-MM-DD date: ${date}`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (isFastDate(year, month, day)) return civilToEpochDay(year, month, day);
+  return Date.UTC(year, month - 1, day) / dayMs;
+}
+
 function fromEpochDay(day: number): IsoDate {
+  if (Number.isInteger(day) && day >= firstFastDay && day <= lastFastDay) {
+    // The inverse of civilToEpochDay.
+    const shifted = day + 719468;
+    const era = Math.floor(shifted / 146097);
+    const dayOfEra = shifted - era * 146097;
+    const yearOfEra = Math.floor(
+      (dayOfEra -
+        Math.floor(dayOfEra / 1460) +
+        Math.floor(dayOfEra / 36524) -
+        Math.floor(dayOfEra / 146096)) /
+        365,
+    );
+    const dayOfYear =
+      dayOfEra -
+      (365 * yearOfEra +
+        Math.floor(yearOfEra / 4) -
+        Math.floor(yearOfEra / 100));
+    const monthIndex = Math.floor((5 * dayOfYear + 2) / 153);
+    const dayOfMonth = dayOfYear - Math.floor((153 * monthIndex + 2) / 5) + 1;
+    const month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9;
+    const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
+    return formatIso(year, month, dayOfMonth);
+  }
   return new Date(day * dayMs).toISOString().slice(0, 10);
 }
 
@@ -39,6 +115,40 @@ export function daysBetween(from: IsoDate, to: IsoDate): number {
  * a 31st stays the 31st in months that have one.
  */
 export function addMonthsClamped(date: IsoDate, months: number): IsoDate {
+  return monthsAfter(date)(months);
+}
+
+/**
+ * addMonthsClamped(date, months) for many values of `months`, reading `date`
+ * once: a membership's due dates are its start date 0, 1, 2, … months on.
+ */
+export function monthsAfter(date: IsoDate): (months: number) => IsoDate {
+  if (isoPattern.test(date)) {
+    const year = Number(date.slice(0, 4));
+    const month = Number(date.slice(5, 7));
+    const day = Number(date.slice(8, 10));
+    if (year >= firstFastYear && month >= 1 && month <= 12 && day >= 1) {
+      const startMonth = year * 12 + month - 1;
+      return (months) => {
+        const monthsSinceYearZero = startMonth + months;
+        const targetYear = Math.floor(monthsSinceYearZero / 12);
+        if (
+          !Number.isInteger(months) ||
+          targetYear < firstFastYear ||
+          targetYear > lastFastYear
+        )
+          return addMonthsSlowly(date, months);
+        const targetMonth = monthsSinceYearZero - targetYear * 12 + 1;
+        const lastDay = daysInMonth(targetYear, targetMonth);
+        return formatIso(targetYear, targetMonth, Math.min(day, lastDay));
+      };
+    }
+  }
+  return (months) => addMonthsSlowly(date, months);
+}
+
+/** The original Date-based addMonthsClamped, for dates off the fast path. */
+function addMonthsSlowly(date: IsoDate, months: number): IsoDate {
   const [year, month, day] = date.split("-").map(Number);
   const target = new Date(Date.UTC(year, month - 1 + months, 1));
   const lastDay = new Date(

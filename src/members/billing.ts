@@ -3,9 +3,9 @@
 // shared by every screen that shows a status.
 import {
   addDays,
-  addMonthsClamped,
   daysBetween,
   maxDate,
+  monthsAfter,
   type IsoDate,
 } from "@/lib/dates";
 
@@ -56,32 +56,81 @@ export function dueDate(
   period: number,
   freezes: Freeze[],
 ): IsoDate | null {
-  const base = addMonthsClamped(billingStartsOn, period);
+  return dueDates(billingStartsOn, freezes)(period);
+}
+
+/**
+ * dueDate for any period of one membership. Ledgers and nextDueDate ask for
+ * many periods in a row, so the freezes are filtered and sorted once here
+ * rather than on every call.
+ */
+export function dueDates(
+  billingStartsOn: IsoDate,
+  freezes: Freeze[],
+): (period: number) => IsoDate | null {
+  const baseOf = monthsAfter(billingStartsOn);
+  // Most memberships were never frozen; nothing would move their dates.
+  if (freezes.length === 0) return baseOf;
+
   const pending = [...freezes]
     .filter((freeze) => freeze.startsOn >= billingStartsOn)
     .sort((a, b) => a.startsOn.localeCompare(b.startsOn));
-
-  let shift = 0;
-  for (const freeze of pending) {
-    const candidate = addDays(base, shift);
-    if (freeze.startsOn > candidate) break;
-    if (freeze.endsOn === null) return null;
-    shift += freezeLength({ ...freeze, endsOn: freeze.endsOn });
-  }
-  return addDays(base, shift);
+  return (period) => {
+    const base = baseOf(period);
+    let shift = 0;
+    for (const freeze of pending) {
+      const candidate = addDays(base, shift);
+      if (freeze.startsOn > candidate) break;
+      if (freeze.endsOn === null) return null;
+      shift += freezeLength({ ...freeze, endsOn: freeze.endsOn });
+    }
+    return addDays(base, shift);
+  };
 }
 
-/** The first due date on or after `date`, or null while frozen indefinitely. */
+/**
+ * The first due date on or after `date`, or null while frozen indefinitely.
+ *
+ * That is the first period that is "reached": due on or after `date`, or held
+ * by an open-ended freeze. Later periods fall due later (a freeze only ever
+ * pushes them further back), and once a freeze holds one period it holds every
+ * later one, so reached is false up to some period and true from then on.
+ * Rather than try every month since joining, gallop (0, 2, 6, 14, …) to a
+ * reached period and then halve the gap: about 2·log₂ months of work instead
+ * of one dueDate per month, for exactly the same answer.
+ */
 export function nextDueDate(
   billingStartsOn: IsoDate,
   freezes: Freeze[],
   date: IsoDate,
 ): IsoDate | null {
-  for (let period = 0; period < maxPeriods; period++) {
-    const due = dueDate(billingStartsOn, period, freezes);
-    if (due === null || due >= date) return due;
+  const dueOn = dueDates(billingStartsOn, freezes);
+  const reached = (due: IsoDate | null) => due === null || due >= date;
+  let before = -1; // A period known to fall due before `date` (-1: none yet).
+  let after = maxPeriods; // A reached period (maxPeriods: none found).
+  let afterDue: IsoDate | null = null;
+
+  for (let step = 1; before + step < maxPeriods; step *= 2) {
+    const period = before + step;
+    const due = dueOn(period);
+    if (reached(due)) {
+      after = period;
+      afterDue = due;
+      break;
+    }
+    before = period;
   }
-  return null;
+  while (after - before > 1) {
+    const period = Math.floor((before + after) / 2);
+    const due = dueOn(period);
+    if (reached(due)) {
+      after = period;
+      afterDue = due;
+    } else {
+      before = period;
+    }
+  }
+  return after < maxPeriods ? afterDue : null;
 }
 
 export function activeFreeze(freezes: Freeze[], today: IsoDate): Freeze | null {

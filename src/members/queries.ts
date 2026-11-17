@@ -29,7 +29,7 @@ import {
   type MembershipStatus,
 } from "@/members/billing";
 import { loadFacts } from "@/members/facts";
-import type { Standing } from "@/payments/ledger";
+import { nextDueFromLedger, type Standing } from "@/payments/ledger";
 import { loadFactsAndLedgers } from "@/payments/queries";
 
 export interface MemberSummary {
@@ -63,9 +63,26 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
   const today = todayAtGym();
 
   return withUserContext(getDb(), viewer.userId, async (tx) => {
+    // Facts and ledgers matter only for active members' open memberships:
+    // anyone marked inactive shows as "inactive" whatever their membership
+    // says, so their fees, freezes and payments are not fetched at all.
+    const counted = and(
+      isNull(memberships.endedOn),
+      eq(members.isActive, true),
+    );
     const [memberRows, openMemberships, visits, paid, settings] =
       await Promise.all([
-        tx.select().from(members).orderBy(asc(members.fullName)),
+        tx
+          .select({
+            id: members.id,
+            memberCode: members.memberCode,
+            fullName: members.fullName,
+            phone: members.phone,
+            isActive: members.isActive,
+            profileId: members.profileId,
+          })
+          .from(members)
+          .orderBy(asc(members.fullName)),
         tx
           .select({
             id: memberships.id,
@@ -76,7 +93,8 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
             planId: memberships.planId,
           })
           .from(memberships)
-          .where(isNull(memberships.endedOn)),
+          .innerJoin(members, eq(members.id, memberships.memberId))
+          .where(counted),
         tx
           .select({
             memberId: attendance.memberId,
@@ -99,6 +117,17 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
       openMemberships,
       canSeeFees,
       today,
+      {
+        // The same memberships, filtered in the database rather than by
+        // sending every id back as a parameter.
+        scope: tx
+          .select({ id: memberships.id })
+          .from(memberships)
+          .innerJoin(members, eq(members.id, memberships.memberId))
+          .where(counted),
+        // Standing and what is owed need no per-payment detail.
+        coverage: false,
+      },
     );
     const membershipByMember = new Map(
       openMemberships.map((row) => [row.memberId, row]),
@@ -124,7 +153,9 @@ export async function listMembers(viewer: Viewer): Promise<MemberSummary[]> {
         feePaise: current && fact.fees ? feeOn(fact.fees, today) : null,
         nextDue:
           current && status !== "free"
-            ? nextDueDate(fact.billingStartsOn, fact.freezes, today)
+            ? ledger
+              ? nextDueFromLedger(ledger, today)
+              : nextDueDate(fact.billingStartsOn, fact.freezes, today)
             : null,
         goneQuiet:
           !!current &&
