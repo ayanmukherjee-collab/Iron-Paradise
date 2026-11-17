@@ -3,6 +3,7 @@ import { saveBatches } from "@/attendance/actions";
 import { batchHours, toTimeInput } from "@/attendance/batches";
 import { getBatches } from "@/attendance/queries";
 import { requirePermission } from "@/auth/session";
+import { publishBulletinNow } from "@/bulletin/actions";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
@@ -159,6 +160,29 @@ export default async function SettingsPage() {
                   />
                 </Field>
               </ActionForm>
+            </Row>
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="px-1 section-title">Members&apos; app</h2>
+        <ul className="mt-3 list-card">
+          <li className="list-row">
+            <Row
+              title="Bulletin"
+              detail="Hours and notices on members' phones. Every save updates it."
+            >
+              <p className="mb-4 text-sm text-muted">
+                Use this only if members see something out of date a few minutes
+                after a save. It sends what&apos;s saved now.
+              </p>
+              <ActionForm
+                action={publishBulletinNow}
+                submitLabel="Publish now"
+                pendingLabel="Publishing…"
+                variant="outline-dark"
+              />
             </Row>
           </li>
         </ul>

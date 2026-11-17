@@ -23,6 +23,7 @@ const expected: Record<Action, Role[]> = {
   "reminders.send": ["owner", "manager"],
   "audit.view": ["owner", "manager"],
   "desk.manage": ["owner", "manager"],
+  "bulletin.publish": ["owner", "manager"],
   "members.view": ["owner", "manager", "trainer"],
   "payments.viewStatus": ["owner", "manager", "trainer"],
   "attendance.view": ["owner", "manager", "trainer"],

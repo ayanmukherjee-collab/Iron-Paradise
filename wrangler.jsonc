@@ -46,6 +46,17 @@
       "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5432/postgres",
     },
   ],
+  // bulletin.json and crowd.json, the public files every member's phone
+  // reads. This Worker only writes them, right after a save
+  // (src/bulletin/publish.ts); the separate iron-paradise-data Worker
+  // (workers/data) serves them from Cloudflare's cache, so reads never run
+  // this Worker. KV, not R2: R2 needs a payment method on the account.
+  "kv_namespaces": [
+    {
+      "binding": "PUBLIC_DATA",
+      "id": "1c0f4eeea579466683c38ea8e9d691e2",
+    },
+  ],
   // Due reminders (brief §4.6): every 15 minutes from 08:30 to 11:15 in
   // India (03:00–05:45 UTC). Each run sends what fits in Cloudflare's
   // free-plan request limit and later runs carry on; nothing is sent twice.

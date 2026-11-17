@@ -9,6 +9,7 @@ import {
   date,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   smallint,
@@ -17,6 +18,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { WeeklyHours } from "@/bulletin/types";
 
 const bytea = customType<{ data: Uint8Array }>({ dataType: () => "bytea" });
 
@@ -153,6 +155,14 @@ export const gymSettings = pgTable("gym_settings", {
   morningCloses: time("morning_closes").notNull().default("11:00"),
   eveningOpens: time("evening_opens").notNull().default("16:00"),
   eveningCloses: time("evening_closes").notNull().default("22:00"),
+  // Published to members in bulletin.json (src/bulletin/types.ts).
+  weeklyHours: jsonb("weekly_hours").$type<WeeklyHours>().notNull(),
+  crowdCapacity: smallint("crowd_capacity").notNull().default(40),
+  crowdMultiplier: numeric("crowd_multiplier", { precision: 3, scale: 2 })
+    .notNull()
+    .default("1.00"),
+  crowdFullMinutes: smallint("crowd_full_minutes").notNull().default(45),
+  crowdGoneMinutes: smallint("crowd_gone_minutes").notNull().default(120),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
