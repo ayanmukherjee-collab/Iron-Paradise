@@ -54,3 +54,7 @@ next-env.d.ts
 
 # generated service worker (scripts/build-sw.mjs)
 /public/sw.js
+
+# static app build (npm run web:build)
+/web/dist/
+/web/dist-ssr/

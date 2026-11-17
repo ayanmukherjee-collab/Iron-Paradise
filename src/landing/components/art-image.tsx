@@ -34,7 +34,6 @@ export function ArtImage({
   className = "",
 }: ArtImageProps) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- pre-optimised static files, see above
     <img
       src={`/art/${art.file}-560.webp`}
       srcSet={`/art/${art.file}-560.webp 560w, /art/${art.file}-960.webp 960w`}

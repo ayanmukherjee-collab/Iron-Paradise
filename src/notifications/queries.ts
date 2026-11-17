@@ -1,6 +1,6 @@
 import "server-only";
 import { desc, eq, inArray } from "drizzle-orm";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { getDb } from "@/db/client";
 import { members, notifications, profiles } from "@/db/schema";
 import { withUserContext } from "@/db/user-context";

@@ -5,7 +5,7 @@
 // payment pulled into the Worker), so the cheaper queries change nothing.
 import { asc, desc, eq, isNull, max } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { can } from "@/auth/permissions";
 import {
   attendance,

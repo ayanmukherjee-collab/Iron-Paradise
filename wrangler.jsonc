@@ -1,67 +1,25 @@
-// Cloudflare Worker that serves the app (built by `npm run cf:build`).
-// Secrets are not kept here. Set them once with `npx wrangler secret put NAME`
-// (see README "Deploying"). NEXT_PUBLIC_ values are baked in at build time.
+// Cloudflare serves the app as plain files (built by `npm run cf:build`
+// into web/dist). There is no Worker script: every request is a static
+// asset, which Cloudflare serves for free, without limit and without
+// running any code, so the free plan's 10 ms CPU limit no longer applies.
+// Data and saves go from the phone straight to Supabase (docs/static-rebuild.md).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "iron-paradise",
-  // worker.mjs wraps OpenNext's .open-next/worker.js to add the Cron Trigger.
-  "main": "worker.mjs",
   "compatibility_date": "2026-11-01",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS",
+    "directory": "web/dist",
+    // Any address that isn't a file (/app/members/…, /claim/…) gets
+    // index.html, and the app's router takes it from there.
+    "not_found_handling": "single-page-application",
+    // /privacy serves privacy.html (written at build time).
+    "html_handling": "auto-trailing-slash",
   },
-  "services": [
-    {
-      // OpenNext calls back into its own Worker; the name must match "name" above.
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "iron-paradise",
-    },
-  ],
-  // Run the Worker next to the Supabase database (AWS Mumbai) instead of at
-  // whichever edge the visitor reaches (often Singapore from India). Every
-  // page makes several database round trips, and each one is ~80 ms across
-  // that gap but only a few ms inside the same region.
-  "placement": {
-    "region": "aws:ap-south-1",
-  },
-  // Database connections go through Hyperdrive (free plan): it keeps warm,
-  // logged-in connections to Supabase, so a request no longer pays for its
-  // own TLS handshake and password exchange. src/db/client.ts picks this up
-  // and falls back to DATABASE_URL without it. The config ("iron-paradise-db",
-  // Supabase direct connection) has query caching OFF and must stay that way:
-  // the cache ignores which user ran a query (RLS) and is not cleared on
-  // writes. See README "Database connection (Hyperdrive)".
-  "hyperdrive": [
-    {
-      "binding": "HYPERDRIVE",
-      "id": "6f7e4f78d4f644f08c519697648b1f83",
-      // A stand-in for local runs only; deployed Workers ignore it. The
-      // deploy command (opennextjs-cloudflare deploy) starts a local copy
-      // of the bindings first and fails without one. Nothing listens there:
-      // `next dev` uses DATABASE_URL, and `npm run cf:preview` needs the
-      // real string in CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE,
-      // which overrides this (README "Database connection (Hyperdrive)").
-      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5432/postgres",
-    },
-  ],
-  // bulletin.json and crowd.json, the public files every member's phone
-  // reads. This Worker only writes them, right after a save
-  // (src/bulletin/publish.ts); the separate iron-paradise-data Worker
-  // (workers/data) serves them from Cloudflare's cache, so reads never run
-  // this Worker. KV, not R2: R2 needs a payment method on the account.
-  "kv_namespaces": [
-    {
-      "binding": "PUBLIC_DATA",
-      "id": "1c0f4eeea579466683c38ea8e9d691e2",
-    },
-  ],
-  // Due reminders (brief §4.6): every 15 minutes from 08:30 to 11:15 in
-  // India (03:00–05:45 UTC). Each run sends what fits in Cloudflare's
-  // free-plan request limit and later runs carry on; nothing is sent twice.
+  // The old Worker ran the reminder job on a Cron Trigger. Reminders now run
+  // in a Supabase Edge Function on pg_cron; an empty list clears the old
+  // schedule on the next deploy.
   "triggers": {
-    "crons": ["*/15 3-5 * * *"],
+    "crons": [],
   },
   "observability": {
     "enabled": true,

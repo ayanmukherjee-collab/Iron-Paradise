@@ -2,10 +2,10 @@
 
 import Link from "@/components/ui/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import type { CheckInResult } from "@/attendance/actions";
+import type { CheckInResult } from "@/attendance/types";
 import { codeFromScan } from "@/attendance/code";
 import { QrScanner } from "@/attendance/components/qr-scanner";
-import type { ActionResult } from "@/auth/guarded-action";
+import type { ActionResult } from "@/auth/action-result";
 import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { formatPaise } from "@/lib/money";

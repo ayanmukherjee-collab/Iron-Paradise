@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { ActionResult } from "@/auth/guarded-action";
+import type { ActionResult } from "@/auth/action-result";
 import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { QrCode } from "@/members/components/qr-code";

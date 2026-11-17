@@ -1,0 +1,16 @@
+/* The same design system as the Next.js app, plus the fonts it loaded with
+   next/font (here self-hosted from @fontsource, so the CSP stays 'self'). */
+@import "../../src/styles/globals.css";
+
+@source "../../src";
+@source "./";
+
+:root {
+  --font-anton: "Anton";
+  --font-barlow: "Barlow";
+}
+
+/* The signed-in app's typeface (Inter), as src/app/app/layout.tsx sets it. */
+.font-app {
+  font-family: "Inter Variable", system-ui, sans-serif;
+}

@@ -40,11 +40,13 @@ describe("the Drizzle schema matches the migrations", () => {
     expect(result.rows).toEqual([]);
   });
 
-  it("lets anonymous visitors execute no public function", async () => {
+  it("lets anonymous visitors execute only the desk display's code", async () => {
     const result = await t.client.query<{ proname: string }>(
       "select proname from pg_proc where pronamespace = 'public'::regnamespace and has_function_privilege('anon', oid, 'execute')",
     );
-    expect(result.rows).toEqual([]);
+    // The signed-out desk device's long secret link is its credential
+    // (public.desk_code checks it, as private.desk_checkin_code did).
+    expect(result.rows).toEqual([{ proname: "desk_code" }]);
   });
 
   it("keeps the private schema out of reach of every app role", async () => {
@@ -62,10 +64,20 @@ describe("the Drizzle schema matches the migrations", () => {
       "select proname from pg_proc where pronamespace = 'public'::regnamespace and has_function_privilege('authenticated', oid, 'execute') order by proname",
     );
     expect(result.rows.map((row) => row.proname)).toEqual([
+      "add_member",
+      "attendance_month",
+      "bulletin",
       "check_in",
+      "collected",
+      "convert_guest",
+      "correct_payment",
+      "counted_payment_totals",
       "create_desk_display",
+      "crowd_after_check_in",
       "current_app_role",
+      "deactivate_member",
       "delete_member",
+      "desk_code",
       "gym_hours_on",
       "has_role",
       "is_day_hours",
@@ -74,17 +86,22 @@ describe("the Drizzle schema matches the migrations", () => {
       "is_staff",
       "is_weekly_hours",
       "issue_claim_token",
+      "latest_payments",
       "link_guest_to_member",
+      "member_activity",
       "own_member_id",
       "own_membership_ids",
       "printed_checkin_code",
       "publish_bulletin",
+      "reactivate_member",
+      "record_payment",
       "redeem_claim_token",
       "regenerate_printed_checkin_code",
       "revoke_desk_display",
       "save_push_subscription",
       "set_user_active",
       "set_user_role",
+      "start_membership",
       "valid_due_changes",
     ]);
   });

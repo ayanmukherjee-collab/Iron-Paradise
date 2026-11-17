@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, type ReactNode } from "react";
-import type { ActionResult } from "@/auth/guarded-action";
+import type { ActionResult } from "@/auth/action-result";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
 import { useAfterSave } from "@/components/ui/after-save";
 

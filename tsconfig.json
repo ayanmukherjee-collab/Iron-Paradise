@@ -13,22 +13,24 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "types": ["vite/client"],
     "paths": {
+      // Shared components still import these Next.js-era modules; the
+      // static app supplies them (web/vite.config.mts aliases the same ids).
+      "next/link": ["./web/src/shims/next-link.tsx"],
+      "next/navigation": ["./web/src/shims/next-navigation.ts"],
+      "@/attendance/actions": ["./web/src/actions/attendance.ts"],
+      "@/auth/sign-in-actions": ["./web/src/actions/sign-in.ts"],
+      "@/auth/team-actions": ["./web/src/actions/team.ts"],
+      "@/bulletin/actions": ["./web/src/actions/bulletin.ts"],
+      "@/bulletin/use-bulletin": ["./web/src/shims/use-bulletin.ts"],
+      "@/members/actions": ["./web/src/actions/members.ts"],
+      "@/members/claim-actions": ["./web/src/actions/claim.ts"],
+      "@/notifications/actions": ["./web/src/actions/notifications.ts"],
+      "@/payments/actions": ["./web/src/actions/payments.ts"],
       "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": ["node_modules"]
+  "include": ["src", "web/src", "web/*.mts", "supabase/functions-src", "*.mts"],
+  "exclude": ["node_modules", "web/dist", ".claude"]
 }

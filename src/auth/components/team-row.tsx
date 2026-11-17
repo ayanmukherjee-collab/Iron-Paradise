@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { ActionResult } from "@/auth/guarded-action";
+import type { ActionResult } from "@/auth/action-result";
 import { roleLabels } from "@/auth/permissions";
 import { changeRole, setAccountActive } from "@/auth/team-actions";
 import type { AssignableRole, TeamMember } from "@/auth/team-queries";
