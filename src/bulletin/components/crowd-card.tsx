@@ -2,17 +2,11 @@
 
 import { useRef } from "react";
 import { NavIconSvg } from "@/components/nav/nav-icons";
-import { Meter } from "@/components/ui/viz";
-import { readCrowd, type CrowdLevel } from "@/bulletin/crowd";
+import { readCrowd } from "@/bulletin/crowd";
+import { CrowdZones } from "@/bulletin/components/crowd-charts";
 import { getOpenStatus } from "@/bulletin/hours";
 import { useBulletin, useMinuteClock } from "@/bulletin/use-bulletin";
 import { useCrowd } from "@/bulletin/use-crowd";
-
-const HINT: Record<CrowdLevel, string> = {
-  Quiet: "Plenty of room. Estimated from recent check-ins.",
-  Moderate: "A steady crowd. Estimated from recent check-ins.",
-  Busy: "Expect to share kit. Estimated from recent check-ins.",
-};
 
 /**
  * How busy the gym is now: Quiet, Moderate or Busy, with a bar. Worked out
@@ -47,24 +41,23 @@ export function CrowdCard({ className = "" }: { className?: string }) {
     >
       <h2 className="flex items-center gap-2 text-sm font-medium">
         <NavIconSvg icon="members" className="size-4" />
-        Crowd now
+        Crowd
       </h2>
-      <p className="mt-3 text-3xl font-semibold tracking-tight">
-        {level ?? <span className="text-muted">…</span>}
+      <p className="mt-3 flex items-baseline gap-2">
+        <span className="text-3xl font-semibold tracking-tight">
+          {level ?? <span className="text-muted">…</span>}
+        </span>
+        {status?.state === "closed" && (
+          <span className="text-sm text-muted">
+            {status.label.replace(/^Closed( · )?/, "")}
+          </span>
+        )}
       </p>
-      <Meter
+      <CrowdZones
         className="mt-4"
-        value={reading ? reading.share * 100 : 0}
-        max={100}
+        share={reading?.share ?? 0}
         label={level ? `Crowd: ${level}` : "Crowd: loading"}
       />
-      <p className="mt-3 text-sm text-muted">
-        {status?.state === "closed"
-          ? status.label
-          : reading
-            ? HINT[reading.level]
-            : "Checking…"}
-      </p>
     </section>
   );
 }

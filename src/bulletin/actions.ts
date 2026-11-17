@@ -245,16 +245,16 @@ export const saveCrowdSettings = guardedAction({
   permission: "checkin.settings",
   input: z
     .object({
-      capacity: wholeNumber(1, 1000, "Comfortable capacity"),
+      capacity: wholeNumber(1, 1000, "Capacity"),
       multiplier: z.coerce
         .number()
         .min(0.5, "The multiplier must be at least 0.5")
         .max(5, "The multiplier must be at most 5"),
-      fullMinutes: wholeNumber(5, 235, "Full minutes"),
-      goneMinutes: wholeNumber(10, 240, "Gone minutes"),
+      fullMinutes: wholeNumber(5, 235, "Full"),
+      goneMinutes: wholeNumber(10, 240, "Gone"),
     })
     .refine((input) => input.goneMinutes >= input.fullMinutes + 5, {
-      message: "Gone by must be at least 5 minutes more than Counts fully for",
+      message: "Gone must be at least 5 minutes after Full",
     }),
   run: async ({ capacity, multiplier, fullMinutes, goneMinutes }, viewer) => {
     await saveAndPublishBulletin(viewer, (tx) =>
@@ -265,7 +265,7 @@ export const saveCrowdSettings = guardedAction({
         crowdGoneMinutes: goneMinutes,
       }),
     );
-    return { message: "Saved. Members' meters follow it within minutes." };
+    return { message: "Saved." };
   },
 });
 

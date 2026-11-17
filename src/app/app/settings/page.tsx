@@ -7,6 +7,7 @@ import {
   saveCrowdSettings,
   saveDayHours,
 } from "@/bulletin/actions";
+import { CrowdZones, FadeCurve } from "@/bulletin/components/crowd-charts";
 import { IconAction } from "@/bulletin/components/icon-action";
 import {
   dayLabel,
@@ -364,70 +365,59 @@ function daySummary(openings: TimeRange[]): string {
 }
 
 function crowdSummary(crowd: CrowdSettings): string {
-  return `Comfortable at ${crowd.comfortableCapacity} · ×${crowd.calibrationMultiplier} · fades ${crowd.fullMinutes}–${crowd.goneMinutes} min`;
+  return `${crowd.comfortableCapacity} people · ×${crowd.calibrationMultiplier} · ${crowd.fullMinutes}–${crowd.goneMinutes} min`;
 }
 
-/**
- * How members' phones turn check-ins into Quiet, Moderate or Busy. Members
- * see the level and a bar only, never a number.
- */
+/** Members see only the level and the bar, never a number. */
 function CrowdForm({ crowd }: { crowd: CrowdSettings }) {
+  const number = (
+    name: string,
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    step = 1,
+  ) => (
+    <Field label={label}>
+      <input
+        name={name}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        required
+        defaultValue={value}
+        className={inputClass}
+      />
+    </Field>
+  );
   return (
     <ActionForm
       action={saveCrowdSettings}
-      submitLabel="Save crowd meter"
-      className="space-y-4"
+      submitLabel="Save"
+      success="Saved."
+      className="space-y-5"
     >
-      <p className="text-sm text-muted">
-        Each check-in counts as one person for a while, then fades out as they
-        leave. Under 30% of comfortable capacity reads Quiet, over 70% Busy.
-      </p>
+      <CrowdZones
+        share={0}
+        capacity={crowd.comfortableCapacity}
+        label={`Quiet under ${Math.round(crowd.comfortableCapacity * 0.3)} people, busy over ${Math.round(crowd.comfortableCapacity * 0.7)}`}
+      />
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Comfortable capacity" hint="People at once">
-          <input
-            name="capacity"
-            type="number"
-            min={1}
-            max={1000}
-            required
-            defaultValue={crowd.comfortableCapacity}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Multiplier" hint="1.5 if a third don't scan">
-          <input
-            name="multiplier"
-            type="number"
-            min={0.5}
-            max={5}
-            step={0.05}
-            required
-            defaultValue={crowd.calibrationMultiplier}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Counts fully for" hint="Minutes, a usual workout">
-          <input
-            name="fullMinutes"
-            type="number"
-            min={5}
-            max={235}
-            required
-            defaultValue={crowd.fullMinutes}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Gone by" hint="Minutes after check-in">
-          <input
-            name="goneMinutes"
-            type="number"
-            min={10}
-            max={240}
-            required
-            defaultValue={crowd.goneMinutes}
-            className={inputClass}
-          />
-        </Field>
+        {number("capacity", "Capacity", crowd.comfortableCapacity, 1, 1000)}
+        {number(
+          "multiplier",
+          "Multiplier",
+          crowd.calibrationMultiplier,
+          0.5,
+          5,
+          0.05,
+        )}
+      </div>
+      <FadeCurve full={crowd.fullMinutes} gone={crowd.goneMinutes} />
+      <div className="grid grid-cols-2 gap-3">
+        {number("fullMinutes", "Full (min)", crowd.fullMinutes, 5, 235)}
+        {number("goneMinutes", "Gone (min)", crowd.goneMinutes, 10, 240)}
       </div>
     </ActionForm>
   );
