@@ -4,6 +4,7 @@
 // were refused, and do every step or none.
 import { sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
+import { crowdFile } from "@/bulletin/crowd";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -270,6 +271,34 @@ describe("bulletin", () => {
       await expect(
         t.client.query("select public.bulletin()"),
       ).rejects.toThrow();
+    } finally {
+      await t.client.query("reset role");
+    }
+  });
+});
+
+describe("crowd", () => {
+  it("gives signed-in people recent check-in times only, and nothing signed out", async () => {
+    const memberId = await t.createMember({ name: "Crowd Regular" });
+    await t.client.query(
+      "insert into public.attendance (member_id, method, checked_in_at, gym_date) values ($1, 'manual', now() - interval '10 minutes', (now() at time zone 'Asia/Kolkata')::date), ($1, 'manual', now() - interval '3 hours', (now() at time zone 'Asia/Kolkata')::date - 1)",
+      [memberId],
+    );
+    const { body } = await one<{ body: unknown }>(
+      memberUser,
+      sql`select public.crowd() as body`,
+    );
+    const parsed = crowdFile.parse(
+      typeof body === "string" ? JSON.parse(body) : body,
+    );
+    expect(Object.keys(parsed).sort()).toEqual(["checkins", "generatedAt"]);
+    // The 3-hour-old visit is past the two-hour window.
+    expect(parsed.checkins).toHaveLength(1);
+    expect(JSON.stringify(body)).not.toContain(memberId);
+
+    await t.client.query("set role anon");
+    try {
+      await expect(t.client.query("select public.crowd()")).rejects.toThrow();
     } finally {
       await t.client.query("reset role");
     }

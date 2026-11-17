@@ -24,6 +24,7 @@
       "@/auth/team-actions": ["./web/src/actions/team.ts"],
       "@/bulletin/actions": ["./web/src/actions/bulletin.ts"],
       "@/bulletin/use-bulletin": ["./web/src/shims/use-bulletin.ts"],
+      "@/bulletin/use-crowd": ["./web/src/shims/use-crowd.ts"],
       "@/members/actions": ["./web/src/actions/members.ts"],
       "@/members/claim-actions": ["./web/src/actions/claim.ts"],
       "@/notifications/actions": ["./web/src/actions/notifications.ts"],

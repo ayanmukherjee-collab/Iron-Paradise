@@ -22,6 +22,7 @@ const browserVersions: Record<string, string> = {
   "@/auth/team-actions": `${web}/actions/team.ts`,
   "@/bulletin/actions": `${web}/actions/bulletin.ts`,
   "@/bulletin/use-bulletin": `${shims}/use-bulletin.ts`,
+  "@/bulletin/use-crowd": `${shims}/use-crowd.ts`,
   "@/members/actions": `${web}/actions/members.ts`,
   "@/members/claim-actions": `${web}/actions/claim.ts`,
   "@/notifications/actions": `${web}/actions/notifications.ts`,
