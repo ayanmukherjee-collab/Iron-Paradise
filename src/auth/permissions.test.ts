@@ -14,6 +14,7 @@ const expected: Record<Action, Role[]> = {
   "staff.deactivate": ["owner"],
   "payments.void": ["owner"],
   "plans.edit": ["owner"],
+  "members.delete": ["owner"],
   "checkin.settings": ["owner"],
   "members.edit": ["owner", "manager"],
   "memberships.edit": ["owner", "manager"],

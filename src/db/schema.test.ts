@@ -65,6 +65,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "check_in",
       "create_desk_display",
       "current_app_role",
+      "delete_member",
       "gym_hours_on",
       "has_role",
       "is_day_hours",

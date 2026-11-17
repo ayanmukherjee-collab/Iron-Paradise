@@ -33,6 +33,7 @@ const allowedRoles = {
   "staff.deactivate": ownerOnly,
   "payments.void": ownerOnly,
   "plans.edit": ownerOnly,
+  "members.delete": ownerOnly,
   "checkin.settings": ownerOnly,
 
   "members.edit": managers,

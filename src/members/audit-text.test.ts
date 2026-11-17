@@ -124,3 +124,16 @@ describe("describeAuditEntry for the bulletin", () => {
     ).toBe("Notice pinned: Water off");
   });
 });
+
+describe("describeAuditEntry for deleted members", () => {
+  it("names the deleted member by their ID only", () => {
+    expect(
+      describeAuditEntry({
+        tableName: "members",
+        action: "delete",
+        before: { member_code: "IP-0042" },
+        after: null,
+      }),
+    ).toBe("Deleted member IP-0042 and all their records");
+  });
+});
