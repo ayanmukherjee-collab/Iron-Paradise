@@ -73,6 +73,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "correct_payment",
       "counted_payment_totals",
       "create_desk_display",
+      "crowd_after_check_in",
       "current_app_role",
       "deactivate_member",
       "delete_member",
