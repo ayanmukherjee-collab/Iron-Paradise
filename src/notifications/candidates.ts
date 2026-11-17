@@ -45,6 +45,7 @@ export async function loadReminderCandidates(
       muted: members.remindersMuted,
       membershipId: memberships.id,
       startsOn: memberships.startsOn,
+      billingStartsOn: memberships.billingStartsOn,
       endedOn: memberships.endedOn,
       planId: memberships.planId,
     })
@@ -63,6 +64,7 @@ export async function loadReminderCandidates(
       id: row.membershipId,
       memberId: row.memberId,
       startsOn: row.startsOn,
+      billingStartsOn: row.billingStartsOn,
       endedOn: row.endedOn,
       planId: row.planId,
     })),

@@ -23,6 +23,7 @@ const pay = (amountPaise: number, firstPeriod: number): LedgerPayment => ({
 // Joined 12 March at ₹600, paid March and April: May's fee is next.
 const membership: MembershipWithFees = {
   startsOn: "2026-03-12",
+  billingStartsOn: "2026-03-12",
   endedOn: null,
   freezes: [],
   fees: [fee(60000, "2026-03-12")],
@@ -119,11 +120,12 @@ describe("stageOn", () => {
 });
 
 describe("a late payment never moves the due date", () => {
-  // Joined and paid on 6 Jan; paid February's fee late, on 8 Feb. Due dates
-  // follow the joining day, not the day money came in, so March is still
-  // due on the 6th and the reminders say so.
+  // Joined and first paid on 6 Jan; paid February's fee late, on 8 Feb. Only
+  // the first payment sets the due day, not each later one, so March is
+  // still due on the 6th and the reminders say so.
   const joinedJan6: MembershipWithFees = {
     startsOn: "2026-01-06",
+    billingStartsOn: "2026-01-06",
     endedOn: null,
     freezes: [],
     fees: [fee(60000, "2026-01-06")],

@@ -43,6 +43,7 @@ const membershipFields = {
   id: memberships.id,
   memberId: memberships.memberId,
   startsOn: memberships.startsOn,
+  billingStartsOn: memberships.billingStartsOn,
   endedOn: memberships.endedOn,
   planId: memberships.planId,
 };

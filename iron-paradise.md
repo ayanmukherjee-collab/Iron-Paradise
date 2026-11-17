@@ -71,7 +71,7 @@ Public, fast, and indexable. Gym intro, facilities, plans and prices, timings, l
 - There is no admission or joining fee.
 - Free members are never due or overdue and never get reminders.
 
-**Due dates follow each member's joining date.** Owner's decision, 2026-11-15. Someone who joined on 12 March is due on the 12th of every month. When the month is shorter than the joining day, the due date is that month's last day: a member who joined on the 31st is due on 30 April and 28 or 29 February.
+**Due dates follow each member's first payment.** Owner's decisions of 2026-11-15 and 2026-11-17. Someone who joins on 6 January and first pays on 8 January is due on the 8th of every month after that. Until the first payment, the member is due from the joining day. Later payments, even late ones, never move the due day; voiding the first payment moves it to whichever payment is now the first. When the month is shorter than the due day, the due date is that month's last day: a member who first paid on the 31st is due on 30 April and 28 or 29 February.
 
 **Freezes are optional.** Staff can freeze a membership with a start date and an optional end date. No fees fall due during a freeze, and due dates move back by its length. Freezes are often not recorded because members leave without saying, so the app must work without them.
 
@@ -244,7 +244,7 @@ Answered:
 - How many members, and how many staff? **150–500 members, about 3–10 staff accounts.** (Phase 1)
 - Gym logo, colours, photos, and text for the landing page. **Logo supplied, black/white/charcoal, halftone anime-style art. Contact details, hours and address are still placeholders in `src/content/landing.ts`. Prices are not shown on the public site.** (Phase 1)
 - Which plans and prices exist, and are there joining fees or discounts? **Fees are negotiated per member (₹600, ₹500 or free for the same plan). No joining fee. See section 4.2.** (Phase 2)
-- Is the fee due on a fixed day each month or on each member's joining date? **Each member's joining date. See section 4.2.** (Phase 3)
+- Is the fee due on a fixed day each month or on each member's joining date? **Each member's first payment date (joining date until then). See section 4.2.** (Phase 3, revised 2026-11-17)
 - Can memberships be frozen? **Yes, optionally, but often not recorded because members leave without notice. See section 4.2.** (Phase 2)
 
 - Is there a phone or tablet that can stay at the front desk for the rotating QR? **Not yet. Start with the printed QR; desk displays use a secret link. See section 4.3.** (Phase 4)

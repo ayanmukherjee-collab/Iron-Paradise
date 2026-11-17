@@ -27,7 +27,10 @@ export function NewMembershipFields({
 
   return (
     <>
-      <Field label="Start date" hint="Fees fall due on this day every month.">
+      <Field
+        label="Start date"
+        hint="Fees then fall due monthly on the day of the first payment."
+      >
         <input
           name="startsOn"
           type="date"

@@ -44,6 +44,10 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
         return `Membership started ${str(after, "starts_on")}`;
       if (!before?.ended_on && after?.ended_on)
         return `Membership ended ${str(after, "ended_on")}`;
+      if (str(before, "billing_starts_on") !== str(after, "billing_starts_on"))
+        return str(after, "billing_starts_on")
+          ? `Dues now fall monthly from ${str(after, "billing_starts_on")}`
+          : "Dues back on the joining day: no payment counts";
       return "Membership edited";
     case "membership_fees":
       return `Agreed fee set to ${money(num(after, "fee_paise"))} from ${str(after, "effective_from")}`;

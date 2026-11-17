@@ -22,7 +22,13 @@ export interface FeeChange {
 }
 
 export interface MembershipFacts {
+  /** The joining day. */
   startsOn: IsoDate;
+  /**
+   * The day period 0 falls due: the first payment's day, or the joining day
+   * until the member first pays. Sets the monthly due day.
+   */
+  billingStartsOn: IsoDate;
   endedOn: IsoDate | null;
   freezes: Freeze[];
   /** Null when the viewer may not see fees (trainers). */
@@ -39,19 +45,20 @@ function freezeLength(freeze: Freeze & { endsOn: IsoDate }): number {
 }
 
 /**
- * The date period `period` falls due. Period 0 is the joining day; period n
- * is the joining date n months on, clamped to month end. Every freeze that
- * starts on or before a due date pushes it (and all later ones) back by the
- * freeze's length. Returns null while an open-ended freeze holds it.
+ * The date period `period` falls due. Period 0 falls due on the billing
+ * start (the first payment's day, else the joining day); period n is that
+ * date n months on, clamped to month end. Every freeze that starts on or
+ * before a due date pushes it (and all later ones) back by the freeze's
+ * length. Returns null while an open-ended freeze holds it.
  */
 export function dueDate(
-  startsOn: IsoDate,
+  billingStartsOn: IsoDate,
   period: number,
   freezes: Freeze[],
 ): IsoDate | null {
-  const base = addMonthsClamped(startsOn, period);
+  const base = addMonthsClamped(billingStartsOn, period);
   const pending = [...freezes]
-    .filter((freeze) => freeze.startsOn >= startsOn)
+    .filter((freeze) => freeze.startsOn >= billingStartsOn)
     .sort((a, b) => a.startsOn.localeCompare(b.startsOn));
 
   let shift = 0;
@@ -66,12 +73,12 @@ export function dueDate(
 
 /** The first due date on or after `date`, or null while frozen indefinitely. */
 export function nextDueDate(
-  startsOn: IsoDate,
+  billingStartsOn: IsoDate,
   freezes: Freeze[],
   date: IsoDate,
 ): IsoDate | null {
   for (let period = 0; period < maxPeriods; period++) {
-    const due = dueDate(startsOn, period, freezes);
+    const due = dueDate(billingStartsOn, period, freezes);
     if (due === null || due >= date) return due;
   }
   return null;
@@ -115,7 +122,9 @@ export function feeChangeEffectiveFrom(
   membership: MembershipFacts,
   today: IsoDate,
 ): IsoDate {
-  return nextDueDate(membership.startsOn, membership.freezes, today) ?? today;
+  return (
+    nextDueDate(membership.billingStartsOn, membership.freezes, today) ?? today
+  );
 }
 
 export function membershipStatus(

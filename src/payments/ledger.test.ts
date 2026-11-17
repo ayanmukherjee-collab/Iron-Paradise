@@ -24,8 +24,11 @@ const pay = (amountPaise: number, firstPeriod: number): LedgerPayment => ({
 function membership(
   overrides: Partial<MembershipWithFees> = {},
 ): MembershipWithFees {
+  const startsOn = overrides.startsOn ?? "2026-03-12";
   return {
-    startsOn: "2026-03-12",
+    startsOn,
+    // Unpaid, or first paid on the joining day, unless a test says otherwise.
+    billingStartsOn: startsOn,
     endedOn: null,
     freezes: [],
     fees: [fee(60000, "2026-03-12")],
@@ -78,6 +81,46 @@ describe("periods follow the joining date", () => {
       "2026-02-28",
       "2026-03-31",
     ]);
+  });
+});
+
+describe("periods follow the first payment once there is one", () => {
+  // Joined 6 Jan, first paid 8 Jan: the database sets billingStartsOn to the
+  // 8th, and every fee after that falls due on the 8th.
+  const joinedJan6PaidJan8 = membership({
+    startsOn: "2026-01-06",
+    billingStartsOn: "2026-01-08",
+    fees: [fee(60000, "2026-01-06")],
+  });
+
+  it("puts the first payment on period 0 and the next fee on the 8th", () => {
+    const ledger = buildLedger(
+      joinedJan6PaidJan8,
+      [pay(60000, 0)],
+      "2026-01-08",
+    );
+    expect(summary(ledger)).toEqual([
+      "2026-01-08 60000/60000 paid",
+      "2026-02-08 0/60000 upcoming",
+    ]);
+    expect(ledger.nextUnpaid?.dueOn).toBe("2026-02-08");
+    expect(ledger.standing).toBe("paid");
+  });
+
+  it("is not due on the 6th of later months", () => {
+    const paid = [pay(60000, 0)];
+    expect(buildLedger(joinedJan6PaidJan8, paid, "2026-02-06").standing).toBe(
+      "due",
+    );
+    expect(buildLedger(joinedJan6PaidJan8, paid, "2026-02-08").standing).toBe(
+      "due",
+    );
+    expect(buildLedger(joinedJan6PaidJan8, paid, "2026-02-09").standing).toBe(
+      "overdue",
+    );
+    expect(buildLedger(joinedJan6PaidJan8, paid, "2026-02-04").standing).toBe(
+      "paid",
+    );
   });
 });
 

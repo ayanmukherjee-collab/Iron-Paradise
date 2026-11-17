@@ -2,8 +2,9 @@
 // §4.5). Pure functions over plain data, like members/billing.ts, so the
 // money rules can be tested exhaustively and every screen agrees.
 //
-// A membership has numbered periods: period 0 falls due on the joining day,
-// period n on the joining date n months later (pushed back by freezes). Each
+// A membership has numbered periods: period 0 falls due on the billing start
+// (the first payment's day, or the joining day until then), period n on that
+// date n months later (pushed back by freezes). Each
 // period owes the agreed fee in force on its due date. A payment fills its
 // first period up to that fee, then flows on to the next, so a short payment
 // is partial and a large one is an advance, with no special cases.
@@ -88,7 +89,7 @@ function periodSource(membership: MembershipWithFees) {
       const next = periods.length;
       const dueOn =
         next < maxPeriods
-          ? dueDate(membership.startsOn, next, membership.freezes)
+          ? dueDate(membership.billingStartsOn, next, membership.freezes)
           : null;
       if (
         dueOn === null ||
