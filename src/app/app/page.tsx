@@ -104,12 +104,6 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
           openNow={batchAt(new Date(), batches)}
           href="/app/attendance"
         />
-        {controls && (
-          <>
-            <CloseToday controls={controls} className="col-span-2" />
-            <Notices controls={controls} className="col-span-2" />
-          </>
-        )}
         <MembersCard
           members={members}
           current={current}
@@ -186,6 +180,13 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
             </span>
             <PushToggle vapidPublicKey={keys.publicKey} compact />
           </div>
+        )}
+        {/* Owner and manager tools sit last, folded away until needed. */}
+        {controls && (
+          <>
+            <CloseToday controls={controls} className="col-span-2" />
+            <Notices controls={controls} className="col-span-2" />
+          </>
         )}
       </div>
     </section>

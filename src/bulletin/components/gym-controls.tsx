@@ -1,6 +1,6 @@
 // The owner's and managers' Home controls: shut today's batches, and post
-// notices to members. Icons and shapes only, like the rest of Home; every
-// control has an accessible name and a hover title that says what it does.
+// notices to members. Short names and icons, like the rest of Home; every
+// control also has an accessible name and a hover title saying what it does.
 import type { ReactNode } from "react";
 import { batchHours } from "@/attendance/batches";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
@@ -38,7 +38,12 @@ export function CloseToday({
     (!usual.morning || shut.morning) &&
     (!usual.evening || shut.evening);
 
-  const batchTile = (batch: Batch, icon: NavIcon, name: string) => (
+  const batchTile = (
+    batch: Batch,
+    icon: NavIcon,
+    name: string,
+    caption: string,
+  ) => (
     <IconAction
       action={toggleClosedToday}
       fields={{ part: batch }}
@@ -53,7 +58,8 @@ export function CloseToday({
       className={`${tile} ${shut[batch] ? tileShut : tileOpen}`}
     >
       {shut[batch] && <Strike />}
-      <span className="text-xs tabular-nums opacity-70">
+      <span className="text-sm font-medium">{caption}</span>
+      <span className="-mt-1.5 text-xs tabular-nums opacity-70">
         {batchHours(usual, batch)}
       </span>
     </IconAction>
@@ -70,6 +76,7 @@ export function CloseToday({
   return (
     <Dropdown
       icon="power"
+      name="Close gym"
       label="Close the gym today"
       lit={shutIcons.length > 0}
       className={className}
@@ -96,13 +103,14 @@ export function CloseToday({
           className={`${tile} ${dayShut ? tileShut : tileOpen}`}
         >
           {dayShut && <Strike />}
-          <span aria-hidden="true" className="flex gap-1 opacity-70">
+          <span className="text-sm font-medium">All day</span>
+          <span aria-hidden="true" className="-mt-1.5 flex gap-1 opacity-70">
             <NavIconSvg icon="sun" className="size-3.5" />
             <NavIconSvg icon="moon" className="size-3.5" />
           </span>
         </IconAction>
-        {batchTile("morning", "sun", "morning")}
-        {batchTile("evening", "moon", "evening")}
+        {batchTile("morning", "sun", "morning", "Morning")}
+        {batchTile("evening", "moon", "evening", "Evening")}
       </div>
     </Dropdown>
   );
@@ -119,13 +127,14 @@ function Strike() {
 }
 
 /**
- * A Home card that folds away: one short row (its icon, a glance at the
- * current state, a chevron) that opens to the controls. Closed by default.
+ * A Home card that folds away: one short row (its icon and name, a glance
+ * at the current state, a chevron) that opens to the controls. Closed by default.
  * A save refreshes the page without closing it: React leaves the
  * uncontrolled `open` attribute alone.
  */
 function Dropdown({
   icon,
+  name,
   label,
   lit,
   summary,
@@ -133,7 +142,9 @@ function Dropdown({
   children,
 }: {
   icon: NavIcon;
-  /** The accessible name and hover title; never shown as text. */
+  /** Shown beside the icon, like the other cards' headings. */
+  name: string;
+  /** The longer hover title. */
   label: string;
   /** Darkens the icon when something is set (a batch shut, say). */
   lit?: boolean;
@@ -152,8 +163,8 @@ function Dropdown({
         >
           <NavIconSvg icon={icon} className="size-4" />
         </span>
-        <span className="sr-only">{label}</span>
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="font-medium">{name}</span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
           {summary}
         </span>
         <NavIconSvg
@@ -178,6 +189,7 @@ export function Notices({
   return (
     <Dropdown
       icon="megaphone"
+      name="Notices"
       label="Notices for members"
       className={className}
       summary={
@@ -229,8 +241,8 @@ function NoticeForm({
         required
         maxLength={120}
         defaultValue={notice?.title}
+        placeholder="Heading"
         aria-label="Heading"
-        title="Heading"
         className={`${inputBase} font-semibold`}
       />
       <textarea
@@ -238,8 +250,8 @@ function NoticeForm({
         rows={3}
         maxLength={2000}
         defaultValue={notice?.body}
+        placeholder="What members should know"
         aria-label="Notice"
-        title="Notice"
         className={`${inputBase} py-3`}
       />
       <div className="flex items-center gap-3">
