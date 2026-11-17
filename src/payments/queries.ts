@@ -10,8 +10,13 @@ import {
   profiles,
 } from "@/db/schema";
 import { withUserContext, type UserTransaction } from "@/db/user-context";
-import { todayAtGym, type IsoDate } from "@/lib/dates";
-import { feeOn, type MembershipFacts } from "@/members/billing";
+import { formatDate, todayAtGym, type IsoDate } from "@/lib/dates";
+import {
+  dueDate,
+  feeOn,
+  rescheduled,
+  type MembershipFacts,
+} from "@/members/billing";
 import {
   loadFacts,
   membershipFilter,
@@ -21,6 +26,7 @@ import {
 import {
   buildLedger,
   payablePeriods,
+  reschedulablePeriod,
   type Ledger,
   type LedgerPayment,
   type MembershipWithFees,
@@ -39,6 +45,7 @@ const membershipFields = {
   memberId: memberships.memberId,
   startsOn: memberships.startsOn,
   billingStartsOn: memberships.billingStartsOn,
+  dueChanges: memberships.dueChanges,
   endedOn: memberships.endedOn,
   planId: memberships.planId,
 };
@@ -361,6 +368,12 @@ export interface PaymentEntry {
 export interface MemberPayments {
   ledger: Ledger | null;
   history: PaymentEntry[];
+  /**
+   * When the month a due-date change would move falls due now (see
+   * moveDueDate): what the change-due-date form starts from. Null without a
+   * current membership, or while an open-ended freeze holds it.
+   */
+  dueToMove: IsoDate | null;
 }
 
 /** One member's ledger and payment history, newest first. */
@@ -396,7 +409,7 @@ export async function getMemberPayments(
         .where(eq(payments.memberId, memberId))
         .orderBy(desc(payments.paidOn), desc(payments.createdAt)),
     ]);
-    const { ledgers } = await loadFactsAndLedgers(
+    const { facts, ledgers } = await loadFactsAndLedgers(
       tx,
       membershipRows,
       true,
@@ -404,8 +417,14 @@ export async function getMemberPayments(
     );
 
     const current = membershipRows.find((row) => row.endedOn === null);
+    const ledger = current ? (ledgers.get(current.id) ?? null) : null;
+    const fact = current ? facts.get(current.id) : undefined;
     return {
-      ledger: current ? (ledgers.get(current.id) ?? null) : null,
+      ledger,
+      dueToMove:
+        ledger && fact
+          ? dueDate(fact, reschedulablePeriod(ledger, today))
+          : null,
       history: rows.map(({ membershipId, voidReason, voidedAt, ...row }) => {
         const span = ledgers.get(membershipId)?.coverage.get(row.id);
         return {
@@ -425,6 +444,8 @@ export interface PaymentFormData {
   feePaise: number;
   owedPaise: number;
   periods: PeriodState[];
+  /** No payment counts yet: the form offers "Due from". */
+  firstPayment: boolean;
 }
 
 /** What the record-payment form offers for a member's current membership. */
@@ -467,6 +488,7 @@ export async function getPaymentForm(
       feePaise: feeOn(membership.fees, today) ?? 0,
       owedPaise: ledger.owedPaise,
       periods: payablePeriods(membership, paid ?? [], today),
+      firstPayment: !paid?.length,
     };
   });
 }
@@ -486,6 +508,69 @@ export async function ledgerInTransaction(
   const ledger = ledgers.get(row.id);
   if (!ledger) throw new MembershipNotFoundError();
   return { ledger, memberId: row.memberId, endedOn: row.endedOn };
+}
+
+/**
+ * Moves a membership's due date inside an action's transaction: the first
+ * month not paid in full now falls due on `wanted`, and every later month on
+ * the same day after it (owner's decision: months already owed move too).
+ * With `firstPayment`, period 0 moves instead, so dues start on `wanted`;
+ * that is only for a member with no payment yet, and any date is allowed.
+ * Returns the period moved.
+ */
+export async function moveDueDate(
+  tx: UserTransaction,
+  membershipId: string,
+  wanted: IsoDate,
+  today: IsoDate,
+  { firstPayment = false }: { firstPayment?: boolean } = {},
+): Promise<number> {
+  const [row] = await tx
+    .select(membershipFields)
+    .from(memberships)
+    .where(eq(memberships.id, membershipId));
+  if (!row) throw new MembershipNotFoundError();
+  if (row.endedOn) {
+    throw new DueDateError(
+      "This membership has ended. Reactivate the member first.",
+    );
+  }
+  const { facts, ledgers } = await loadFactsAndLedgers(tx, [row], true, today, {
+    coverage: false,
+  });
+  const fact = facts.get(row.id)!;
+  const ledger = ledgers.get(row.id)!;
+
+  let period: number;
+  if (firstPayment) {
+    if (ledger.creditPaise > 0 || ledger.periods.some((p) => p.paidPaise > 0))
+      throw new DueDateError("Due from is only for the first payment.");
+    period = 0;
+  } else {
+    period = reschedulablePeriod(ledger, today);
+  }
+
+  const changes = rescheduled(fact, period, wanted);
+  if (!changes) {
+    const previous = period > 0 ? dueDate(fact, period - 1) : null;
+    throw new DueDateError(
+      previous && wanted <= previous
+        ? `Pick a day after ${formatDate(previous)}.`
+        : dueDate(fact, period) === null
+          ? "Frozen with no end date. Unfreeze first."
+          : "That day falls in a freeze. Pick another.",
+    );
+  }
+  await tx
+    .update(memberships)
+    .set({
+      dueChanges: changes.map((change) => ({
+        from_period: change.fromPeriod,
+        due_on: change.dueOn,
+      })),
+    })
+    .where(eq(memberships.id, membershipId));
+  return period;
 }
 
 export interface LedgerExportRow {
@@ -525,6 +610,10 @@ export async function listLedgerForExport(
       .leftJoin(profiles, eq(profiles.id, payments.recordedBy))
       .orderBy(asc(payments.paidOn), asc(payments.createdAt)),
   );
+}
+
+class DueDateError extends Error {
+  code = "P0001";
 }
 
 class MembershipNotFoundError extends Error {

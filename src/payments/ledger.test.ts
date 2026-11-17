@@ -3,6 +3,7 @@ import type { FeeChange, Freeze } from "@/members/billing";
 import {
   buildLedger,
   payablePeriods,
+  reschedulablePeriod,
   type LedgerPayment,
   type MembershipWithFees,
 } from "@/payments/ledger";
@@ -29,6 +30,7 @@ function membership(
     startsOn,
     // Unpaid, or first paid on the joining day, unless a test says otherwise.
     billingStartsOn: startsOn,
+    dueChanges: [],
     endedOn: null,
     freezes: [],
     fees: [fee(60000, "2026-03-12")],
@@ -312,5 +314,63 @@ describe("choosing where a payment starts", () => {
     };
     expect(span(first.id)).toBe("2026-03-12..2026-03-12");
     expect(span(second.id)).toBe("2026-03-12..2026-04-12");
+  });
+});
+
+describe("which month a due-date change moves", () => {
+  // Dues on the 12th from 12 Mar, ₹600 a month.
+  const today = "2026-05-20";
+  const moved = (payments: LedgerPayment[], m = membership()) =>
+    reschedulablePeriod(buildLedger(m, payments, today), today);
+
+  it("moves the oldest month not paid in full, owed months included", () => {
+    // March paid; April and May owed: April moves (with May after it).
+    expect(moved([pay(60000, 0)])).toBe(1);
+    // Part of April paid: April still moves.
+    expect(moved([pay(60000, 0), pay(30000, 1)])).toBe(1);
+  });
+
+  it("moves the month after everything paid ahead", () => {
+    expect(moved([pay(60000 * 5, 0)])).toBe(5);
+  });
+
+  it("moves the next month that falls due for a free member", () => {
+    const free = membership({ fees: [fee(0, "2026-03-12")] });
+    // 12 May has passed; 12 Jun (period 3) is next.
+    expect(moved([], free)).toBe(3);
+  });
+
+  it("moves period 0 before the first payment", () => {
+    expect(moved([])).toBe(0);
+  });
+});
+
+describe("periods follow a moved due date", () => {
+  it("bills owed months on the new day and keeps paid months as they were", () => {
+    // March paid on the 12th; April onwards moved to the 20th.
+    const m = membership({
+      dueChanges: [{ fromPeriod: 1, dueOn: "2026-04-20" }],
+    });
+    const ledger = buildLedger(m, [pay(60000, 0)], "2026-04-25");
+    expect(
+      ledger.periods.map((p) => `${p.index} ${p.dueOn} ${p.status}`),
+    ).toEqual([
+      "0 2026-03-12 paid",
+      "1 2026-04-20 overdue",
+      "2 2026-05-20 upcoming",
+    ]);
+    expect(ledger.owedPaise).toBe(60000);
+  });
+
+  it("charges the first fee for months moved before the joining day", () => {
+    const m = membership({
+      dueChanges: [{ fromPeriod: 0, dueOn: "2026-02-01" }],
+    });
+    const ledger = buildLedger(m, [], "2026-02-01");
+    expect(ledger.periods[0]).toMatchObject({
+      dueOn: "2026-02-01",
+      feePaise: 60000,
+      status: "due",
+    });
   });
 });

@@ -85,6 +85,34 @@ describe("describeAuditEntry for due-day changes", () => {
       }),
     ).toBe("Dues now fall monthly from 2026-01-08");
   });
+
+  it("names the day staff moved the due date to", () => {
+    expect(
+      describeAuditEntry({
+        tableName: "memberships",
+        action: "update",
+        before: { due_changes: [{ from_period: 0, due_on: "2026-01-08" }] },
+        after: {
+          due_changes: [
+            { from_period: 0, due_on: "2026-01-08" },
+            { from_period: 3, due_on: "2026-04-20" },
+          ],
+        },
+      }),
+    ).toBe("Due date moved: dues now fall monthly from 2026-04-20");
+  });
+
+  it("keeps staff's first due date when the first payment lands", () => {
+    const dueChanges = [{ from_period: 0, due_on: "2026-01-02" }];
+    expect(
+      describeAuditEntry({
+        tableName: "memberships",
+        action: "update",
+        before: { billing_starts_on: null, due_changes: dueChanges },
+        after: { billing_starts_on: "2026-01-08", due_changes: dueChanges },
+      }),
+    ).toBe("Due date moved: dues now fall monthly from 2026-01-02");
+  });
 });
 
 describe("describeAuditEntry for the bulletin", () => {
