@@ -37,6 +37,13 @@
     {
       "binding": "HYPERDRIVE",
       "id": "6f7e4f78d4f644f08c519697648b1f83",
+      // A stand-in for local runs only; deployed Workers ignore it. The
+      // deploy command (opennextjs-cloudflare deploy) starts a local copy
+      // of the bindings first and fails without one. Nothing listens there:
+      // `next dev` uses DATABASE_URL, and `npm run cf:preview` needs the
+      // real string in CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE,
+      // which overrides this (README "Database connection (Hyperdrive)").
+      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5432/postgres",
     },
   ],
   // Due reminders (brief §4.6): every 15 minutes from 08:30 to 11:15 in
