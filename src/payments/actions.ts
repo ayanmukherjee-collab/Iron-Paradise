@@ -3,7 +3,6 @@
 // Every export here is a public HTTP endpoint. Export only guardedAction
 // results; helpers live in queries.ts, schemas.ts and describe.ts.
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { guardedAction } from "@/auth/guarded-action";
 import { getDb } from "@/db/client";
@@ -13,12 +12,6 @@ import { todayAtGym } from "@/lib/dates";
 import { describeRecordedPayment } from "@/payments/describe";
 import { ledgerInTransaction } from "@/payments/queries";
 import { paymentDetails, period, voidReason } from "@/payments/schemas";
-
-function refreshPaymentViews(memberId: string) {
-  revalidatePath(`/app/members/${memberId}`);
-  revalidatePath("/app/members");
-  revalidatePath("/app/payments");
-}
 
 export const recordPayment = guardedAction({
   permission: "payments.record",
@@ -56,7 +49,6 @@ export const recordPayment = guardedAction({
         return describeRecordedPayment(ledger, row.id, input.amount);
       },
     );
-    refreshPaymentViews(input.memberId);
     return { message };
   },
 });
@@ -80,18 +72,13 @@ export const voidPayment = guardedAction({
   permission: "payments.void",
   input: z.object({ paymentId: z.uuid(), reason: voidReason }),
   run: async ({ paymentId, reason }, viewer) => {
-    const memberId = await withUserContext(
-      getDb(),
-      viewer.userId,
-      async (tx) => {
-        const original = await loadOriginal(tx, paymentId);
-        await tx
-          .insert(paymentVoids)
-          .values({ paymentId, reason, voidedBy: viewer.userId });
-        return original.memberId;
-      },
-    );
-    refreshPaymentViews(memberId);
+    await withUserContext(getDb(), viewer.userId, async (tx) => {
+      // Refuses a payment that doesn't exist (or isn't visible) by name.
+      await loadOriginal(tx, paymentId);
+      await tx
+        .insert(paymentVoids)
+        .values({ paymentId, reason, voidedBy: viewer.userId });
+    });
     return { message: "Voided. It no longer counts towards any month." };
   },
 });
@@ -107,28 +94,22 @@ export const correctPayment = guardedAction({
     ...paymentDetails,
   }),
   run: async ({ paymentId, reason, ...details }, viewer) => {
-    const memberId = await withUserContext(
-      getDb(),
-      viewer.userId,
-      async (tx) => {
-        const original = await loadOriginal(tx, paymentId);
-        await tx
-          .insert(paymentVoids)
-          .values({ paymentId, reason, voidedBy: viewer.userId });
-        await tx.insert(payments).values({
-          ...original,
-          amountPaise: details.amount,
-          method: details.method,
-          paidOn: details.paidOn,
-          receiptNumber: details.receiptNumber,
-          note: details.note,
-          replacesPaymentId: paymentId,
-          recordedBy: viewer.userId,
-        });
-        return original.memberId;
-      },
-    );
-    refreshPaymentViews(memberId);
+    await withUserContext(getDb(), viewer.userId, async (tx) => {
+      const original = await loadOriginal(tx, paymentId);
+      await tx
+        .insert(paymentVoids)
+        .values({ paymentId, reason, voidedBy: viewer.userId });
+      await tx.insert(payments).values({
+        ...original,
+        amountPaise: details.amount,
+        method: details.method,
+        paidOn: details.paidOn,
+        receiptNumber: details.receiptNumber,
+        note: details.note,
+        replacesPaymentId: paymentId,
+        recordedBy: viewer.userId,
+      });
+    });
     return { message: "Corrected. The old entry is voided and kept." };
   },
 });

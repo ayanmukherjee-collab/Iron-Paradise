@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import type { ActionResult } from "@/auth/guarded-action";
+import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { QrCode } from "@/members/components/qr-code";
 import { whatsAppLink } from "@/members/phone";
@@ -38,8 +39,13 @@ export function ClaimLinkPanel({
     memberId: string;
   }) => Promise<ActionResult<ClaimLink>>;
 }) {
+  const afterSave = useAfterSave();
   const [result, create, pending] = useActionState(
-    async () => createClaimLink({ memberId }),
+    async () => {
+      const result = await createClaimLink({ memberId });
+      if (result.ok) afterSave();
+      return result;
+    },
     null as ActionResult<ClaimLink> | null,
   );
   const [copied, setCopied] = useState(false);

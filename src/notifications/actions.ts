@@ -3,7 +3,6 @@
 // Every export here is a public HTTP endpoint. Export only guardedAction
 // results; helpers live in queries.ts, schemas.ts and schedule.ts.
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { guardedAction } from "@/auth/guarded-action";
 import { getDb } from "@/db/client";
@@ -92,7 +91,6 @@ export const logWhatsAppReminder = guardedAction({
         .returning({ id: notifications.id });
       return rows.length > 0;
     });
-    revalidatePath("/app/reminders");
     return {
       message: logged ? "Logged as sent." : "Already logged for this due date.",
     };

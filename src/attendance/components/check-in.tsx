@@ -6,6 +6,7 @@ import type { CheckInResult } from "@/attendance/actions";
 import { codeFromScan } from "@/attendance/code";
 import { QrScanner } from "@/attendance/components/qr-scanner";
 import type { ActionResult } from "@/auth/guarded-action";
+import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { formatPaise } from "@/lib/money";
 import { retryOnThrow } from "@/lib/retry";
@@ -32,6 +33,7 @@ export function CheckIn({
   const [scanning, setScanning] = useState(false);
   const [pending, startTransition] = useTransition();
   const sentInitial = useRef(false);
+  const afterSave = useAfterSave();
 
   const send = useCallback(
     (code: string) => {
@@ -41,13 +43,18 @@ export function CheckIn({
         // (503). A check-in is safe to send again, since the database ignores
         // a second one the same day, so try twice more before giving up.
         try {
-          setOutcome(await retryOnThrow(() => checkIn({ code }), [1000, 3000]));
+          const outcome = await retryOnThrow(
+            () => checkIn({ code }),
+            [1000, 3000],
+          );
+          setOutcome(outcome);
+          if (outcome.ok) afterSave();
         } catch {
           setOutcome({ ok: false, error: unreachable });
         }
       });
     },
-    [checkIn],
+    [checkIn, afterSave],
   );
 
   useEffect(() => {

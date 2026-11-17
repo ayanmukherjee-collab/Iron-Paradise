@@ -3,7 +3,6 @@
 // Every export here is a public HTTP endpoint. Export only guardedAction
 // results; plain helpers belong in team-queries.ts.
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { guardedAction } from "@/auth/guarded-action";
 import { roleLabels } from "@/auth/permissions";
@@ -24,7 +23,6 @@ export const changeRole = guardedAction({
         sql`select public.set_user_role(${profileId}, ${role}::public.app_role)`,
       ),
     );
-    revalidatePath("/app/team");
   },
 });
 
@@ -45,8 +43,6 @@ export const changeMemberRole = guardedAction({
         sql`select public.set_user_role(${member.profileId}, ${role}::public.app_role)`,
       );
     });
-    revalidatePath(`/app/members/${memberId}`);
-    revalidatePath("/app/team");
     return {
       message: `Saved. They're now a ${roleLabels[role].toLowerCase()}.`,
     };
@@ -70,6 +66,5 @@ export const setAccountActive = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.execute(sql`select public.set_user_active(${profileId}, ${active})`),
     );
-    revalidatePath("/app/team");
   },
 });

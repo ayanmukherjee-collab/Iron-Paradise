@@ -30,11 +30,11 @@ const nextConfig: NextConfig = {
     // Keep pages the person has just seen in the browser's memory for two
     // minutes, so flicking between tabs is instant instead of a Worker run
     // each time (the free plan's CPU allowance is tight; see
-    // components/ui/link). Every Server Action that changes data calls
-    // revalidatePath, which clears this cache, and so does signing out; a
-    // reload always fetches fresh. Changes made on someone else's phone can
-    // take up to two minutes to show. Memory only: nothing is written to the
-    // device.
+    // components/ui/link). After every successful save the page refreshes
+    // itself (components/ui/after-save), which clears this cache, and so
+    // does signing out; a reload always fetches fresh. Changes made on
+    // someone else's phone can take up to two minutes to show. Memory only:
+    // nothing is written to the device.
     staleTimes: { dynamic: 120 },
   },
   // Lets a phone on the same Wi-Fi open the dev server by its LAN address

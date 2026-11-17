@@ -4,7 +4,6 @@
 // results; helpers live in queries.ts and code.ts.
 import { randomBytes } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isCheckInCode } from "@/attendance/code";
 import { guardedAction } from "@/auth/guarded-action";
@@ -48,8 +47,6 @@ export const checkIn = guardedAction({
     const payments = membership
       ? await getMemberPayments(viewer, membership.memberId)
       : null;
-    revalidatePath("/app");
-    revalidatePath("/app/attendance");
 
     return {
       status,
@@ -87,8 +84,6 @@ export const markAttendance = guardedAction({
           : `${member.fullName} was already in today.`;
       },
     );
-    revalidatePath("/app/attendance");
-    revalidatePath(`/app/members/${memberId}`);
     return { message };
   },
 });
@@ -107,7 +102,6 @@ export const createDeskDisplay = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.execute(sql`select public.create_desk_display(${label}, ${token})`),
     );
-    revalidatePath("/app/attendance/setup");
     return {
       url: new URL(
         `/desk/${token}`,
@@ -124,7 +118,6 @@ export const revokeDeskDisplay = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.execute(sql`select public.revoke_desk_display(${displayId})`),
     );
-    revalidatePath("/app/attendance/setup");
     return { message: "Switched off. That device now shows nothing." };
   },
 });
@@ -138,7 +131,6 @@ export const setPrintedQr = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.update(gymSettings).set({ printedQrEnabled: enabled }),
     );
-    revalidatePath("/app/attendance/setup");
     return {
       message: enabled
         ? "The printed QR works again."
@@ -169,8 +161,6 @@ export const saveBatches = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.update(gymSettings).set(hours),
     );
-    revalidatePath("/app/settings");
-    revalidatePath("/app/attendance");
     return { message: "Saved. Check-ins outside these hours are refused." };
   },
 });
@@ -182,7 +172,6 @@ export const regeneratePrintedCode = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.execute(sql`select public.regenerate_printed_checkin_code()`),
     );
-    revalidatePath("/app/attendance/setup");
     return { message: "New code made. Print it and replace the old sheet." };
   },
 });
