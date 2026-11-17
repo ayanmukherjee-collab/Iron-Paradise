@@ -153,7 +153,10 @@ interface PaymentTotals {
   thisMonthPaise: number;
 }
 
-/** The payment sheet: one row per member, one cell per month (brief §4.5). */
+/**
+ * The payment sheet: one row per member, one cell per month in `months`
+ * (brief §4.5). Pass no months when the cells aren't shown; they cost CPU.
+ */
 export async function getPaymentSheet(
   viewer: Viewer,
   months: MonthKey[],

@@ -18,7 +18,7 @@ const eslintConfig = defineConfig([
             {
               name: "next/link",
               message:
-                "Import Link from @/components/ui/link, which prefetches on intent only.",
+                "Import Link from @/components/ui/link, which doesn't prefetch.",
             },
           ],
         },

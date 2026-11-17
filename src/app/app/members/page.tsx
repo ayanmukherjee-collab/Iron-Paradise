@@ -43,6 +43,11 @@ type FilterKey = keyof typeof filters;
 // Only owners and managers see who owes what; trainers get the rest.
 const paymentFilters = new Set<FilterKey>(["overdue", "due"]);
 
+// Rows drawn before "Show all". Rendering every member on every visit was
+// the costliest work on the Worker's tight free-plan CPU allowance; search
+// and the filters still cover everyone.
+const firstRows = 50;
+
 function matchesSearch(member: MemberSummary, query: string): boolean {
   if (!query) return true;
   const needle = query.toLowerCase();
@@ -79,6 +84,8 @@ export default async function MembersPage({
   const counts = Object.fromEntries(
     filterKeys.map((key) => [key, everyone.filter(filters[key].keep).length]),
   ) as Record<FilterKey, number>;
+  const showAll = params.show === "all";
+  const drawn = showAll ? shown : shown.slice(0, firstRows);
 
   return (
     <section>
@@ -147,7 +154,7 @@ export default async function MembersPage({
         </p>
       ) : (
         <ul className="mt-4 list-card">
-          {shown.map((member) => (
+          {drawn.map((member) => (
             <li key={member.id} className="list-row">
               <Link
                 href={`/app/members/${member.id}`}
@@ -218,6 +225,17 @@ export default async function MembersPage({
             </li>
           ))}
         </ul>
+      )}
+
+      {drawn.length < shown.length && (
+        <Link
+          href={{
+            query: { filter, ...(query ? { q: query } : {}), show: "all" },
+          }}
+          className="mt-3 block rounded-card bg-white p-4 text-center text-sm font-semibold shadow-card transition-colors hover:bg-canvas/50"
+        >
+          Show all {shown.length}
+        </Link>
       )}
     </section>
   );

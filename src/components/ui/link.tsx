@@ -1,47 +1,20 @@
-"use client";
-
 import NextLink from "next/link";
-import { useState, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 
 type LinkProps = ComponentProps<typeof NextLink>;
 
 /**
- * next/link, but it prefetches only once someone shows they're about to use
- * the link (pointer over it, finger on it, keyboard focus), instead of
- * whenever it scrolls into view.
+ * next/link, but it never prefetches unless a caller passes `prefetch`.
  *
- * Every page renders per request on a Cloudflare Worker, and each prefetch is
- * a full server render. With Next's default, scrolling the members list fired
- * one render per row and filter chip, and those bursts ran the Worker past
- * its CPU limit, so pages failed with 503s. Pass `prefetch` to choose the
- * behaviour explicitly.
+ * Every page renders per request on a Cloudflare Worker, and every prefetch
+ * is a Worker run of its own, on a free plan that allows 10 ms of CPU per
+ * run. Next's default prefetched each link as it scrolled into view (one
+ * render per member row), and prefetching on hover still sent a burst of
+ * renders whenever the pointer swept across the filter chips or the menu,
+ * which ran the Worker out of CPU (503s). Now a page is fetched once, when
+ * it's clicked; pages seen in the last couple of minutes come back from the
+ * browser's memory (staleTimes in next.config.ts).
  */
-export default function Link({
-  prefetch,
-  onMouseEnter,
-  onTouchStart,
-  onFocus,
-  ...props
-}: LinkProps) {
-  const [intent, setIntent] = useState(false);
-
-  return (
-    <NextLink
-      {...props}
-      // null is Next's default ("auto"); false holds the prefetch back.
-      prefetch={prefetch !== undefined ? prefetch : intent ? null : false}
-      onMouseEnter={(event) => {
-        setIntent(true);
-        onMouseEnter?.(event);
-      }}
-      onTouchStart={(event) => {
-        setIntent(true);
-        onTouchStart?.(event);
-      }}
-      onFocus={(event) => {
-        setIntent(true);
-        onFocus?.(event);
-      }}
-    />
-  );
+export default function Link({ prefetch = false, ...props }: LinkProps) {
+  return <NextLink prefetch={prefetch} {...props} />;
 }

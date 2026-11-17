@@ -9,14 +9,16 @@ import {
 } from "@/payments/components/money-cards";
 import { PaymentSheet } from "@/payments/components/payment-sheet";
 import { getPaymentSheet } from "@/payments/queries";
-import { sheetMonths } from "@/payments/sheet";
 
 export const metadata: Metadata = { title: "Payments" };
 
 export default async function PaymentsPage() {
   const viewer = await requirePermission("payments.viewSheet", "/app/payments");
   const today = todayAtGym();
-  const rows = await getPaymentSheet(viewer, sheetMonths(null, today));
+  // No month columns: this list never shows them (only the export does), and
+  // building and sending a cell per member per month cost Worker CPU for
+  // nothing.
+  const rows = await getPaymentSheet(viewer, []);
 
   const thisMonth = today.slice(0, 7);
   // Removed members drop out of dues; what they still owe stays on their row.
