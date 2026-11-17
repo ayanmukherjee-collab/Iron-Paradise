@@ -5,6 +5,7 @@ import {
   closuresWithin,
   getOpenStatus,
   gymMoment,
+  openBlocksOn,
   openingAt,
   splitBatches,
 } from "@/bulletin/hours";
@@ -211,5 +212,36 @@ describe("batches", () => {
     expect(closureFor([evening], { morning: false, evening: true })).toEqual({
       hours: null,
     });
+  });
+});
+
+describe("openBlocksOn", () => {
+  it("gives a day's openings as minutes", () => {
+    expect(openBlocksOn(source(), "2026-11-16")).toEqual([
+      { from: 330, to: 600 },
+      { from: 960, to: 1320 },
+    ]);
+  });
+
+  it("is empty on a closed day and follows a closure's hours", () => {
+    expect(openBlocksOn(source(), "2026-11-22")).toEqual([]);
+    const short = source({
+      closures: [{ date: "2026-11-17", reason: "", hours: [morning] }],
+    });
+    expect(openBlocksOn(short, "2026-11-17")).toEqual([{ from: 330, to: 600 }]);
+  });
+
+  it("cuts a late opening at midnight and carries its tail to the next day", () => {
+    const late = source({
+      hours: { ...weekly, mon: [{ open: "18:00", close: "02:00" }] },
+    });
+    expect(openBlocksOn(late, "2026-11-16")).toEqual([
+      { from: 1080, to: 1440 },
+    ]);
+    expect(openBlocksOn(late, "2026-11-17")).toEqual([
+      { from: 0, to: 120 },
+      { from: 330, to: 600 },
+      { from: 960, to: 1320 },
+    ]);
   });
 });
