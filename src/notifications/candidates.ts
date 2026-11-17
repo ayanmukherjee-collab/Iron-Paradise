@@ -32,6 +32,7 @@ export async function loadReminderCandidates(
   tx: UserTransaction,
   today: IsoDate,
 ): Promise<ReminderCandidate[]> {
+  const open = and(isNull(memberships.endedOn), eq(members.isActive, true));
   const rows = await tx
     .select({
       memberId: members.id,
@@ -50,12 +51,9 @@ export async function loadReminderCandidates(
       planId: memberships.planId,
     })
     .from(members)
-    .innerJoin(
-      memberships,
-      and(eq(memberships.memberId, members.id), isNull(memberships.endedOn)),
-    )
+    .innerJoin(memberships, eq(memberships.memberId, members.id))
     .leftJoin(profiles, eq(profiles.id, members.profileId))
-    .where(eq(members.isActive, true))
+    .where(open)
     .orderBy(asc(members.fullName));
 
   const { facts, ledgers } = await loadFactsAndLedgers(
@@ -70,6 +68,16 @@ export async function loadReminderCandidates(
     })),
     true,
     today,
+    {
+      // The same memberships, filtered in the database rather than sent back
+      // as hundreds of id parameters; reminders need no per-payment detail.
+      scope: tx
+        .select({ id: memberships.id })
+        .from(memberships)
+        .innerJoin(members, eq(members.id, memberships.memberId))
+        .where(open),
+      coverage: false,
+    },
   );
 
   return rows.flatMap((row) => {

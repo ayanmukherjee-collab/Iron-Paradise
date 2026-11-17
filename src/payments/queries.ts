@@ -1,15 +1,5 @@
 import "server-only";
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNull,
-  lte,
-  sum,
-} from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, sql, sum } from "drizzle-orm";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
 import {
@@ -22,7 +12,12 @@ import {
 import { withUserContext, type UserTransaction } from "@/db/user-context";
 import { todayAtGym, type IsoDate } from "@/lib/dates";
 import { feeOn, type MembershipFacts } from "@/members/billing";
-import { loadFacts, type MembershipRow } from "@/members/facts";
+import {
+  loadFacts,
+  membershipFilter,
+  type MembershipRow,
+  type MembershipScope,
+} from "@/members/facts";
 import {
   buildLedger,
   payablePeriods,
@@ -55,9 +50,10 @@ function withFees(facts: MembershipFacts): MembershipWithFees | null {
 /** Payments that still count: every ledger row that has not been voided. */
 async function countedPayments(
   tx: UserTransaction,
-  membershipIds: string[],
+  rows: MembershipRow[],
+  scope?: MembershipScope,
 ): Promise<Map<string, LedgerPayment[]>> {
-  const rows = membershipIds.length
+  const found = rows.length
     ? await tx
         .select({
           id: payments.id,
@@ -70,17 +66,73 @@ async function countedPayments(
         .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
         .where(
           and(
-            inArray(payments.membershipId, membershipIds),
+            membershipFilter(payments.membershipId, rows, scope),
             isNull(paymentVoids.paymentId),
           ),
         )
     : [];
 
   const byMembership = new Map<string, LedgerPayment[]>();
-  for (const { membershipId, ...payment } of rows) {
-    const list = byMembership.get(membershipId) ?? [];
-    list.push(payment);
-    byMembership.set(membershipId, list);
+  for (const { membershipId, ...payment } of found) {
+    const list = byMembership.get(membershipId);
+    if (list) list.push(payment);
+    else byMembership.set(membershipId, [payment]);
+  }
+  return byMembership;
+}
+
+// Stands in for each summed payment's id and time; see countedTotals.
+const totalRecordedAt = new Date(0);
+
+/**
+ * Counted payments summed per membership and first period, each sum standing
+ * in for the payments it adds up. A ledger built from these is the same as
+ * one built from every payment, except for `coverage` (which payment went
+ * towards which months), which comes back keyed by stand-in ids. That holds
+ * because the ledger applies payments in first-period order, and payments
+ * that start on the same period fill it, and then the months after it, one
+ * after another, so their sum fills exactly the same months.
+ *
+ * Screens that list everyone use this: one row per membership and starting
+ * month instead of one per payment ever recorded, and no ids or timestamps
+ * for the Worker to parse.
+ */
+async function countedTotals(
+  tx: UserTransaction,
+  rows: MembershipRow[],
+  scope?: MembershipScope,
+): Promise<Map<string, LedgerPayment[]>> {
+  const found = rows.length
+    ? await tx
+        .select({
+          membershipId: payments.membershipId,
+          firstPeriod: payments.firstPeriod,
+          amountPaise: sql<number>`sum(${payments.amountPaise})`.mapWith(
+            Number,
+          ),
+        })
+        .from(payments)
+        .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
+        .where(
+          and(
+            membershipFilter(payments.membershipId, rows, scope),
+            isNull(paymentVoids.paymentId),
+          ),
+        )
+        .groupBy(payments.membershipId, payments.firstPeriod)
+    : [];
+
+  const byMembership = new Map<string, LedgerPayment[]>();
+  for (const { membershipId, firstPeriod, amountPaise } of found) {
+    const total: LedgerPayment = {
+      id: `from-period-${firstPeriod}`,
+      firstPeriod,
+      amountPaise,
+      createdAt: totalRecordedAt,
+    };
+    const list = byMembership.get(membershipId);
+    if (list) list.push(total);
+    else byMembership.set(membershipId, [total]);
   }
   return byMembership;
 }
@@ -103,6 +155,17 @@ function buildLedgers(
   return ledgers;
 }
 
+export interface LedgerOptions {
+  /** See MembershipScope: how to filter fees, freezes and payments. */
+  scope?: MembershipScope;
+  /**
+   * Whether ledgers need `coverage` (which payment paid which months). It
+   * takes every payment row; without it, payments are summed in the
+   * database (see countedTotals). Defaults to true.
+   */
+  coverage?: boolean;
+}
+
 /**
  * Facts and ledgers for a set of memberships. Fees, freezes and payments are
  * fetched side by side in one round trip, not one after another. Viewers who
@@ -113,17 +176,15 @@ export async function loadFactsAndLedgers(
   rows: MembershipRow[],
   canSeeFees: boolean,
   today: IsoDate,
+  { scope, coverage = true }: LedgerOptions = {},
 ): Promise<{
   facts: Map<string, MembershipFacts>;
   ledgers: Map<string, Ledger>;
 }> {
   const [facts, paid] = await Promise.all([
-    loadFacts(tx, rows, canSeeFees),
+    loadFacts(tx, rows, canSeeFees, scope),
     canSeeFees
-      ? countedPayments(
-          tx,
-          rows.map((row) => row.id),
-        )
+      ? (coverage ? countedPayments : countedTotals)(tx, rows, scope)
       : new Map<string, LedgerPayment[]>(),
   ]);
   return { facts, ledgers: buildLedgers(facts, paid, today) };
@@ -148,11 +209,6 @@ export interface SheetRow {
   cells: Record<MonthKey, SheetCell>;
 }
 
-interface PaymentTotals {
-  last: { amountPaise: number; paidOn: IsoDate };
-  thisMonthPaise: number;
-}
-
 /**
  * The payment sheet: one row per member, one cell per month in `months`
  * (brief §4.5). Pass no months when the cells aren't shown; they cost CPU.
@@ -162,43 +218,59 @@ export async function getPaymentSheet(
   months: MonthKey[],
 ): Promise<SheetRow[]> {
   const today = todayAtGym();
+  const thisMonth = today.slice(0, 7);
   return withUserContext(getDb(), viewer.userId, async (tx) => {
     const [memberRows, membershipRows, paymentRows] = await Promise.all([
-      tx.select().from(members).orderBy(asc(members.fullName)),
-      tx.select(membershipFields).from(memberships),
       tx
         .select({
+          id: members.id,
+          memberCode: members.memberCode,
+          fullName: members.fullName,
+          phone: members.phone,
+          isActive: members.isActive,
+        })
+        .from(members)
+        .orderBy(asc(members.fullName)),
+      tx.select(membershipFields).from(memberships),
+      // Each member's latest counted payment (newest paid_on, then newest
+      // recorded) and their counted total this month, worked out in the
+      // database: one row per member, rather than every payment ever.
+      tx
+        .selectDistinctOn([payments.memberId], {
           memberId: payments.memberId,
           amountPaise: payments.amountPaise,
           paidOn: payments.paidOn,
+          thisMonthPaise:
+            sql<number>`coalesce(sum(${payments.amountPaise}) filter (where to_char(${payments.paidOn}, 'YYYY-MM') = ${thisMonth}) over (partition by ${payments.memberId}), 0)`.mapWith(
+              Number,
+            ),
         })
         .from(payments)
         .leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id))
         .where(isNull(paymentVoids.paymentId))
-        .orderBy(desc(payments.paidOn), desc(payments.createdAt)),
+        .orderBy(
+          payments.memberId,
+          desc(payments.paidOn),
+          desc(payments.createdAt),
+        ),
     ]);
 
-    // Newest first, so the first payment seen for a member is their last.
-    const thisMonth = today.slice(0, 7);
-    const totals = new Map<string, PaymentTotals>();
-    for (const { memberId, amountPaise, paidOn } of paymentRows) {
-      const entry = totals.get(memberId) ?? {
-        last: { amountPaise, paidOn },
-        thisMonthPaise: 0,
-      };
-      if (paidOn.startsWith(thisMonth)) entry.thisMonthPaise += amountPaise;
-      totals.set(memberId, entry);
-    }
+    const lastPaid = new Map(paymentRows.map((row) => [row.memberId, row]));
+    // Every membership, ended ones too: what someone still owes on an old
+    // membership stays on their row.
     const { facts, ledgers } = await loadFactsAndLedgers(
       tx,
       membershipRows,
       true,
       today,
+      { scope: "all", coverage: false },
     );
 
     const byMember = new Map<string, MembershipRow[]>();
     for (const row of membershipRows) {
-      byMember.set(row.memberId, [...(byMember.get(row.memberId) ?? []), row]);
+      const list = byMember.get(row.memberId);
+      if (list) list.push(row);
+      else byMember.set(row.memberId, [row]);
     }
 
     return memberRows.flatMap((member) => {
@@ -214,7 +286,7 @@ export async function getPaymentSheet(
       const current = rows.find((row) => row.endedOn === null);
       const currentFees = current ? facts.get(current.id)!.fees : null;
       const currentLedger = current ? ledgers.get(current.id)! : null;
-      const paid = totals.get(member.id);
+      const paid = lastPaid.get(member.id);
       const nextDue =
         currentLedger?.periods.find(
           (period) =>
@@ -234,7 +306,9 @@ export async function getPaymentSheet(
             (sum, entry) => sum + entry.ledger.owedPaise,
             0,
           ),
-          lastPayment: paid?.last ?? null,
+          lastPayment: paid
+            ? { amountPaise: paid.amountPaise, paidOn: paid.paidOn }
+            : null,
           paidThisMonthPaise: paid?.thisMonthPaise ?? 0,
           nextDue: member.isActive ? nextDue : null,
           cells: sheetRow(withLedgers, months),
@@ -380,7 +454,7 @@ export async function getPaymentForm(
 
     const [facts, counted] = await Promise.all([
       loadFacts(tx, [current], true),
-      countedPayments(tx, [current.id]),
+      countedPayments(tx, [current]),
     ]);
     const membership = withFees(facts.get(current.id)!);
     if (!membership) return null;
