@@ -474,13 +474,11 @@ describe("opening hours and closures", () => {
     expect(
       await rejectionMessage(
         as(trainer, (tx) =>
-          tx
-            .insert(gymClosures)
-            .values({
-              closesOn: "2026-12-26",
-              hours: null,
-              createdBy: trainer,
-            }),
+          tx.insert(gymClosures).values({
+            closesOn: "2026-12-26",
+            hours: null,
+            createdBy: trainer,
+          }),
         ),
       ),
     ).toMatch(/row-level security/);
