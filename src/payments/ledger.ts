@@ -10,7 +10,7 @@
 // is partial and a large one is an advance, with no special cases.
 import { addDays, type IsoDate } from "@/lib/dates";
 import {
-  dueDate,
+  dueDates,
   feeOn,
   maxPeriods,
   type FeeChange,
@@ -82,15 +82,13 @@ interface Period {
  */
 function periodSource(membership: MembershipWithFees) {
   const periods: Period[] = [];
+  const dueOnFor = dueDates(membership.billingStartsOn, membership.freezes);
   let exhausted = false;
 
   return function periodAt(index: number): Period | null {
     while (!exhausted && periods.length <= index) {
       const next = periods.length;
-      const dueOn =
-        next < maxPeriods
-          ? dueDate(membership.billingStartsOn, next, membership.freezes)
-          : null;
+      const dueOn = next < maxPeriods ? dueOnFor(next) : null;
       if (
         dueOn === null ||
         (membership.endedOn !== null && dueOn >= membership.endedOn)
@@ -109,12 +107,20 @@ function periodSource(membership: MembershipWithFees) {
   };
 }
 
-function statusOf(period: Period, today: IsoDate): PeriodStatus {
+/**
+ * `horizon` is today plus dueSoonDays, worked out once by the caller rather
+ * than once per period.
+ */
+function statusOf(
+  period: Period,
+  today: IsoDate,
+  horizon: IsoDate,
+): PeriodStatus {
   if (period.feePaise === 0) return "free";
   if (period.paidPaise >= period.feePaise) return "paid";
   if (period.paidPaise > 0) return "partial";
   if (period.dueOn < today) return "overdue";
-  if (period.dueOn <= addDays(today, dueSoonDays)) return "due";
+  if (period.dueOn <= horizon) return "due";
   return "upcoming";
 }
 
@@ -122,12 +128,12 @@ function standingOf(
   periods: PeriodState[],
   membership: MembershipWithFees,
   today: IsoDate,
+  horizon: IsoDate,
 ): Standing {
   const unpaid = (period: PeriodState) =>
     period.feePaise > 0 && period.paidPaise < period.feePaise;
   if (periods.some((p) => unpaid(p) && p.dueOn < today)) return "overdue";
-  if (periods.some((p) => unpaid(p) && p.dueOn <= addDays(today, dueSoonDays)))
-    return "due";
+  if (periods.some((p) => unpaid(p) && p.dueOn <= horizon)) return "due";
   if (feeOn(membership.fees, today) === 0) return "free";
   return "paid";
 }
@@ -174,7 +180,7 @@ export function buildLedger(
   for (let index = 0; ; index++) {
     const period = periodAt(index);
     if (!period) break;
-    periods.push({ ...period, status: statusOf(period, today) });
+    periods.push({ ...period, status: statusOf(period, today, horizon) });
     if (period.dueOn > horizon && index >= lastPaid) break;
   }
 
@@ -193,9 +199,23 @@ export function buildLedger(
     creditPaise,
     nextUnpaid:
       periods.find((period) => period.paidPaise < period.feePaise) ?? null,
-    standing: standingOf(periods, membership, today),
+    standing: standingOf(periods, membership, today, horizon),
     coverage,
   };
+}
+
+/**
+ * The first due date on or after `today`, read off the periods the ledger
+ * has already dated. For an open membership, and the `today` the ledger was
+ * built for, this is exactly members/billing's nextDueDate (the periods run
+ * past today, and stop where an open-ended freeze holds the next one), without
+ * working every due date out a second time.
+ */
+export function nextDueFromLedger(
+  ledger: Ledger,
+  today: IsoDate,
+): IsoDate | null {
+  return ledger.periods.find((period) => period.dueOn >= today)?.dueOn ?? null;
 }
 
 /**
@@ -215,13 +235,14 @@ export function payablePeriods(
   );
 
   const periodAt = periodSource(membership);
+  const horizon = addDays(today, dueSoonDays);
   const lastKnown = ledger.periods.at(-1)?.index ?? -1;
   const future: PeriodState[] = [];
   for (let index = lastKnown + 1; future.length < ahead; index++) {
     const period = periodAt(index);
     if (!period) break;
     if (period.feePaise > 0)
-      future.push({ ...period, status: statusOf(period, today) });
+      future.push({ ...period, status: statusOf(period, today, horizon) });
   }
   return [...open, ...future];
 }
