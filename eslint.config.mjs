@@ -20,7 +20,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/components/ui/link.tsx"],
+    ignores: ["src/components/ui/link.tsx", "web/src/shims/**"],
     rules: {
       "no-restricted-imports": ["error", { paths: [plainLink] }],
     },
@@ -70,6 +70,8 @@ const eslintConfig = defineConfig([
     "supabase/.temp/**",
     "test-results/**",
     "playwright-report/**",
+    // The static app's build (npm run web:build).
+    "web/dist/**",
   ]),
 ]);
 

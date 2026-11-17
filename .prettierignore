@@ -8,3 +8,4 @@ public/sw.js
 supabase/.temp
 test-results
 playwright-report
+web/dist

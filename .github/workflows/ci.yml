@@ -39,6 +39,8 @@ jobs:
       # next build generates route types that tsc checks.
       - run: npx next typegen
       - run: npm run typecheck
+      # The static app that replaces server rendering (docs/static-rebuild.md).
+      - run: npm run web:build
       # Includes the RLS security tests, run against the real migrations in
       # an in-memory Postgres.
       - run: npm test
