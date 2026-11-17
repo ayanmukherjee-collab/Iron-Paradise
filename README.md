@@ -139,8 +139,28 @@ The page is built to be read in pictures first (icons, big numbers, one orange S
    npx wrangler secret put EMAIL_FROM       # optional
    ```
    Store every runtime value as a secret, even public ones like `VAPID_PUBLIC_KEY`: each `wrangler deploy` removes plain variables that were added in the dashboard but aren't in `wrangler.jsonc`, while secrets are kept.
-3. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
-4. `npm run cf:deploy`
+3. Create the Hyperdrive config and put its id in `wrangler.jsonc` (see [Database connection (Hyperdrive)](#database-connection-hyperdrive) below). A deploy fails while the id in `wrangler.jsonc` points at a config that isn't in your account.
+4. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
+5. `npm run cf:deploy`
+
+### Database connection (Hyperdrive)
+
+In production the Worker reaches Postgres through [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/), which is included in Workers Free. Without it, every request opens its own connection to Supabase: a TLS handshake plus a password exchange, which adds several round trips and some CPU to each request. Hyperdrive keeps warm connections that have already logged in, so the Worker skips both. This makes pages faster and connections steadier. It saves only a little CPU, because most of a request's CPU goes to rendering, so it does not remove the free plan's 10 ms CPU errors on its own. `src/db/client.ts` uses the `HYPERDRIVE` binding when it exists and falls back to `DATABASE_URL`.
+
+Create the config once per Cloudflare account. Then put the id it prints into the `hyperdrive` block in `wrangler.jsonc`:
+
+```bash
+npx wrangler hyperdrive create iron-paradise-db --caching-disabled \
+  --origin-host=db.<project-ref>.supabase.co --origin-port=5432 \
+  --database=postgres --origin-user=postgres --origin-password='<database password>'
+```
+
+- **Connection.** Use Supabase's **Direct connection** (`db.<project-ref>.supabase.co`, port 5432, user `postgres`), because Hyperdrive does its own pooling. On the free plan that host is IPv6-only. If Hyperdrive can't connect to it, use the **Session pooler** from Supabase → Connect instead (port 5432, user `postgres.<project-ref>`). Never use the transaction pooler (port 6543): the app turns prepared statements on for Hyperdrive, and that pooler doesn't support them.
+- **Always `--caching-disabled`.** Hyperdrive's cache doesn't know which user a query ran as (RLS is set per transaction), and it isn't cleared when data changes. If caching is ever turned on, one person could see another person's rows, pages could show stale payments, and a role change or deactivation would stop applying on the next request (`getViewer` in `src/auth/session.ts` reads it outside a transaction). To check an existing config: `npx wrangler hyperdrive get <id>`. To fix it: `npx wrangler hyperdrive update <id> --caching-disabled`.
+- **New database password?** Run `npx wrangler hyperdrive update <id> --origin-password='<new password>'` as well as updating the `DATABASE_URL` secret.
+- **Limits on Workers Free.** 100,000 queries a day (every statement counts, including `BEGIN`/`COMMIT`), reset at 00:00 UTC (05:30 in India), and about 20 connections to the database. If the daily limit is reached, queries fail until the reset. To get by until then, remove the `hyperdrive` block and deploy, and the app falls back to `DATABASE_URL`.
+- **Keep the `DATABASE_URL` secret.** `next dev` and the fallback use it.
+- **`npm run cf:preview`** runs the Worker locally, where Hyperdrive isn't available, and Wrangler refuses to start without a stand-in. Before running it, set `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` in your shell to the Session pooler string with `?sslmode=require` on the end (not the 6543 one).
 
 ### Deploying from GitHub (Workers Builds)
 
