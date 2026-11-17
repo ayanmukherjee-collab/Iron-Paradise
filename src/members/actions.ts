@@ -4,8 +4,6 @@
 // results; helpers live in queries.ts and schemas.ts.
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { guardedAction } from "@/auth/guarded-action";
 import { getDb } from "@/db/client";
@@ -100,8 +98,7 @@ export const addMember = guardedAction({
         return member.id;
       },
     );
-    revalidatePath("/app/members");
-    redirect(`/app/members/${memberId}`);
+    return { redirectTo: `/app/members/${memberId}` };
   },
 });
 
@@ -127,7 +124,6 @@ export const updateMember = guardedAction({
         })
         .where(eq(members.id, memberId)),
     );
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
@@ -139,7 +135,7 @@ export const changeFee = guardedAction({
     fee: feeRupees,
     note: optionalNote,
   }),
-  run: async ({ memberId, membershipId, fee, note }, viewer) => {
+  run: async ({ membershipId, fee, note }, viewer) => {
     const effectiveFrom = await withUserContext(
       getDb(),
       viewer.userId,
@@ -157,7 +153,6 @@ export const changeFee = guardedAction({
         return from;
       },
     );
-    revalidatePath(`/app/members/${memberId}`);
     return { message: `Saved. Applies from ${formatDate(effectiveFrom)}.` };
   },
 });
@@ -177,7 +172,7 @@ export const freezeMembership = guardedAction({
     .refine((input) => !input.endsOn || input.endsOn >= input.startsOn, {
       message: "The freeze must end on or after the day it starts",
     }),
-  run: async ({ memberId, membershipId, startsOn, endsOn, note }, viewer) => {
+  run: async ({ membershipId, startsOn, endsOn, note }, viewer) => {
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.insert(membershipFreezes).values({
         membershipId,
@@ -187,21 +182,19 @@ export const freezeMembership = guardedAction({
         createdBy: viewer.userId,
       }),
     );
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
 export const endFreeze = guardedAction({
   permission: "memberships.edit",
   input: z.object({ memberId: z.uuid(), freezeId: z.uuid(), endsOn: isoDate }),
-  run: async ({ memberId, freezeId, endsOn }, viewer) => {
+  run: async ({ freezeId, endsOn }, viewer) => {
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx
         .update(membershipFreezes)
         .set({ endsOn })
         .where(eq(membershipFreezes.id, freezeId)),
     );
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
@@ -224,8 +217,6 @@ export const deactivateMember = guardedAction({
           and(eq(memberships.memberId, memberId), isNull(memberships.endedOn)),
         );
     });
-    revalidatePath("/app/members");
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
@@ -251,8 +242,6 @@ export const reactivateMember = guardedAction({
         createdBy: viewer.userId,
       });
     });
-    revalidatePath("/app/members");
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
@@ -270,7 +259,6 @@ export const createClaimLink = guardedAction({
       ),
     );
     const [row] = rowsOf<{ expires_at: string | Date }>(result);
-    revalidatePath(`/app/members/${memberId}`);
     return {
       url: new URL(
         `/claim/${token}`,
@@ -293,8 +281,6 @@ export const linkGuest = guardedAction({
         sql`select public.link_guest_to_member(${profileId}, ${memberId})`,
       ),
     );
-    revalidatePath("/app/guests");
-    revalidatePath(`/app/members/${memberId}`);
   },
 });
 
@@ -345,9 +331,7 @@ export const convertGuest = guardedAction({
         return member.id;
       },
     );
-    revalidatePath("/app/guests");
-    revalidatePath("/app/members");
-    redirect(`/app/members/${memberId}`);
+    return { redirectTo: `/app/members/${memberId}` };
   },
 });
 
@@ -379,7 +363,6 @@ export const savePlan = guardedAction({
             .insert(plans)
             .values({ name, durationMonths, defaultFeePaise: defaultFee }),
     );
-    revalidatePath("/app/settings");
   },
 });
 
@@ -396,8 +379,6 @@ export const saveGoneQuietDays = guardedAction({
     await withUserContext(getDb(), viewer.userId, (tx) =>
       tx.update(gymSettings).set({ goneQuietDays: days }),
     );
-    revalidatePath("/app/settings");
-    revalidatePath("/app/members");
   },
 });
 

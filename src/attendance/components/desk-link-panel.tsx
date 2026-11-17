@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import type { ActionResult } from "@/auth/guarded-action";
 import { NavIconSvg } from "@/components/nav/nav-icons";
+import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { inputBase } from "@/components/ui/field";
 
@@ -15,9 +16,13 @@ export function DeskLinkPanel({
 }: {
   createDeskDisplay: (form: FormData) => Promise<ActionResult<{ url: string }>>;
 }) {
+  const afterSave = useAfterSave();
   const [result, create, pending] = useActionState(
-    async (_previous: ActionResult<{ url: string }> | null, form: FormData) =>
-      createDeskDisplay(form),
+    async (_previous: ActionResult<{ url: string }> | null, form: FormData) => {
+      const result = await createDeskDisplay(form);
+      if (result.ok) afterSave();
+      return result;
+    },
     null,
   );
   const [copied, setCopied] = useState(false);

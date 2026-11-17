@@ -3,6 +3,7 @@
 import { useActionState, type ReactNode } from "react";
 import type { ActionResult } from "@/auth/guarded-action";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
+import { redirectOf, useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 
 type Variant = "dark" | "outline-dark";
@@ -13,7 +14,8 @@ type Variant = "dark" | "outline-dark";
  * The success line is the action's own `message` when it returns one (the
  * server knows details like the date a change applies), else `success`.
  * Both props must be plain values: functions can't cross from a Server
- * Component into this client component.
+ * Component into this client component. After a successful save it
+ * refreshes the page, or opens the page the action named (see after-save).
  */
 export function ActionForm<T>({
   action,
@@ -35,10 +37,18 @@ export function ActionForm<T>({
   className?: string;
   children?: ReactNode;
 }) {
-  const [result, submit, pending] = useActionState(
-    async (_previous: ActionResult<T> | null, form: FormData) => action(form),
+  const afterSave = useAfterSave();
+  const [result, submit, saving] = useActionState(
+    async (_previous: ActionResult<T> | null, form: FormData) => {
+      const result = await action(form);
+      if (result.ok) afterSave(result.data);
+      return result;
+    },
     null,
   );
+  // Saved and on the way to another page: keep the button busy so the form
+  // can't be sent twice before the page changes.
+  const pending = saving || (!!result?.ok && redirectOf(result.data) !== null);
 
   return (
     <form action={submit} className={className}>

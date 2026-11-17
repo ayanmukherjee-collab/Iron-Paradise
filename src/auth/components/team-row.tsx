@@ -7,6 +7,7 @@ import { changeRole, setAccountActive } from "@/auth/team-actions";
 import type { AssignableRole, TeamMember } from "@/auth/team-queries";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { Initial } from "@/components/nav/side-nav";
+import { useAfterSave } from "@/components/ui/after-save";
 import { Button } from "@/components/ui/button";
 import { inputBase } from "@/components/ui/field";
 
@@ -27,10 +28,14 @@ export function TeamRow({
 }) {
   // The controls stay folded away behind the gear; a save folds them back.
   const [open, setOpen] = useState(false);
+  const afterSave = useAfterSave();
   const [roleResult, submitRole, savingRole] = useActionState(
     async (_: Result, form: FormData) => {
       const result = await changeRole(form);
-      if (result.ok) setOpen(false);
+      if (result.ok) {
+        setOpen(false);
+        afterSave();
+      }
       return result;
     },
     null,
@@ -38,7 +43,10 @@ export function TeamRow({
   const [activeResult, submitActive, savingActive] = useActionState(
     async (_: Result, form: FormData) => {
       const result = await setAccountActive(form);
-      if (result.ok) setOpen(false);
+      if (result.ok) {
+        setOpen(false);
+        afterSave();
+      }
       return result;
     },
     null,
