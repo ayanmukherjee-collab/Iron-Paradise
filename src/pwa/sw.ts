@@ -23,7 +23,19 @@ declare const self: ServiceWorkerGlobalScope;
 // Only public, versioned assets are cached. Pages and data are never stored
 // on the device: a shared desk tablet must not keep one person's member list
 // or payments around for the next person. Offline, pages show /~offline.
+//
+// The one exception is the gym's public bulletin and crowd files, read from
+// the iron-paradise-data Worker (src/bulletin/source.ts). They hold nothing
+// personal, so the last copy is shown at once and offline while a fresh one
+// loads behind it (stale-while-revalidate).
 const runtimeCaching: RuntimeCaching[] = [
+  {
+    matcher: ({ url, sameOrigin }) =>
+      !sameOrigin &&
+      url.hostname.startsWith("iron-paradise-data.") &&
+      (url.pathname === "/bulletin.json" || url.pathname === "/crowd.json"),
+    handler: new StaleWhileRevalidate({ cacheName: "public-data" }),
+  },
   {
     matcher: ({ url, sameOrigin }) =>
       sameOrigin && url.pathname.startsWith("/_next/static/"),

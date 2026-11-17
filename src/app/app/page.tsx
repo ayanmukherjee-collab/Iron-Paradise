@@ -1,5 +1,5 @@
 import Link from "@/components/ui/link";
-import { batchAt } from "@/attendance/batches";
+import { batchAt, visitBatch } from "@/attendance/batches";
 import { TodayCard } from "@/attendance/components/today-card";
 import {
   getBatches,
@@ -13,6 +13,9 @@ import {
 } from "@/auth/components/waiting-screens";
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
 import { NavIconSvg } from "@/components/nav/nav-icons";
+import { CloseToday, Notices } from "@/bulletin/components/gym-controls";
+import { MemberBulletin } from "@/bulletin/components/member-bulletin";
+import { getTodayControls } from "@/bulletin/queries";
 import {
   Meter,
   SegmentBar,
@@ -51,24 +54,27 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
   const canAdd = viewerCan(viewer, "members.edit");
   const today = todayAtGym();
   const thisMonth = today.slice(0, 7);
-  const [members, guests, visits, batches, collectedPaise] = await Promise.all([
-    listMembers(viewer),
-    canManage ? listWaitingGuests(viewer) : Promise.resolve([]),
-    listVisitsOn(viewer, today),
-    getBatches(viewer),
-    seesFees
-      ? getCollected(viewer, `${thisMonth}-01`, today)
-      : Promise.resolve(0),
-  ]);
+  const canPublish = viewerCan(viewer, "bulletin.publish");
+  const [members, guests, visits, batches, collectedPaise, controls] =
+    await Promise.all([
+      listMembers(viewer),
+      canManage ? listWaitingGuests(viewer) : Promise.resolve([]),
+      listVisitsOn(viewer, today),
+      getBatches(viewer),
+      seesFees
+        ? getCollected(viewer, `${thisMonth}-01`, today)
+        : Promise.resolve(0),
+      canPublish ? getTodayControls(viewer) : Promise.resolve(null),
+    ]);
   const count = (keep: (member: MemberSummary) => boolean) =>
     members.filter(keep).length;
 
   const current = count((member) => member.status !== "inactive");
   const morning = visits.filter(
-    (visit) => batchAt(visit.checkedInAt, batches) === "morning",
+    (visit) => visitBatch(visit.checkedInAt, batches) === "morning",
   ).length;
   const evening = visits.filter(
-    (visit) => batchAt(visit.checkedInAt, batches) === "evening",
+    (visit) => visitBatch(visit.checkedInAt, batches) === "evening",
   ).length;
   const quiet = count((member) => member.goneQuiet);
   const frozen = count((member) => member.status === "frozen");
@@ -174,6 +180,13 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
             </span>
             <PushToggle vapidPublicKey={keys.publicKey} compact />
           </div>
+        )}
+        {/* Owner and manager tools sit last, folded away until needed. */}
+        {controls && (
+          <>
+            <CloseToday controls={controls} className="col-span-2" />
+            <Notices controls={controls} className="col-span-2" />
+          </>
         )}
       </div>
     </section>
@@ -316,6 +329,7 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
         <h1 className="page-title">Your membership</h1>
         <StatusBadge status={membership.status} />
       </header>
+      <MemberBulletin />
       <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3 card p-5 text-lg sm:p-6">
         <dt className="text-muted">Member ID</dt>
         <dd className="font-mono text-2xl font-bold">

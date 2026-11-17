@@ -87,6 +87,44 @@ describe("describeAuditEntry for due-day changes", () => {
   });
 });
 
+describe("describeAuditEntry for the bulletin", () => {
+  it("names hours changes, closures and notices", () => {
+    const hours = { mon: [{ open: "05:00", close: "10:00" }] };
+    expect(
+      describeAuditEntry({
+        tableName: "gym_settings",
+        action: "update",
+        before: { weekly_hours: hours, gone_quiet_days: 30 },
+        after: { weekly_hours: { mon: [] }, gone_quiet_days: 30 },
+      }),
+    ).toBe("Opening hours changed");
+    expect(
+      describeAuditEntry({
+        tableName: "gym_closures",
+        action: "insert",
+        before: null,
+        after: { closes_on: "2026-11-20", hours: null, reason: "Diwali" },
+      }),
+    ).toBe("Closed all day on 2026-11-20: Diwali");
+    expect(
+      describeAuditEntry({
+        tableName: "gym_closures",
+        action: "delete",
+        before: { closes_on: "2026-11-20", hours: null, reason: "" },
+        after: null,
+      }),
+    ).toBe("Reopened 2026-11-20");
+    expect(
+      describeAuditEntry({
+        tableName: "announcements",
+        action: "update",
+        before: { title: "Water off", pinned: false },
+        after: { title: "Water off", pinned: true },
+      }),
+    ).toBe("Notice pinned: Water off");
+  });
+});
+
 describe("describeAuditEntry for deleted members", () => {
   it("names the deleted member by their ID only", () => {
     expect(

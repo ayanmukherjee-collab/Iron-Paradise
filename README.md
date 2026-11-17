@@ -175,6 +175,16 @@ Do not use `npm run build` as the build command. It only runs `next build`, so t
 
 Before the first real deploy, also set up nightly backups: [docs/backup-and-restore.md](docs/backup-and-restore.md).
 
+### Members' public data (bulletin.json, crowd.json)
+
+Hours, closures, announcements and the crowd meter reach members' phones as two small JSON files. Phones read them from a second Worker, **iron-paradise-data** ([workers/data](workers/data)), so these reads never run the app's Worker or use its CPU allowance.
+
+- **How it works.** When the owner or a manager saves something in the bulletin, Postgres builds the new file in the same transaction (`public.publish_bulletin`). After the response is sent, the app's Worker writes that text to Workers KV (binding `PUBLIC_DATA`). The data Worker serves the files with `Cache-Control: public, max-age=60` and has Workers Cache switched on, so Cloudflare answers most reads from its cache without running any code. A cache hit still counts as one request toward the free plan's 100,000 a day.
+- **Deploying it.** Workers Builds deploys only the app. The data Worker rarely changes; when it does, run `npx wrangler deploy -c workers/data/wrangler.jsonc`.
+- **Limits on Workers Free.** KV allows 1,000 writes and 100,000 reads a day. The app writes after real changes only, and the crowd file at most once a minute.
+- **Out of date?** Settings → Members' app → Bulletin → **Publish now** rewrites the file from what's saved.
+- **Why KV and not R2:** turning on R2 needs a payment method on the Cloudflare account.
+
 ## GitHub settings to switch on
 
 These are repository settings, not files: Settings → Code security → enable **Dependabot alerts**, **Secret scanning** and **Push protection**. Dependabot version updates are configured in `.github/dependabot.yml`.

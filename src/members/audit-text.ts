@@ -79,7 +79,39 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
         const hhmm = (key: string) => str(after, key).slice(0, 5);
         return `Batches set to ${hhmm("morning_opens")}–${hhmm("morning_closes")} and ${hhmm("evening_opens")}–${hhmm("evening_closes")}`;
       }
+      if (
+        JSON.stringify(before?.weekly_hours) !==
+        JSON.stringify(after?.weekly_hours)
+      ) {
+        return "Opening hours changed";
+      }
+      if (
+        [
+          "crowd_capacity",
+          "crowd_multiplier",
+          "crowd_full_minutes",
+          "crowd_gone_minutes",
+        ].some((key) => before?.[key] !== after?.[key])
+      ) {
+        return "Crowd meter settings changed";
+      }
       return `"Gone quiet" set to ${num(after, "gone_quiet_days")} days`;
+    case "gym_closures": {
+      const row = entry.action === "delete" ? before : after;
+      const day = str(row, "closes_on");
+      if (entry.action === "delete") return `Reopened ${day}`;
+      const what = row?.hours ? "Short hours" : "Closed all day";
+      const reason = str(row, "reason");
+      return `${what} on ${day}${reason ? `: ${reason}` : ""}`;
+    }
+    case "announcements":
+      if (entry.action === "insert")
+        return `Notice posted: ${str(after, "title")}`;
+      if (entry.action === "delete")
+        return `Notice removed: ${str(before, "title")}`;
+      if (before?.pinned !== after?.pinned)
+        return `Notice ${after?.pinned ? "pinned" : "unpinned"}: ${str(after, "title")}`;
+      return `Notice edited: ${str(after, "title")}`;
     case "desk_displays":
       if (entry.action === "insert")
         return `Desk display "${str(after, "label")}" set up`;

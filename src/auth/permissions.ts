@@ -44,6 +44,8 @@ const allowedRoles = {
   "reminders.send": managers,
   "audit.view": managers,
   "desk.manage": managers,
+  // Saves that change bulletin.json, which every member's phone reads.
+  "bulletin.publish": managers,
 
   "members.view": staff,
   "payments.viewStatus": staff,

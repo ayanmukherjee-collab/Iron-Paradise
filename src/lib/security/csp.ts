@@ -2,6 +2,8 @@
 // the nonce from the request's CSP header and stamps it on its own scripts,
 // so every page must be rendered dynamically (see app/layout.tsx).
 
+import { DATA_ORIGIN } from "@/bulletin/source";
+
 const turnstileOrigin = "https://challenges.cloudflare.com";
 const googleAccountsOrigin = "https://accounts.google.com";
 
@@ -36,7 +38,8 @@ export function buildCsp(options: {
     "style-src-attr": ["'unsafe-inline'"],
     "img-src": ["'self'", "blob:", "data:"],
     "font-src": ["'self'"],
-    "connect-src": ["'self'"],
+    // The public data Worker: bulletin.json and crowd.json (src/bulletin).
+    "connect-src": ["'self'", DATA_ORIGIN],
     "frame-src": [turnstileOrigin],
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],

@@ -11,6 +11,8 @@ import {
   sql,
 } from "drizzle-orm";
 import type { Batches } from "@/attendance/batches";
+import { splitBatches } from "@/bulletin/hours";
+import type { TimeRange } from "@/bulletin/types";
 import type { Viewer } from "@/auth/session";
 import { getDb } from "@/db/client";
 import {
@@ -23,40 +25,19 @@ import {
 import { rowsOf, withUserContext } from "@/db/user-context";
 import { addDays, todayAtGym, type IsoDate } from "@/lib/dates";
 
-/** The training batch hours. Staff can read them; members cannot. */
+/**
+ * Today's two batches, from the opening hours with any closure applied.
+ * One small query: gym_hours_on works the day out in Postgres.
+ */
 export async function getBatches(viewer: Viewer): Promise<Batches> {
-  try {
-    const [row] = await withUserContext(getDb(), viewer.userId, (tx) =>
-      tx
-        .select({
-          morningOpens: gymSettings.morningOpens,
-          morningCloses: gymSettings.morningCloses,
-          eveningOpens: gymSettings.eveningOpens,
-          eveningCloses: gymSettings.eveningCloses,
-        })
-        .from(gymSettings),
-    );
-    return row ?? defaultBatches;
-  } catch (error) {
-    // Until the check_in_batches migration reaches the database the columns
-    // don't exist (Postgres 42703). Show the defaults rather than break the
-    // page; anything else is a real failure.
-    if (pgCode(error) === "42703") return defaultBatches;
-    throw error;
-  }
-}
-
-/** The migration's defaults. */
-const defaultBatches: Batches = {
-  morningOpens: "05:00:00",
-  morningCloses: "11:00:00",
-  eveningOpens: "16:00:00",
-  eveningCloses: "22:00:00",
-};
-
-function pgCode(error: unknown): string | undefined {
-  const cause = (error as { cause?: { code?: string } })?.cause;
-  return cause?.code ?? (error as { code?: string })?.code;
+  const result = await withUserContext(getDb(), viewer.userId, (tx) =>
+    tx.execute(sql`select public.gym_hours_on(${todayAtGym()}) as hours`),
+  );
+  const [row] = rowsOf<{ hours: TimeRange[] | string }>(result);
+  // postgres-js hands jsonb back parsed; PGlite in tests may not.
+  const hours =
+    typeof row?.hours === "string" ? JSON.parse(row.hours) : row?.hours;
+  return splitBatches(hours ?? []);
 }
 
 export interface Visit {

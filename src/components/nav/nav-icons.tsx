@@ -37,9 +37,26 @@ export type NavIcon =
   | "close"
   | "power"
   | "refresh"
-  | "link";
+  | "link"
+  | "megaphone"
+  | "pin"
+  | "trash"
+  | "pencil"
+  | "send";
 
 const paths: Record<NavIcon, ReactNode> = {
+  megaphone: (
+    <>
+      <path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1z" />
+      <path d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10" />
+    </>
+  ),
+  pin: <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5zM12 14v6" />,
+  trash: (
+    <path d="M4.5 7h15M10 11v6M14 11v6M6.5 7l1 12a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5l1-12M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2" />
+  ),
+  pencil: <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" />,
+  send: <path d="M4.5 11.5 20 4.5l-7 15.5-2.5-6-6-2.5zM10.5 14 20 4.5" />,
   home: (
     <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5.5H5.5A1.5 1.5 0 0 1 4 19z" />
   ),
