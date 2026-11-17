@@ -316,6 +316,9 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
         <p className="mt-4 text-lg">
           We couldn&apos;t find your member record. Ask at the front desk.
         </p>
+        {/* The gym's hours, notices and crowd still apply to them. */}
+        <MemberBulletin />
+        <CrowdCard className="mt-4" />
       </section>
     );
   }
