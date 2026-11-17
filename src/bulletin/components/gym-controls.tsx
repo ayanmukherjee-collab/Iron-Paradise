@@ -1,6 +1,7 @@
 // The owner's and managers' Home controls: shut today's batches, and post
 // notices to members. Icons and shapes only, like the rest of Home; every
 // control has an accessible name and a hover title that says what it does.
+import type { ReactNode } from "react";
 import { batchHours } from "@/attendance/batches";
 import { NavIconSvg, type NavIcon } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
@@ -58,13 +59,31 @@ export function CloseToday({
     </IconAction>
   );
 
+  // What's shut today, shown on the closed dropdown so it reads at a glance.
+  const shutIcons: NavIcon[] = dayShut
+    ? ["power"]
+    : [
+        ...(shut.morning ? (["sun"] as const) : []),
+        ...(shut.evening ? (["moon"] as const) : []),
+      ];
+
   return (
-    <section
-      aria-label="Close the gym today"
-      className={`card p-4 sm:p-5 ${className}`}
+    <Dropdown
+      icon="power"
+      label="Close the gym today"
+      lit={shutIcons.length > 0}
+      className={className}
+      summary={shutIcons.map((icon) => (
+        <span
+          key={icon}
+          className="relative flex size-7 items-center justify-center rounded-badge bg-ink text-white"
+        >
+          <NavIconSvg icon={icon} className="size-4" />
+          <Strike />
+        </span>
+      ))}
     >
-      <PanelIcon icon="power" />
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <IconAction
           action={toggleClosedToday}
           fields={{ part: "day" }}
@@ -85,7 +104,7 @@ export function CloseToday({
         {batchTile("morning", "sun", "morning")}
         {batchTile("evening", "moon", "evening")}
       </div>
-    </section>
+    </Dropdown>
   );
 }
 
@@ -99,11 +118,51 @@ function Strike() {
   );
 }
 
-function PanelIcon({ icon }: { icon: NavIcon }) {
+/**
+ * A Home card that folds away: one short row (its icon, a glance at the
+ * current state, a chevron) that opens to the controls. Closed by default.
+ * A save refreshes the page without closing it: React leaves the
+ * uncontrolled `open` attribute alone.
+ */
+function Dropdown({
+  icon,
+  label,
+  lit,
+  summary,
+  className = "",
+  children,
+}: {
+  icon: NavIcon;
+  /** The accessible name and hover title; never shown as text. */
+  label: string;
+  /** Darkens the icon when something is set (a batch shut, say). */
+  lit?: boolean;
+  summary?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <span className="flex size-8 items-center justify-center rounded-control bg-canvas">
-      <NavIconSvg icon={icon} className="size-4" />
-    </span>
+    <details className={`group self-start card ${className}`}>
+      <summary
+        title={label}
+        className="flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-card px-4 py-3 transition-colors hover:bg-canvas/50 sm:px-5 [&::-webkit-details-marker]:hidden"
+      >
+        <span
+          className={`flex size-8 shrink-0 items-center justify-center rounded-control ${lit ? "bg-ink text-white" : "bg-canvas"}`}
+        >
+          <NavIconSvg icon={icon} className="size-4" />
+        </span>
+        <span className="sr-only">{label}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {summary}
+        </span>
+        <NavIconSvg
+          icon="chevronDown"
+          className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+        />
+      </summary>
+      <div className="px-4 pt-1 pb-4 sm:px-5 sm:pb-5">{children}</div>
+    </details>
   );
 }
 
@@ -115,22 +174,31 @@ export function Notices({
   controls: TodayControls;
   className?: string;
 }) {
+  const live = controls.announcements.length;
   return (
-    <section
-      aria-label="Notices for members"
-      className={`card p-4 sm:p-5 ${className}`}
+    <Dropdown
+      icon="megaphone"
+      label="Notices for members"
+      className={className}
+      summary={
+        live > 0 && (
+          <span className="flex min-w-7 items-center justify-center rounded-badge bg-canvas px-2 py-1 text-xs font-semibold tabular-nums">
+            {live}
+            <span className="sr-only"> live notices</span>
+          </span>
+        )
+      }
     >
-      <PanelIcon icon="megaphone" />
       <NoticeForm today={controls.today} />
 
-      {controls.announcements.length > 0 && (
+      {live > 0 && (
         <ul className="mt-5 divide-y divide-line border-t border-line">
           {controls.announcements.map((notice) => (
             <NoticeRow key={notice.id} notice={notice} today={controls.today} />
           ))}
         </ul>
       )}
-    </section>
+    </Dropdown>
   );
 }
 

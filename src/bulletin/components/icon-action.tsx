@@ -9,7 +9,7 @@ import { useAfterSave } from "@/components/ui/after-save";
  * A single tap that runs a guarded Server Action: an icon, no words. The
  * label is the button's accessible name and its hover title. With
  * `confirm`, the first tap arms it (the icon turns into a tick) and only a
- * second tap within a few seconds runs it, for things that can't be undone.
+ * second tap within five seconds runs it, for things that can't be undone.
  * The page refreshes after a successful save; an error shows under it.
  */
 export function IconAction({
@@ -49,7 +49,7 @@ export function IconAction({
 
   useEffect(() => {
     if (!armed) return;
-    const timer = setTimeout(() => setArmed(false), 3000);
+    const timer = setTimeout(() => setArmed(false), 5000);
     return () => clearTimeout(timer);
   }, [armed]);
 
