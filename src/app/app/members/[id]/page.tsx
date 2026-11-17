@@ -25,6 +25,7 @@ import {
   changeFee,
   createClaimLink,
   deactivateMember,
+  deleteMember,
   endFreeze,
   freezeMembership,
   reactivateMember,
@@ -67,6 +68,7 @@ export default async function MemberPage({
   const canMark = viewerCan(viewer, "attendance.mark");
   const canRecord = viewerCan(viewer, "payments.record");
   const canChangeType = viewerCan(viewer, "roles.change");
+  const canDelete = viewerCan(viewer, "members.delete");
   const plans =
     canEdit && status === "inactive" ? await listPlans(viewer, true) : [];
   const today = todayAtGym();
@@ -379,6 +381,16 @@ export default async function MemberPage({
           </ul>
         </Disclosure>
       )}
+
+      {canDelete && (
+        <Disclosure
+          title="Delete member"
+          summary="Permanent: removes every record of them"
+          icon="close"
+        >
+          <DeleteMemberForm detail={detail} />
+        </Disclosure>
+      )}
     </article>
   );
 }
@@ -512,6 +524,45 @@ function DetailsForm({ detail }: { detail: MemberDetail }) {
         </ActionForm>
       )}
     </>
+  );
+}
+
+function DeleteMemberForm({ detail }: { detail: MemberDetail }) {
+  const { member } = detail;
+  if (member.isActive) {
+    return (
+      <p className="text-sm text-muted">
+        Mark {firstName(member.fullName)} inactive first (Account actions → Edit
+        details). Most of the time that is enough: it keeps their history.
+      </p>
+    );
+  }
+  return (
+    <ActionForm
+      action={deleteMember}
+      submitLabel="Delete forever"
+      pendingLabel="Deleting…"
+      className="max-w-lg space-y-4"
+    >
+      <p className="text-sm">
+        This removes {member.fullName}, their memberships, payments, visits and
+        reminders, and their entries in the audit log. It can&rsquo;t be undone.
+        The audit log keeps one line saying you deleted{" "}
+        <span className="font-mono">{member.memberCode}</span>.
+      </p>
+      <input type="hidden" name="memberId" value={member.id} />
+      <Field label={`Type ${member.memberCode} to confirm`}>
+        <input
+          name="confirmCode"
+          required
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={20}
+          className={`${inputClass} font-mono`}
+        />
+      </Field>
+    </ActionForm>
   );
 }
 

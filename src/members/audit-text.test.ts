@@ -86,3 +86,16 @@ describe("describeAuditEntry for due-day changes", () => {
     ).toBe("Dues now fall monthly from 2026-01-08");
   });
 });
+
+describe("describeAuditEntry for deleted members", () => {
+  it("names the deleted member by their ID only", () => {
+    expect(
+      describeAuditEntry({
+        tableName: "members",
+        action: "delete",
+        before: { member_code: "IP-0042" },
+        after: null,
+      }),
+    ).toBe("Deleted member IP-0042 and all their records");
+  });
+});

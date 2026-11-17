@@ -32,6 +32,8 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
     case "members":
       if (entry.action === "insert")
         return `Added member ${str(after, "member_code")} ${str(after, "full_name")}`;
+      if (entry.action === "delete")
+        return `Deleted member ${str(before, "member_code")} and all their records`;
       if (before?.is_active !== after?.is_active) {
         return `${str(after, "member_code")} ${str(after, "full_name")} marked ${after?.is_active ? "active" : "inactive"}`;
       }
