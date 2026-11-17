@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/auth/session";
+import { requirePermission, viewerCan } from "@/auth/session";
 import {
   deleteClosure,
   publishBulletinNow,
   saveClosure,
+  saveCrowdSettings,
   saveDayHours,
 } from "@/bulletin/actions";
 import { IconAction } from "@/bulletin/components/icon-action";
@@ -14,7 +15,12 @@ import {
   type Batches,
 } from "@/bulletin/hours";
 import { getHoursSettings, type ClosureRow } from "@/bulletin/queries";
-import { DAY_KEYS, type DayKey, type TimeRange } from "@/bulletin/types";
+import {
+  DAY_KEYS,
+  type CrowdSettings,
+  type DayKey,
+  type TimeRange,
+} from "@/bulletin/types";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
@@ -218,6 +224,13 @@ export default async function SettingsPage() {
       <section>
         <h2 className="px-1 section-title">Members&apos; app</h2>
         <ul className="mt-3 list-card">
+          {viewerCan(viewer, "checkin.settings") && (
+            <li className="list-row">
+              <Row title="Crowd meter" detail={crowdSummary(hours.crowd)}>
+                <CrowdForm crowd={hours.crowd} />
+              </Row>
+            </li>
+          )}
           <li className="list-row">
             <Row
               title="Bulletin"
@@ -348,6 +361,76 @@ const CLOSE_PARTS = [
 
 function daySummary(openings: TimeRange[]): string {
   return openings.length ? openings.map(rangeLabel).join(" · ") : "Closed";
+}
+
+function crowdSummary(crowd: CrowdSettings): string {
+  return `Comfortable at ${crowd.comfortableCapacity} · ×${crowd.calibrationMultiplier} · fades ${crowd.fullMinutes}–${crowd.goneMinutes} min`;
+}
+
+/**
+ * How members' phones turn check-ins into Quiet, Moderate or Busy. Members
+ * see the level and a bar only, never a number.
+ */
+function CrowdForm({ crowd }: { crowd: CrowdSettings }) {
+  return (
+    <ActionForm
+      action={saveCrowdSettings}
+      submitLabel="Save crowd meter"
+      className="space-y-4"
+    >
+      <p className="text-sm text-muted">
+        Each check-in counts as one person for a while, then fades out as they
+        leave. Under 30% of comfortable capacity reads Quiet, over 70% Busy.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Comfortable capacity" hint="People at once">
+          <input
+            name="capacity"
+            type="number"
+            min={1}
+            max={1000}
+            required
+            defaultValue={crowd.comfortableCapacity}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Multiplier" hint="1.5 if a third don't scan">
+          <input
+            name="multiplier"
+            type="number"
+            min={0.5}
+            max={5}
+            step={0.05}
+            required
+            defaultValue={crowd.calibrationMultiplier}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Counts fully for" hint="Minutes, a usual workout">
+          <input
+            name="fullMinutes"
+            type="number"
+            min={5}
+            max={235}
+            required
+            defaultValue={crowd.fullMinutes}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Gone by" hint="Minutes after check-in">
+          <input
+            name="goneMinutes"
+            type="number"
+            min={10}
+            max={240}
+            required
+            defaultValue={crowd.goneMinutes}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+    </ActionForm>
+  );
 }
 
 /** One weekday's morning and evening batch, each of which can be off. */

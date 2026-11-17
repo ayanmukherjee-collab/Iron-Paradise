@@ -7,6 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { isCheckInCode } from "@/attendance/code";
 import { guardedAction } from "@/auth/guarded-action";
+import { publishLater } from "@/bulletin/publish";
 import { getDb } from "@/db/client";
 import { attendance, gymSettings, members } from "@/db/schema";
 import { rowsOf, withUserContext } from "@/db/user-context";
@@ -37,11 +38,19 @@ export const checkIn = guardedAction({
       throw new Refusal("Too many tries. Ask the front desk to mark you in.");
     }
 
+    // One statement: the check-in, then (in the same transaction) crowd.json
+    // if it's due, which needs no extra round trip. The function in FROM
+    // runs first, so the crowd query sees the new check-in.
     const result = await withUserContext(getDb(), viewer.userId, (tx) =>
-      tx.execute(sql`select public.check_in(${code}) as status`),
+      tx.execute(
+        sql`select s.status, public.crowd_after_check_in() as crowd from public.check_in(${code}) as s(status)`,
+      ),
     );
-    const status = rowsOf<{ status: CheckInResult["status"] }>(result)[0]
-      .status;
+    const [{ status, crowd }] = rowsOf<{
+      status: CheckInResult["status"];
+      crowd: string | null;
+    }>(result);
+    if (crowd) publishLater("crowd.json", crowd);
 
     const membership = await getOwnMembership(viewer);
     const payments = membership
@@ -60,7 +69,7 @@ export const markAttendance = guardedAction({
   permission: "attendance.mark",
   input: z.object({ memberId: z.uuid() }),
   run: async ({ memberId }, viewer) => {
-    const message = await withUserContext(
+    const { message, crowd } = await withUserContext(
       getDb(),
       viewer.userId,
       async (tx) => {
@@ -79,11 +88,23 @@ export const markAttendance = guardedAction({
           .values({ memberId, method: "manual", markedBy: viewer.userId })
           .onConflictDoNothing()
           .returning({ id: attendance.id });
-        return inserted.length
-          ? `${member.fullName} marked in.`
-          : `${member.fullName} was already in today.`;
+        if (!inserted.length) {
+          return {
+            message: `${member.fullName} was already in today.`,
+            crowd: null,
+          };
+        }
+        // crowd.json, if it's due (at most once a minute).
+        const result = await tx.execute(
+          sql`select public.crowd_after_check_in() as crowd`,
+        );
+        return {
+          message: `${member.fullName} marked in.`,
+          crowd: rowsOf<{ crowd: string | null }>(result)[0].crowd,
+        };
       },
     );
+    if (crowd) publishLater("crowd.json", crowd);
     return { message };
   },
 });

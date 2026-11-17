@@ -64,6 +64,7 @@ describe("the Drizzle schema matches the migrations", () => {
     expect(result.rows.map((row) => row.proname)).toEqual([
       "check_in",
       "create_desk_display",
+      "crowd_after_check_in",
       "current_app_role",
       "delete_member",
       "gym_hours_on",

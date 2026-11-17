@@ -14,6 +14,7 @@ import {
 import { requireViewer, viewerCan, type Viewer } from "@/auth/session";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { CloseToday, Notices } from "@/bulletin/components/gym-controls";
+import { CrowdCard } from "@/bulletin/components/crowd-card";
 import { MemberBulletin } from "@/bulletin/components/member-bulletin";
 import { getTodayControls } from "@/bulletin/queries";
 import {
@@ -110,6 +111,7 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
           seesFees={seesFees}
           canAdd={canAdd}
         />
+        <CrowdCard className="col-span-2" />
 
         {seesFees && (
           <MoneyCards
@@ -330,6 +332,7 @@ async function MemberHome({ viewer }: { viewer: Viewer }) {
         <StatusBadge status={membership.status} />
       </header>
       <MemberBulletin />
+      <CrowdCard className="mt-4" />
       <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3 card p-5 text-lg sm:p-6">
         <dt className="text-muted">Member ID</dt>
         <dd className="font-mono text-2xl font-bold">

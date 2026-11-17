@@ -8,6 +8,7 @@ import { todayAtGym, type IsoDate } from "@/lib/dates";
 import {
   DAY_KEYS,
   type Closure,
+  type CrowdSettings,
   type TimeRange,
   type WeeklyHours,
 } from "@/bulletin/types";
@@ -82,14 +83,27 @@ export interface ClosureRow extends Closure {
   id: string;
 }
 
-/** The week's hours and every closure from today on, for Settings. */
-export async function getHoursSettings(
-  viewer: Viewer,
-): Promise<{ weekly: WeeklyHours; closures: ClosureRow[] }> {
+/**
+ * The week's hours, every closure from today on and the crowd meter's
+ * settings, for Settings.
+ */
+export async function getHoursSettings(viewer: Viewer): Promise<{
+  weekly: WeeklyHours;
+  closures: ClosureRow[];
+  crowd: CrowdSettings;
+}> {
   const today = todayAtGym();
   return withUserContext(getDb(), viewer.userId, async (tx) => {
     const [[settings], closures] = await Promise.all([
-      tx.select({ hours: gymSettings.weeklyHours }).from(gymSettings),
+      tx
+        .select({
+          hours: gymSettings.weeklyHours,
+          comfortableCapacity: gymSettings.crowdCapacity,
+          calibrationMultiplier: gymSettings.crowdMultiplier,
+          fullMinutes: gymSettings.crowdFullMinutes,
+          goneMinutes: gymSettings.crowdGoneMinutes,
+        })
+        .from(gymSettings),
       tx
         .select({
           id: gymClosures.id,
@@ -101,6 +115,15 @@ export async function getHoursSettings(
         .where(gte(gymClosures.closesOn, today))
         .orderBy(asc(gymClosures.closesOn)),
     ]);
-    return { weekly: settings.hours, closures };
+    return {
+      weekly: settings.hours,
+      closures,
+      crowd: {
+        comfortableCapacity: settings.comfortableCapacity,
+        calibrationMultiplier: Number(settings.calibrationMultiplier),
+        fullMinutes: settings.fullMinutes,
+        goneMinutes: settings.goneMinutes,
+      },
+    };
   });
 }

@@ -228,6 +228,47 @@ export const saveDayHours = guardedAction({
   },
 });
 
+// ---- Crowd meter -----------------------------------------------------------
+
+const wholeNumber = (min: number, max: number, what: string) =>
+  z.coerce
+    .number()
+    .int(`${what} must be a whole number`)
+    .min(min, `${what} must be at least ${min}`)
+    .max(max, `${what} must be at most ${max}`);
+
+/**
+ * How phones turn check-ins into Quiet / Moderate / Busy. Owner only, like
+ * the other check-in settings. Limits match gym_settings' checks.
+ */
+export const saveCrowdSettings = guardedAction({
+  permission: "checkin.settings",
+  input: z
+    .object({
+      capacity: wholeNumber(1, 1000, "Comfortable capacity"),
+      multiplier: z.coerce
+        .number()
+        .min(0.5, "The multiplier must be at least 0.5")
+        .max(5, "The multiplier must be at most 5"),
+      fullMinutes: wholeNumber(5, 235, "Full minutes"),
+      goneMinutes: wholeNumber(10, 240, "Gone minutes"),
+    })
+    .refine((input) => input.goneMinutes >= input.fullMinutes + 5, {
+      message: "Gone by must be at least 5 minutes more than Counts fully for",
+    }),
+  run: async ({ capacity, multiplier, fullMinutes, goneMinutes }, viewer) => {
+    await saveAndPublishBulletin(viewer, (tx) =>
+      tx.update(gymSettings).set({
+        crowdCapacity: capacity,
+        crowdMultiplier: multiplier.toFixed(2),
+        crowdFullMinutes: fullMinutes,
+        crowdGoneMinutes: goneMinutes,
+      }),
+    );
+    return { message: "Saved. Members' meters follow it within minutes." };
+  },
+});
+
 // ---- Announcements ---------------------------------------------------------
 
 const announcementFields = {
