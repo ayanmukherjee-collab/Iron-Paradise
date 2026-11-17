@@ -9,3 +9,6 @@ supabase/.temp
 test-results
 playwright-report
 web/dist
+web/dist-ssr
+supabase/functions
+.claude/worktrees

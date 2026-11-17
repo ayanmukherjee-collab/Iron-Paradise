@@ -1,5 +1,5 @@
 import type { PostgrestError } from "@supabase/supabase-js";
-import type { ActionResult } from "@/auth/guarded-action";
+import type { ActionResult } from "@/auth/action-result";
 
 const messages = {
   signedOut: "Your session ended. Sign in again.",

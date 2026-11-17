@@ -1,6 +1,6 @@
 import "server-only";
 import { asc, desc, eq, gt, gte, isNull, or } from "drizzle-orm";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { getDb } from "@/db/client";
 import { announcements, gymClosures, gymSettings } from "@/db/schema";
 import { withUserContext, type UserTransaction } from "@/db/user-context";

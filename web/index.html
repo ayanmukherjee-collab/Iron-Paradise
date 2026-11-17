@@ -7,13 +7,26 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="theme-color" content="#1c1b1d" />
-    <meta name="robots" content="noindex" />
+    <meta
+      name="description"
+      content="A no-nonsense strength gym in Bundu, Ranchi. Free weights, racks, machines and trainers on the floor. Hours, plans and directions inside."
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Iron Paradise" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/brand/logo-dark.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Iron Paradise</title>
+    <!-- Before the first paint: the landing page is written into this file
+         (web/prerender.mjs), and every in-app address is served this file
+         too, so hide the landing markup anywhere but "/". -->
+    <script src="/boot.js"></script>
+    <style>
+      html:not([data-path="/"]) #root[data-path="/"] {
+        display: none;
+      }
+    </style>
   </head>
   <body class="min-h-svh">
     <div id="root"></div>

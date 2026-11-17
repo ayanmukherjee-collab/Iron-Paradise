@@ -29,7 +29,9 @@ export default function Link(all: LinkProps) {
   void prefetch;
   const to = toPath(href);
   // Off-site and non-http links (tel:, https://wa.me) stay plain anchors.
-  if (!to.startsWith("/")) return <a href={to} {...props} />;
+  // "?filter=…" (a query on the current page) stays in the app.
+  if (!to.startsWith("/") && !to.startsWith("?"))
+    return <a href={to} {...props} />;
   return (
     <RouterLink
       to={to}

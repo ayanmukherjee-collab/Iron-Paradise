@@ -9,14 +9,24 @@ import { env } from "./env";
  * PKCE: Google sends the person back to /auth/callback with a one-time code,
  * which this client exchanges for a session and keeps on the device.
  */
-export const supabase = createClient(env.supabaseUrl, env.supabaseKey, {
-  auth: {
-    flowType: "pkce",
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+// Untyped on purpose: without generated database types, supabase-js guesses
+// row shapes from select strings and gets embedded one-to-one rows wrong
+// (it types them as lists). Each query casts to the shape it selects.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyDatabase = any;
+
+export const supabase = createClient<AnyDatabase>(
+  env.supabaseUrl,
+  env.supabaseKey,
+  {
+    auth: {
+      flowType: "pkce",
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
   },
-});
+);
 
 /** A message for the person from a failed Supabase call. */
 export function errorMessage(

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, max } from "drizzle-orm";
 import { can } from "@/auth/permissions";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { getDb } from "@/db/client";
 import {
   attendance,

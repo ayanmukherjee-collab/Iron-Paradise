@@ -1,6 +1,6 @@
 /* The same design system as the Next.js app, plus the fonts it loaded with
    next/font (here self-hosted from @fontsource, so the CSP stays 'self'). */
-@import "../../src/app/globals.css";
+@import "../../src/styles/globals.css";
 
 @source "../../src";
 @source "./";

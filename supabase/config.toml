@@ -431,3 +431,17 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# Edge Functions (built by `npm run fn:build` from supabase/functions-src).
+# Both check who's calling themselves: the reminder run by its CRON_SECRET,
+# the test push by asking Supabase Auth about the caller's token. JWT checks
+# at the gateway are off so browsers' CORS preflight (no token) gets through.
+[functions.reminders]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/reminders/index.js"
+
+[functions.send-test-push]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-test-push/index.js"

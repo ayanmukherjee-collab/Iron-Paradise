@@ -9,6 +9,14 @@ Web app for Iron Paradise Gym: public landing page, member management, attendanc
 - **Phase 3, Payments:** the payment ledger with partial and advance payments, owner-only void and correction, the month-by-month payment sheet, CSV and Excel export, due and overdue filters.
 - **Phase 4, Attendance:** desk QR check-in (rotating and printed), desk display links, manual marking, today's list, history and monthly counts.
 - **Phase 5, Reminders:** a morning job that sends push and email reminders 3 days before, on, and 3 days after each due date; the staff WhatsApp queue with "remind all overdue"; the notification log.
+- **Static rebuild (2026-11-17):** the app no longer renders on a server. It is a React app built into plain files that Cloudflare serves for free, talking to Supabase directly, because server rendering used 10–35 times the Workers Free plan's CPU allowance and failed under real traffic. Why and how: [docs/static-rebuild.md](docs/static-rebuild.md).
+
+## How the app is put together
+
+- `web/` is the app: Vite + React Router. `web/src/pages` are the screens, `web/src/data` reads from Supabase, `web/src/actions` saves to it.
+- `src/` is shared code: components, styles, and the pure rules for billing, ledgers, dates, permissions and reminders, all unit tested.
+- Saves that need several steps at once are Postgres functions (`supabase/migrations`), so they happen completely or not at all.
+- The reminder job and test notifications are Supabase Edge Functions (`supabase/functions-src`, bundled into `supabase/functions` by `npm run fn:build`), because they need secret keys.
 
 ## Setup
 
@@ -20,13 +28,13 @@ cp .env.example .env.local   # then fill it in, see below
 npm run dev
 ```
 
-Open http://localhost:3000. The landing page works with placeholder values; signing in needs a real Supabase project.
+Open http://localhost:5173. The public pages work with placeholder values; signing in needs a real Supabase project.
 
 ### Supabase project (one time)
 
 1. Create a free project at [supabase.com](https://supabase.com). Region: Mumbai (`ap-south-1`).
 2. **Keys.** Project Settings → API Keys: copy the _publishable_ key into `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and the project URL into `NEXT_PUBLIC_SUPABASE_URL`. Never copy the secret / `service_role` key into this app.
-3. **Database URL.** Connect → _Transaction pooler_ string (port 6543) into `DATABASE_URL`.
+3. **Database URL.** Connect → _Session pooler_ string (port 5432) into `DATABASE_URL`. Only `npm run db:push` uses it.
 4. **Schema.** Apply the migrations in `supabase/migrations`:
    ```bash
    npx supabase login
@@ -34,7 +42,7 @@ Open http://localhost:3000. The landing page works with placeholder values; sign
    npm run db:push
    ```
 5. **Google sign-in.** In Google Cloud Console create an OAuth client (Web application). Add Supabase's callback URL (`https://<project-ref>.supabase.co/auth/v1/callback`) as an authorised redirect URI. Paste the client ID and secret into Supabase → Authentication → Sign In / Providers → Google, and turn **Email** off there.
-6. **Redirect URLs.** Supabase → Authentication → URL Configuration: Site URL = your site, and add `http://localhost:3000/auth/callback` plus `https://<your-domain>/auth/callback` to Redirect URLs.
+6. **Redirect URLs.** Supabase → Authentication → URL Configuration: Site URL = your site, and add `http://localhost:5173/auth/callback` plus `https://<your-domain>/auth/callback` to Redirect URLs.
 7. **First owner.** Sign in once with the owner's Google account, then in Supabase → SQL Editor run:
    ```sql
    select public.bootstrap_owner('owner@example.com');
@@ -43,40 +51,36 @@ Open http://localhost:3000. The landing page works with placeholder values; sign
 
 ## Environment variables
 
-Every variable is listed and explained in [.env.example](.env.example).
+Every variable is listed and explained in [.env.example](.env.example). All of them are public (built into the app) except `DATABASE_URL`, which only migrations use.
 
-| Variable                                              | Where it is used                            | Secret? |
-| ----------------------------------------------------- | ------------------------------------------- | ------- |
-| `NEXT_PUBLIC_SITE_URL`                                | Google sign-in return URL                   | No      |
-| `NEXT_PUBLIC_SUPABASE_URL`                            | Supabase Auth                               | No      |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                | Supabase Auth (RLS protects data)           | No      |
-| `DATABASE_URL`                                        | Server-side queries, always run as the user | **Yes** |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`                      | Bot check widget on sign-in                 | No      |
-| `TURNSTILE_SECRET_KEY`                                | Verifying the bot check                     | **Yes** |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limits (required in production)        | **Yes** |
-| `CRON_SECRET`                                         | Lets the Cron Trigger run the reminder job  | **Yes** |
-| `VAPID_PUBLIC_KEY`                                    | Push notifications (given to browsers)      | No      |
-| `VAPID_PRIVATE_KEY`                                   | Signing push notifications                  | **Yes** |
-| `VAPID_SUBJECT`                                       | Contact for push services (optional)        | No      |
-| `RESEND_API_KEY` / `EMAIL_FROM`                       | Reminder emails (optional)                  | **Yes** |
+| Variable                               | Where it is used                       | Secret? |
+| -------------------------------------- | -------------------------------------- | ------- |
+| `NEXT_PUBLIC_SITE_URL`                 | Claim and desk links                   | No      |
+| `NEXT_PUBLIC_SUPABASE_URL`             | The app's database and sign-in         | No      |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same; RLS protects the data            | No      |
+| `VAPID_PUBLIC_KEY`                     | Push notifications (browsers need it)  | No      |
+| `NEXT_PUBLIC_EMAIL_REMINDERS`          | Shows "Email on" on the Reminders page | No      |
+| `DATABASE_URL`                         | `npm run db:push` only                 | **Yes** |
+
+The reminder job's secrets (`CRON_SECRET`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY`, and so on) are Supabase Edge Function secrets, never in this app: see [How reminders work](#how-reminders-work).
 
 ## Scripts
 
-| Command              | What it does                                                         |
-| -------------------- | -------------------------------------------------------------------- |
-| `npm run dev`        | Dev server                                                           |
-| `npm run build`      | Builds the service worker, then the production app                   |
-| `npm run lint`       | ESLint                                                               |
-| `npm run typecheck`  | TypeScript                                                           |
-| `npm test`           | Unit tests and the database security tests (Vitest)                  |
-| `npm run test:e2e`   | Browser tests against a production build (run `npm run build` first) |
-| `npm run cf:preview` | Build for Cloudflare and run it locally in the Workers runtime       |
-| `npm run cf:size`    | Check the Worker stays under the free plan's 3 MiB limit             |
-| `npm run db:push`    | Apply new migrations to the linked Supabase project                  |
-| `npm run art`        | Rebuild landing page art from `assets/art`                           |
-| `npm run map`        | Redraw the landing page map from OpenStreetMap (needs network)       |
-| `npm run icons`      | Rebuild app icons from `public/brand/logo.svg`                       |
-| `npm run vapid`      | Print a new key pair for push notifications                          |
+| Command               | What it does                                                   |
+| --------------------- | -------------------------------------------------------------- |
+| `npm run dev`         | Dev server at http://localhost:5173                            |
+| `npm run build`       | Builds the site into `web/dist` (same as `npm run cf:build`)   |
+| `npm run web:preview` | Serves the built site at http://localhost:4173                 |
+| `npm run cf:preview`  | Builds, then serves it locally the way Cloudflare will         |
+| `npm run fn:build`    | Bundles the Edge Functions into `supabase/functions`           |
+| `npm run lint`        | ESLint                                                         |
+| `npm run typecheck`   | TypeScript                                                     |
+| `npm test`            | Unit tests and the database security tests (Vitest)            |
+| `npm run db:push`     | Apply new migrations to the linked Supabase project            |
+| `npm run art`         | Rebuild landing page art from `assets/art`                     |
+| `npm run map`         | Redraw the landing page map from OpenStreetMap (needs network) |
+| `npm run icons`       | Rebuild app icons from `public/brand/logo.svg`                 |
+| `npm run vapid`       | Print a new key pair for push notifications                    |
 
 ## Tests
 
@@ -88,10 +92,10 @@ The security tests in `src/db/rls.test.ts` load every migration into an in-memor
 
 ## How access control works
 
-- `src/auth/permissions.ts` is the only place that says what each role may do.
-- Every Server Action is built with `guardedAction` (`src/auth/guarded-action.ts`): session, permission, Zod validation, then the work. A test fails if a `"use server"` file exports anything else.
-- The database enforces the same rules with RLS. The server connects as a privileged role but runs every user query through `withUserContext` (`src/db/user-context.ts`), which switches to the signed-in user so their policies apply.
-- `src/proxy.ts` sends signed-out visitors away from every route not listed in `src/auth/routes.ts`, and sets a per-request nonce Content Security Policy.
+- **The database is the gate.** Phones talk to Supabase directly, so every table has row-level security and column-level grants, and multi-step saves are `SECURITY INVOKER` functions that run as the caller under the same rules. The security tests (`src/db/*-rls.test.ts`) check them against the real migrations.
+- `src/auth/permissions.ts` is the only place that says what each role may do. Screens use it to decide what to show (`RequirePermission` in `web/src/routes.tsx`), and every save checks it before calling the database (`guardedAction` in `web/src/data/guarded.ts`), with the same Zod schemas as before. These checks are a courtesy to the person; the database refuses anything they aren't allowed regardless.
+- Signed-out people can call exactly one database function: `desk_code`, which shows the rotating desk QR to a device holding a secret desk link.
+- The site sends a strict Content Security Policy (`web/vite.config.mts` writes it to `_headers`): scripts only from the site itself, data only from Supabase.
 
 ## How money is worked out
 
@@ -106,16 +110,13 @@ Nothing about what a member owes is stored; it is computed from the ledger each 
 
 `src/notifications/` holds the rules (`schedule.ts`), the wording (`message.ts`) and one file per channel in `channels/`.
 
-- `worker.mjs` wraps OpenNext's Worker and adds a Cron Trigger (`wrangler.jsonc`, every 15 minutes from 08:30 to 11:15 India time). Each run calls `/api/cron/reminders` in-process with `CRON_SECRET`.
-- The job reminds members 3 days before a fee is due, on the day, and 3 days after (with a few days' grace if a run was missed). It skips free, frozen, inactive and muted members, and anyone who did not agree to reminders.
-- Before sending, it claims a row in `notifications`, whose unique key (fee, stage, channel) means nothing is ever sent twice. A run sends at most 40 requests, under Cloudflare's free-plan limit of 50; later runs that morning send the rest.
+- The job (`src/notifications/job.ts`) runs in the **reminders** Supabase Edge Function (`supabase/functions-src/reminders.ts`), called every 15 minutes from 08:30 to 11:15 India time by `pg_cron`. It checks `CRON_SECRET`.
+- It reminds members 3 days before a fee is due, on the day, and 3 days after (with a few days' grace if a run was missed). It skips free, frozen, inactive and muted members, and anyone who did not agree to reminders.
+- Before sending, it claims a row in `notifications`, whose unique key (fee, stage, channel) means nothing is ever sent twice, so overlapping runs are harmless.
 - Push is encrypted and signed with the Web Crypto API (`web-push.ts`, tested against RFC 8291's worked example). Email goes through Resend. Staff send WhatsApp from the Reminders page; the app opens WhatsApp with the message typed in and logs it.
+- **Send a test** on the push toggle calls the **send-test-push** Edge Function, which checks the caller with Supabase Auth.
 
-To test a run locally, set `CRON_SECRET` in `.env.local`, start `npm run dev`, then:
-
-```bash
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/reminders
-```
+Setting it up (once): see "Going live" in [docs/static-rebuild.md](docs/static-rebuild.md#going-live).
 
 ## Landing page content
 
@@ -123,67 +124,22 @@ All landing page text, plans, timings and contact details live in `src/content/l
 
 The page is built to be read in pictures first (icons, big numbers, one orange Sign in button), so keep labels to a word or two. The map preview is drawn from OpenStreetMap road data around `contact.location`; after moving the pin, run `npm run map` and commit `src/landing/map-roads.ts`.
 
-## Deploying (Cloudflare Workers)
+## Deploying (Cloudflare)
 
-1. `npx wrangler login`
-2. Set the server secrets once:
-   ```bash
-   npx wrangler secret put DATABASE_URL
-   npx wrangler secret put TURNSTILE_SECRET_KEY
-   npx wrangler secret put UPSTASH_REDIS_REST_URL
-   npx wrangler secret put UPSTASH_REDIS_REST_TOKEN
-   npx wrangler secret put CRON_SECRET
-   npx wrangler secret put VAPID_PUBLIC_KEY
-   npx wrangler secret put VAPID_PRIVATE_KEY
-   npx wrangler secret put RESEND_API_KEY   # optional, with EMAIL_FROM
-   npx wrangler secret put EMAIL_FROM       # optional
-   ```
-   Store every runtime value as a secret, even public ones like `VAPID_PUBLIC_KEY`: each `wrangler deploy` removes plain variables that were added in the dashboard but aren't in `wrangler.jsonc`, while secrets are kept.
-3. Create the Hyperdrive config and put its id in `wrangler.jsonc` (see [Database connection (Hyperdrive)](#database-connection-hyperdrive) below). A deploy fails while the id in `wrangler.jsonc` points at a config that isn't in your account.
-4. Put the `NEXT_PUBLIC_` values (production URLs, real Turnstile site key) in `.env.production.local`. They are baked in at build time.
-5. `npm run cf:deploy`
+Cloudflare serves `web/dist` as static files (`wrangler.jsonc` has no Worker script). Static file requests are free and unlimited on Workers Free and run no code, so there is no CPU limit to hit.
 
-### Database connection (Hyperdrive)
-
-In production the Worker reaches Postgres through [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/), which is included in Workers Free. Without it, every request opens its own connection to Supabase: a TLS handshake plus a password exchange, which adds several round trips and some CPU to each request. Hyperdrive keeps warm connections that have already logged in, so the Worker skips both. This makes pages faster and connections steadier. It saves only a little CPU, because most of a request's CPU goes to rendering, so it does not remove the free plan's 10 ms CPU errors on its own. `src/db/client.ts` uses the `HYPERDRIVE` binding when it exists and falls back to `DATABASE_URL`.
-
-Create the config once per Cloudflare account. Then put the id it prints into the `hyperdrive` block in `wrangler.jsonc`:
-
-```bash
-npx wrangler hyperdrive create iron-paradise-db --caching-disabled \
-  --origin-host=db.<project-ref>.supabase.co --origin-port=5432 \
-  --database=postgres --origin-user=postgres --origin-password='<database password>'
-```
-
-- **Connection.** Use Supabase's **Direct connection** (`db.<project-ref>.supabase.co`, port 5432, user `postgres`), because Hyperdrive does its own pooling. On the free plan that host is IPv6-only. If Hyperdrive can't connect to it, use the **Session pooler** from Supabase → Connect instead (port 5432, user `postgres.<project-ref>`). Never use the transaction pooler (port 6543): the app turns prepared statements on for Hyperdrive, and that pooler doesn't support them.
-- **Always `--caching-disabled`.** Hyperdrive's cache doesn't know which user a query ran as (RLS is set per transaction), and it isn't cleared when data changes. If caching is ever turned on, one person could see another person's rows, pages could show stale payments, and a role change or deactivation would stop applying on the next request (`getViewer` in `src/auth/session.ts` reads it outside a transaction). To check an existing config: `npx wrangler hyperdrive get <id>`. To fix it: `npx wrangler hyperdrive update <id> --caching-disabled`.
-- **New database password?** Run `npx wrangler hyperdrive update <id> --origin-password='<new password>'` as well as updating the `DATABASE_URL` secret.
-- **Limits on Workers Free.** 100,000 queries a day (every statement counts, including `BEGIN`/`COMMIT`), reset at 00:00 UTC (05:30 in India), and about 20 connections to the database. If the daily limit is reached, queries fail until the reset. To get by until then, remove the `hyperdrive` block and deploy, and the app falls back to `DATABASE_URL`.
-- **Keep the `DATABASE_URL` secret.** `next dev` and the fallback use it.
-- **`npm run cf:preview`** runs the Worker locally, where Hyperdrive isn't available, and Wrangler refuses to start without a stand-in. Before running it, set `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` in your shell to the Session pooler string with `?sslmode=require` on the end (not the 6543 one).
-
-### Deploying from GitHub (Workers Builds)
-
-If Cloudflare builds the repo for you (Workers & Pages → the Worker → Settings → Build), set:
+Workers Builds deploys every push to `main` (Workers & Pages → the Worker → Settings → Build):
 
 | Setting        | Value                 |
 | -------------- | --------------------- |
 | Build command  | `npm run cf:build`    |
 | Deploy command | `npx wrangler deploy` |
 
-Do not use `npm run build` as the build command. It only runs `next build`, so the deploy step fails with "Could not find compiled Open Next config". Add the `NEXT_PUBLIC_` values under **Build variables and secrets** (they are read at build time), and the server secrets under the Worker's **Variables and Secrets**.
+Put the `NEXT_PUBLIC_` values and `VAPID_PUBLIC_KEY` under **Build variables and secrets**; they are baked into the files at build time. The Worker needs no runtime secrets any more.
+
+To deploy by hand: `npm run cf:build && npx wrangler deploy`.
 
 Before the first real deploy, also set up nightly backups: [docs/backup-and-restore.md](docs/backup-and-restore.md).
-
-### Members' public data (bulletin.json, crowd.json)
-
-Hours, closures, announcements and the crowd meter reach members' phones as two small JSON files. Phones read them from a second Worker, **iron-paradise-data** ([workers/data](workers/data)), so these reads never run the app's Worker or use its CPU allowance.
-
-- **How it works.** When the owner or a manager saves something in the bulletin, Postgres builds the new file in the same transaction (`public.publish_bulletin`). After the response is sent, the app's Worker writes that text to Workers KV (binding `PUBLIC_DATA`). The data Worker serves the files with `Cache-Control: public, max-age=60` and has Workers Cache switched on, so Cloudflare answers most reads from its cache without running any code. A cache hit still counts as one request toward the free plan's 100,000 a day.
-- **Deploying it.** Workers Builds deploys only the app. The data Worker rarely changes; when it does, run `npx wrangler deploy -c workers/data/wrangler.jsonc`.
-- **Limits on Workers Free.** KV allows 1,000 writes and 100,000 reads a day. The app writes after real changes only, and the crowd file at most once a minute.
-- **Out of date?** Settings → Members' app → Bulletin → **Publish now** rewrites the file from what's saved.
-- **Why KV and not R2:** turning on R2 needs a payment method on the Cloudflare account.
 
 ## GitHub settings to switch on
 

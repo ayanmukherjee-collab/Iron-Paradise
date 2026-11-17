@@ -14,7 +14,7 @@ import type { Batches } from "@/attendance/batches";
 import { visitWindowStart } from "@/attendance/visit-stats";
 import { splitBatches } from "@/bulletin/hours";
 import type { TimeRange } from "@/bulletin/types";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { getDb } from "@/db/client";
 import {
   attendance,

@@ -7,16 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useLocation } from "react-router";
-import { can, type Action, type Role } from "@/auth/permissions";
+import type { Action, Role } from "@/auth/permissions";
+import { viewerCan, type Viewer } from "@/auth/viewer";
 import { supabase } from "../lib/supabase";
 
-export interface Viewer {
-  userId: string;
-  fullName: string;
-  email: string | null;
-  role: Role;
-  isActive: boolean;
-}
+export { viewerCan, type Viewer };
 
 type ViewerState =
   | { status: "loading" }
@@ -26,6 +21,14 @@ type ViewerState =
 
 const ViewerContext = createContext<ViewerState>({ status: "loading" });
 
+// The same viewer, for code outside React (guarded actions, data loaders).
+let latest: Viewer | null = null;
+
+/** The signed-in viewer right now, or null. */
+export function currentViewer(): Viewer | null {
+  return latest;
+}
+
 /**
  * Who is signed in, read once per sign-in. The role comes from the profiles
  * table, never from the token, as on the server (src/auth/session.ts). Screens
@@ -34,6 +37,9 @@ const ViewerContext = createContext<ViewerState>({ status: "loading" });
  */
 export function ViewerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ViewerState>({ status: "loading" });
+  useEffect(() => {
+    latest = state.status === "ready" ? state.viewer : null;
+  }, [state]);
 
   useEffect(() => {
     let current: string | null | undefined;
@@ -97,14 +103,9 @@ export function useViewer(): Viewer {
   return state.viewer;
 }
 
-export function viewerCan(viewer: Viewer | null, action: Action): boolean {
-  return viewer !== null && viewer.isActive && can(viewer.role, action);
-}
-
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
   // A full reload, so nothing the last person saw stays in memory.
-  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.assign("/sign-in");
 }
 

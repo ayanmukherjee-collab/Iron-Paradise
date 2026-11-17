@@ -15,12 +15,26 @@ type Shown =
  * server for the next code just after each change, keeps the screen awake
  * where the browser allows, and recovers on its own after a dropped network.
  */
+export type DeskCode =
+  { code: string; secondsLeft: number } | { error: string };
+
+/** The server's code endpoint (src/app/desk/[token]/code). */
+async function fetchDeskCode(token: string): Promise<DeskCode> {
+  const response = await fetch(`/desk/${encodeURIComponent(token)}/code`, {
+    cache: "no-store",
+  });
+  return (await response.json()) as DeskCode;
+}
+
 export function DeskScreen({
   token,
   origin,
+  loadCode = fetchDeskCode,
 }: {
   token: string;
   origin: string;
+  /** Where the next code comes from; the static app asks the database. */
+  loadCode?: (token: string) => Promise<DeskCode>;
 }) {
   const [shown, setShown] = useState<Shown>({ kind: "loading" });
   const [now, setNow] = useState(() => Date.now());
@@ -31,14 +45,7 @@ export function DeskScreen({
 
     async function refresh() {
       try {
-        const response = await fetch(
-          `/desk/${encodeURIComponent(token)}/code`,
-          {
-            cache: "no-store",
-          },
-        );
-        const body = (await response.json()) as
-          { code: string; secondsLeft: number } | { error: string };
+        const body = await loadCode(token);
         if (cancelled) return;
         if ("error" in body) {
           setShown({ kind: "off", message: body.error });
@@ -64,7 +71,7 @@ export function DeskScreen({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [token]);
+  }, [token, loadCode]);
 
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);

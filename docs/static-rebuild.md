@@ -68,52 +68,112 @@ components and `globals.css`. The new app imports them from `src/` as they are.
 | Landing page rendered per request                      | Rendered to HTML at build time (no data in it), so search engines still see it           |
 | `/app/members/[id]`, `/claim/[token]`, `/desk/[token]` | Same paths, served by the single-page fallback                                           |
 
-## Steps
+## Status
 
-Each step lands on the `rebuild/static-app` branch. The live app keeps running
-from `main` until the cutover, so members never see a half-done app.
+All eight steps are built on the `rebuild/static-app` branch (draft PR #35):
 
-1. **Foundation + Check-in (proof).** Vite app in `web/`, Supabase browser
-   client, viewer/permission gate, sign-in and callback, shims, and the
-   Check-in screen working end to end against the real database.
-2. **Member screens.** Member Home (ID card, visits, bulletin), Account,
-   claim link (`/claim/:token` → `redeem_claim_token`).
-3. **Staff reads.** Members list, member page, payments sheet, attendance,
-   audit, team. Lists fetch only what is on screen; heavy totals that are slow
-   on a phone move into SQL views or functions.
-4. **Staff saves.** Every Server Action becomes an RPC or a single insert or
-   update. Multi-step actions (new member + membership + fee, record payment,
-   void and replace) become one SQL function each, so they stay all-or-nothing.
-   New migrations come with PGlite RLS tests like the existing ones.
-5. **Desk display and settings.** `/desk/:token` reads the rotating code through
-   a function granted to `anon`; QR PDF built on the phone.
-6. **Secrets-only work.** Web Push sending and the reminder job move to Supabase
-   Edge Functions, scheduled by `pg_cron`.
-7. **Landing page + PWA.** Prerendered landing, manifest, service worker
-   (offline shell; no request buffer needed, there is no Worker to retry).
-8. **Cutover.** `wrangler.jsonc` becomes an assets-only Worker pointing at
-   `web/dist` (no `main`, single-page-application fallback). Remove Next.js,
-   OpenNext, drizzle's runtime use, Hyperdrive and the data Worker. Watch
-   Cloudflare metrics: Worker invocations should drop to zero.
+1. **Foundation + Check in.** Vite app in `web/`, Supabase browser client,
+   sign-in and callback, the signed-in gate, shims for the shared components.
+2. **Member screens.** Member Home (card, visits, bulletin, payments), claim
+   link.
+3. **Staff reads.** Home, members list, member page, payments sheet,
+   attendance, audit, team, guests, reminders, settings, all in
+   `web/src/data`. Sums and groups the Data API can't do are SQL functions.
+4. **Staff saves.** Every Server Action has a browser version in
+   `web/src/actions` with the same name and inputs. Multi-step saves are one
+   SQL function each (`20261126000100_static_app.sql`, tested in
+   `src/db/static-app-rls.test.ts`).
+5. **Desk display, downloads.** `/desk/:token` reads `desk_code`; the payment
+   exports and the printed QR PDF are made on the phone.
+6. **Edge Functions.** `reminders` and `send-test-push`.
+7. **Public site and PWA.** Landing, privacy and terms are written into the
+   HTML at build time; new service worker (offline shell, push).
+8. **Cutover.** `wrangler.jsonc` is assets-only. Next.js, OpenNext,
+   Hyperdrive, Upstash, Turnstile and the data Worker are gone.
 
-## Things to check along the way
+Checked: type check, lint, the full test suite (571 tests, including the
+database security tests), the production build, a Cloudflare deploy dry run,
+and every table query in `web/src`, run signed out against the real project:
+each one gets "permission denied", none a missing column or relationship.
+Not checked yet: a signed-in run against real data. That needs the
+migration below applied and a real Google sign-in.
 
-- **Column visibility.** RLS works per row. Where a screen hid a column from
-  some roles (for example phone numbers from trainers), check the column grant
-  does the same; otherwise add a view or narrow the grant.
-- **Data API exposure.** Supabase exposes the `public` schema by default. All
-  `private.*` functions stay hidden.
-- **Redirect URLs.** Supabase Auth must allow `/auth/callback` on the live
-  domain (it already does) and on `http://localhost:5173` for local runs.
-- **Supabase free limits.** 500 MB database, 5 GB egress a month, project
-  pauses after 7 days without use. A gym of 150–500 members stays well inside.
-  Keep queries narrow (select named columns, page long lists).
+## Going live
 
-## Running the new app locally
+In this order. Steps 1–3 need your accounts; nothing here has been run yet.
+
+1. **Apply the migration** (adds the new database functions; changes no
+   existing table or rule):
+   ```bash
+   npx supabase db push --dry-run
+   npx supabase db push
+   ```
+2. **Edge Functions.** Set their secrets, then deploy:
+   ```bash
+   npx supabase secrets set CRON_SECRET=<32+ random characters> \
+     VAPID_PUBLIC_KEY=<…> VAPID_PRIVATE_KEY=<…> \
+     SITE_URL=https://iron-paradise.ayanmukherjee-official01.workers.dev
+   # optional: RESEND_API_KEY=<…> EMAIL_FROM="Iron Paradise <fees@…>"
+   npm run fn:build
+   npx supabase functions deploy reminders send-test-push
+   ```
+   Use the same VAPID pair the Worker had, or phones that already allowed
+   notifications stop getting them.
+3. **Schedule the reminders.** Supabase → Database → Extensions: switch on
+   `pg_cron` and `pg_net`. Then in the SQL Editor (with your real secret):
+   ```sql
+   select vault.create_secret('<the CRON_SECRET>', 'reminders_cron_secret');
+   select cron.schedule(
+     'fee-reminders',
+     '*/15 3-5 * * *',  -- 08:30–11:15 India time, as before
+     $$
+     select net.http_post(
+       url := 'https://lttffxniaxxbstiaxvvz.supabase.co/functions/v1/reminders',
+       headers := jsonb_build_object(
+         'Authorization', 'Bearer ' || (
+           select decrypted_secret from vault.decrypted_secrets
+           where name = 'reminders_cron_secret'
+         )
+       )
+     );
+     $$
+   );
+   ```
+4. **Cloudflare build variables.** Workers & Pages → iron-paradise →
+   Settings → Build → Variables: keep `NEXT_PUBLIC_SITE_URL`,
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and add
+   `VAPID_PUBLIC_KEY`. Build and deploy commands stay `npm run cf:build` and
+   `npx wrangler deploy`.
+5. **Merge PR #35.** Workers Builds deploys it. The old Worker's secrets,
+   the Hyperdrive config and the `iron-paradise-data` Worker and KV
+   namespace are then unused and can be deleted.
+6. **Watch.** Cloudflare metrics for iron-paradise should show static asset
+   requests and no Worker CPU errors; Supabase → Reports shows the API load.
+
+To test before merging, run the app locally against the real project (the
+migration must be applied first, and `http://localhost:5173/auth/callback`
+must be on Supabase Auth's redirect list):
 
 ```bash
-npm run web:dev
+npm run dev
 ```
 
-It reads the same `NEXT_PUBLIC_*` values from `.env.local` and talks to the
-same Supabase project as production.
+## Security notes
+
+- **Nothing new is exposed.** Every table already had RLS and column grants,
+  and the server ran each query as the signed-in user, so the phone can read
+  and change exactly what the server's queries could. What changes is that a
+  determined person could query the Data API directly, within those same
+  rules (for example a trainer can read members' phone numbers, which the
+  members list already showed them).
+- **Not exposed:** `private.*` functions, `claim_tokens.token_hash`, push
+  keys (`push_subscriptions` is read only by the Edge Functions), payments
+  and fees for trainers and members other than their own.
+- **Signed-out access:** one function, `desk_code`, which needs a desk
+  link's 32-byte random token.
+- **Dropped:** Turnstile and the Upstash rate limits. Google sign-in can't be
+  scripted and Supabase Auth limits sign-in attempts; a repeated check-in the
+  same day changes nothing; the test push is limited to one a minute.
+- **Supabase free limits.** 500 MB database, 5 GB egress a month, and the
+  project pauses after 7 days without use. A gym of 150–500 members in daily
+  use stays well inside.

@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, gte, isNull, lte, sql, sum } from "drizzle-orm";
-import type { Viewer } from "@/auth/session";
+import type { Viewer } from "@/auth/viewer";
 import { getDb } from "@/db/client";
 import {
   members,

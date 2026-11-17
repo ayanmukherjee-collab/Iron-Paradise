@@ -7,46 +7,22 @@ import "@fontsource-variable/inter";
 import "./app.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
-import { AppShell, NotRebuiltYet } from "./app-shell";
-import {
-  RequirePermission,
-  RequireViewer,
-  ViewerProvider,
-} from "./auth/viewer";
-import { CheckInPage } from "./pages/check-in";
-import { AuthCallbackPage, SignInPage } from "./pages/sign-in";
+import { RouterProvider } from "react-router";
+import { ViewerProvider } from "./auth/viewer";
+import { registerServiceWorker } from "./pwa";
+import { router } from "./routes";
 
-const router = createBrowserRouter([
-  { path: "/sign-in", element: <SignInPage /> },
-  { path: "/auth/callback", element: <AuthCallbackPage /> },
-  {
-    path: "/app",
-    element: (
-      <RequireViewer>
-        <AppShell />
-      </RequireViewer>
-    ),
-    children: [
-      {
-        path: "check-in",
-        element: (
-          <RequirePermission action="self.checkIn">
-            <CheckInPage />
-          </RequirePermission>
-        ),
-      },
-      { path: "*", element: <NotRebuiltYet /> },
-      { index: true, element: <NotRebuiltYet /> },
-    ],
-  },
-  { path: "*", element: <Navigate to="/app" replace /> },
-]);
-
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root")!;
+// Public pages arrive already written into the HTML (web/prerender.mjs) for
+// search engines and a fast first paint. The app then renders over them with
+// the same markup, which also brings "open now" up to the current time.
+delete root.dataset.path;
+createRoot(root).render(
   <StrictMode>
     <ViewerProvider>
       <RouterProvider router={router} />
     </ViewerProvider>
   </StrictMode>,
 );
+
+registerServiceWorker();

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router";
-import type { CheckInResult } from "@/attendance/actions";
+import type { CheckInResult } from "@/attendance/types";
 import { isCheckInCode } from "@/attendance/code";
 import { CheckIn } from "@/attendance/components/check-in";
 import { useViewer } from "../auth/viewer";

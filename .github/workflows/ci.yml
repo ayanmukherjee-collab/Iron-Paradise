@@ -12,16 +12,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Placeholder values so the app builds and the signed-out tests run. None of
-# these reach a real service; the Turnstile pair is Cloudflare's public test key.
+# Placeholder values so the app builds. None of these reach a real service.
 env:
-  NEXT_PUBLIC_SITE_URL: http://localhost:3100
+  NEXT_PUBLIC_SITE_URL: http://localhost:4173
   NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
-  TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
-  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-  NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
   check:
@@ -36,11 +31,7 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
-      # next build generates route types that tsc checks.
-      - run: npx next typegen
       - run: npm run typecheck
-      # The static app that replaces server rendering (docs/static-rebuild.md).
-      - run: npm run web:build
       # Includes the RLS security tests, run against the real migrations in
       # an in-memory Postgres.
       - run: npm test
@@ -56,8 +47,8 @@ jobs:
           cache: npm
       - run: npm audit --omit=dev --audit-level=high
 
-  e2e:
-    name: Browser tests
+  build:
+    name: Static site and Edge Functions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,25 +57,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: playwright-report
-          path: test-results
-          retention-days: 7
-
-  bundle:
-    name: Cloudflare bundle size
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      # The same build Cloudflare runs, then a deploy dry run of web/dist.
       - run: npm run cf:build
-      - run: npm run cf:size
+      - run: npx wrangler deploy --dry-run
+      # The committed Edge Function bundles must match their sources.
+      - run: npm run fn:build
+      - run: git diff --exit-code -- supabase/functions
