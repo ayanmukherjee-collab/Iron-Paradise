@@ -19,10 +19,11 @@ export default async function PaymentsPage() {
   const rows = await getPaymentSheet(viewer, sheetMonths(null, today));
 
   const thisMonth = today.slice(0, 7);
+  // Removed members drop out of dues; what they still owe stays on their row.
   const current = rows.filter((row) => row.isActive);
   const figures: MoneyFigures = {
-    outstandingPaise: rows.reduce((sum, row) => sum + row.owedPaise, 0),
-    owing: rows.filter((row) => row.owedPaise > 0).length,
+    outstandingPaise: current.reduce((sum, row) => sum + row.owedPaise, 0),
+    owing: current.filter((row) => row.owedPaise > 0).length,
     paying: current.filter((row) => row.standing && row.standing !== "free")
       .length,
     overdue: current.filter((row) => row.standing === "overdue").length,

@@ -109,11 +109,14 @@ async function StaffHome({ viewer }: { viewer: Viewer }) {
           <MoneyCards
             monthLabel={shortMonth(thisMonth)}
             figures={{
-              outstandingPaise: members.reduce(
-                (sum, member) => sum + member.owedPaise,
-                0,
+              // Only current members count towards dues.
+              outstandingPaise: members
+                .filter((member) => member.status !== "inactive")
+                .reduce((sum, member) => sum + member.owedPaise, 0),
+              owing: count(
+                (member) =>
+                  member.status !== "inactive" && member.owedPaise > 0,
               ),
-              owing: count((member) => member.owedPaise > 0),
               paying: count(
                 (member) =>
                   member.standing !== null && member.standing !== "free",
