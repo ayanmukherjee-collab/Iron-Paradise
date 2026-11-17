@@ -65,6 +65,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "check_in",
       "create_desk_display",
       "current_app_role",
+      "erase_member",
       "has_role",
       "is_own_member",
       "is_own_membership",

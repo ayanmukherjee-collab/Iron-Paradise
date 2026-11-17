@@ -26,6 +26,7 @@ import {
   createClaimLink,
   deactivateMember,
   endFreeze,
+  eraseMember,
   freezeMembership,
   reactivateMember,
   updateMember,
@@ -67,6 +68,7 @@ export default async function MemberPage({
   const canMark = viewerCan(viewer, "attendance.mark");
   const canRecord = viewerCan(viewer, "payments.record");
   const canChangeType = viewerCan(viewer, "roles.change");
+  const canErase = viewerCan(viewer, "members.erase");
   const plans =
     canEdit && status === "inactive" ? await listPlans(viewer, true) : [];
   const today = todayAtGym();
@@ -93,7 +95,7 @@ export default async function MemberPage({
           {
             id: "details",
             label: "Edit details",
-            content: <DetailsForm detail={detail} />,
+            content: <DetailsForm detail={detail} canErase={canErase} />,
           },
         ]
       : []),
@@ -460,7 +462,13 @@ function FeeForm({ detail }: { detail: MemberDetail }) {
   );
 }
 
-function DetailsForm({ detail }: { detail: MemberDetail }) {
+function DetailsForm({
+  detail,
+  canErase,
+}: {
+  detail: MemberDetail;
+  canErase: boolean;
+}) {
   const { member } = detail;
   return (
     <>
@@ -510,6 +518,39 @@ function DetailsForm({ detail }: { detail: MemberDetail }) {
         >
           <input type="hidden" name="memberId" value={member.id} />
         </ActionForm>
+      )}
+
+      {/* Only after "Mark inactive", and only the owner (the database checks
+          both again, plus the typed ID). */}
+      {!member.isActive && canErase && (
+        <div className="mt-6 max-w-lg border-t border-line pt-6">
+          <h3 className="font-semibold">Delete permanently</h3>
+          <p className="mt-1 text-sm text-muted">
+            Removes {member.fullName}, their memberships, payments, visits and
+            audit entries for good. Past revenue totals drop by what they paid.
+            This can&apos;t be undone, though nightly backups keep a copy for up
+            to 30 days.
+          </p>
+          <ActionForm
+            action={eraseMember}
+            submitLabel="Delete permanently"
+            pendingLabel="Deleting…"
+            variant="outline-dark"
+            className="mt-4 space-y-4"
+          >
+            <input type="hidden" name="memberId" value={member.id} />
+            <Field label={`Type ${member.memberCode} to confirm`}>
+              <input
+                name="confirmCode"
+                required
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                className={inputClass}
+              />
+            </Field>
+          </ActionForm>
+        </div>
       )}
     </>
   );

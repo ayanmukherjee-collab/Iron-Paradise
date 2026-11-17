@@ -245,6 +245,28 @@ export const reactivateMember = guardedAction({
   },
 });
 
+// Permanent, owner only, and only for a member already marked inactive. The
+// whole erase is one call to public.erase_member, which re-checks the owner,
+// the inactive flag and the typed member code inside Postgres, so the Worker
+// sends a single query and a forged request gets no further than the form.
+export const eraseMember = guardedAction({
+  permission: "members.erase",
+  input: z.object({
+    memberId: z.uuid(),
+    confirmCode: z
+      .string()
+      .trim()
+      .min(1, "Type the member's ID to confirm")
+      .max(20),
+  }),
+  run: async ({ memberId, confirmCode }, viewer) => {
+    await withUserContext(getDb(), viewer.userId, (tx) =>
+      tx.execute(sql`select public.erase_member(${memberId}, ${confirmCode})`),
+    );
+    return { redirectTo: "/app/members" };
+  },
+});
+
 // The raw token exists only in this response: the database keeps a hash, so
 // the link can be shown once and never looked up again. Lost links are
 // replaced by generating a new one, which cancels the old.

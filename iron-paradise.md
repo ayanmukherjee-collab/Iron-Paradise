@@ -48,7 +48,7 @@ Rules:
 
 - Claim links are single-use and expire after 48 hours. Store only a hash of the token.
 - Staff can regenerate a claim link at any time, which invalidates the old one.
-- Members are never hard-deleted. "Remove" means deactivate, and all history is kept.
+- "Remove" means deactivate, and all history is kept. Only the owner can delete a member permanently, and only after deactivating them and typing their member ID to confirm. That erases the member record and everything tied to it, including their audit entries, leaving one audit line with counts and no identifying data (owner's decision, 2026-11-17).
 
 ## 4. Features
 
@@ -134,7 +134,7 @@ Staff photograph a paper fee slip, and the app proposes a payment entry. A human
 
 ### 4.8 Audit log
 
-Append-only record of every membership, role, and payment change: who, what, before, after, when. Readable by the owner and managers. Nobody can edit or delete entries, including the owner.
+Append-only record of every membership, role, and payment change: who, what, before, after, when. Readable by the owner and managers. Nobody can edit or delete entries, including the owner. The one exception is permanently deleting a member (§3), which removes that member's entries.
 
 ## 5. Data model
 

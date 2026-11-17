@@ -142,8 +142,10 @@ export default function PrivacyPage() {
           Payment and attendance records are kept for as long as we need them
           for our accounts and to settle any dispute. When you leave, your
           membership is marked inactive rather than erased, so the history stays
-          accurate. Rate-limit counters, which hold IP addresses, expire within
-          a few hours.
+          accurate. If you ask us to delete you entirely, we erase your member
+          record together with its payments, visits and history; encrypted
+          backups are overwritten within 30 days. Rate-limit counters, which
+          hold IP addresses, expire within a few hours.
         </p>
       </section>
 

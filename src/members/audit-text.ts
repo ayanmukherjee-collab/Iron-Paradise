@@ -30,6 +30,9 @@ export function describeAuditEntry(entry: AuditEntryInput): string {
       }
       return `${str(after, "full_name") || "An account"} switched ${after?.is_active ? "on" : "off"}`;
     case "members":
+      // Erasing leaves only counts behind: nothing that names the member.
+      if (entry.action === "delete")
+        return `A member was deleted permanently, with ${num(after, "payments") ?? 0} payments and ${num(after, "visits") ?? 0} visits`;
       if (entry.action === "insert")
         return `Added member ${str(after, "member_code")} ${str(after, "full_name")}`;
       if (before?.is_active !== after?.is_active) {
