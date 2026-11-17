@@ -27,12 +27,15 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
   experimental: {
-    // Keep pages the person has just seen in the browser's memory for 30s,
-    // so flicking between tabs is instant instead of a server round trip
-    // each time. Every Server Action that changes data calls revalidatePath,
-    // which clears this cache, and so does signing out. Memory only: nothing
-    // is written to the device.
-    staleTimes: { dynamic: 30 },
+    // Keep pages the person has just seen in the browser's memory for two
+    // minutes, so flicking between tabs is instant instead of a Worker run
+    // each time (the free plan's CPU allowance is tight; see
+    // components/ui/link). Every Server Action that changes data calls
+    // revalidatePath, which clears this cache, and so does signing out; a
+    // reload always fetches fresh. Changes made on someone else's phone can
+    // take up to two minutes to show. Memory only: nothing is written to the
+    // device.
+    staleTimes: { dynamic: 120 },
   },
   // Lets a phone on the same Wi-Fi open the dev server by its LAN address
   // (e.g. http://10.32.243.57:3000). Development only; production ignores it.

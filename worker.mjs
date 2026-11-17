@@ -5,6 +5,13 @@
 // Plain JavaScript on purpose: .open-next/ only exists after a Cloudflare
 // build, so a TypeScript import of it could not type-check in CI.
 import openNext from "./.open-next/worker.js";
+// OpenNext loads the Next.js server code lazily, inside the first request a
+// fresh Worker instance gets, and that request pays for it out of the free
+// plan's 10 ms CPU allowance. Importing it here moves that part of the
+// set-up to start-up, which Cloudflare budgets separately (1 s). Measured
+// locally: the first request went from ~550 ms to ~370 ms, and start-up
+// stays under 100 ms of CPU (`npx wrangler check startup`).
+import "./.open-next/server-functions/default/handler.mjs";
 
 const worker = {
   fetch: openNext.fetch,

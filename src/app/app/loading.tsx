@@ -1,8 +1,8 @@
 import { LoadingRegion, RowList, TitleBar } from "@/components/ui/skeleton";
 
-// Fallback for every app page without its own loading.tsx. Also what Next.js
-// prefetches when someone hovers or touches a link (see components/ui/link),
-// so the page's shell appears at once.
+// Fallback for every app page without its own loading.tsx, shown while a
+// page streams in after a link is clicked (links don't prefetch; see
+// components/ui/link).
 export default function Loading() {
   return (
     <LoadingRegion label="Loading">
