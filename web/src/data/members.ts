@@ -1,4 +1,5 @@
 // Browser versions of src/members/queries.ts: same names, same shapes.
+import { visitWindowStart } from "@/attendance/visit-stats";
 import { can } from "@/auth/permissions";
 import type { Role } from "@/auth/permissions";
 import { todayAtGym, type IsoDate } from "@/lib/dates";
@@ -194,8 +195,9 @@ export async function getMemberDetail(
     table("attendance")
       .select("gymDate:gym_date, method")
       .eq("member_id", memberId)
+      // Enough for the attendance charts: the last thirteen weeks.
+      .gte("gym_date", visitWindowStart(today))
       .order("gym_date", { ascending: false })
-      .limit(31)
       .then(dataOf),
     canSeeClaims
       ? table("claim_tokens")

@@ -58,125 +58,133 @@ function GuestsView({ guests, unclaimed, plans }: GuestsData) {
           Nobody waiting
         </p>
       ) : (
-        <ul className="mt-5 space-y-4">
+        <ul className="mt-5 list-card">
           {guests.map((guest) => {
             const name = guest.fullName || guest.email || "Guest";
             return (
-              <li key={guest.id} className="overflow-hidden card">
-                {/* Who signed in. The form below belongs to this account. */}
-                <div className="flex items-center gap-3 border-b border-line bg-canvas/50 p-4 sm:px-6">
-                  <Initial
-                    name={name}
-                    className="size-11 rounded-control text-base"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">
-                      {guest.fullName || "No name on the account"}
-                    </p>
-                    <p className="truncate text-sm text-muted">{guest.email}</p>
-                  </div>
-                  <div
-                    className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted"
-                    title={`Signed in ${formatDateTime(guest.createdAt)}`}
-                  >
-                    <NavIconSvg icon="clock" className="size-3.5" />
-                    {formatShortDate(todayAtGym(guest.createdAt), today)}
-                  </div>
-                </div>
+              <li key={guest.id} className="list-row">
+                {/* Folded until tapped: who signed in, and when. The form
+                    inside belongs to this account. */}
+                <details className="group -mx-5 sm:-mx-6">
+                  <summary className="flex min-h-[4.5rem] cursor-pointer list-none items-center gap-3 px-5 py-3 transition-colors select-none hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
+                    <Initial
+                      name={name}
+                      className="size-10 rounded-control text-base"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">
+                        {guest.fullName || "No name on the account"}
+                      </span>
+                      <span className="block truncate text-sm text-muted">
+                        {guest.email}
+                      </span>
+                    </span>
+                    <span
+                      className="shrink-0 text-xs text-muted tabular-nums"
+                      title={`Signed in ${formatDateTime(guest.createdAt)}`}
+                    >
+                      {formatShortDate(todayAtGym(guest.createdAt), today)}
+                    </span>
+                    <NavIconSvg
+                      icon="chevronDown"
+                      className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                    />
+                  </summary>
 
-                <div className="p-4 sm:p-6">
-                  <Tabs
-                    label={`What to do with ${name}`}
-                    tabs={[
-                      {
-                        id: "new",
-                        label: "New member",
-                        content: (
-                          <ActionForm
-                            action={convertGuest}
-                            submitLabel="Add and link"
-                            pendingLabel="Adding…"
-                            className="space-y-4"
-                          >
-                            <input
-                              type="hidden"
-                              name="profileId"
-                              value={guest.id}
-                            />
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              <Field label="Full name">
-                                <input
-                                  name="fullName"
+                  <div className="details-body border-t border-line px-5 pt-4 pb-5 sm:px-6">
+                    <Tabs
+                      label={`What to do with ${name}`}
+                      tabs={[
+                        {
+                          id: "new",
+                          label: "New member",
+                          content: (
+                            <ActionForm
+                              action={convertGuest}
+                              submitLabel="Add and link"
+                              pendingLabel="Adding…"
+                              className="space-y-4"
+                            >
+                              <input
+                                type="hidden"
+                                name="profileId"
+                                value={guest.id}
+                              />
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="Full name">
+                                  <input
+                                    name="fullName"
+                                    required
+                                    maxLength={120}
+                                    defaultValue={guest.fullName ?? ""}
+                                    autoComplete="off"
+                                    className={inputClass}
+                                  />
+                                </Field>
+                                <Field label="Mobile number">
+                                  <input
+                                    name="phone"
+                                    type="tel"
+                                    inputMode="tel"
+                                    required
+                                    className={inputClass}
+                                  />
+                                </Field>
+                              </div>
+                              <NewMembershipFields
+                                plans={planOptions}
+                                today={today}
+                              />
+                              <Checkbox
+                                name="reminderConsent"
+                                label="Payment reminders"
+                                defaultChecked
+                              />
+                            </ActionForm>
+                          ),
+                        },
+                        {
+                          id: "existing",
+                          label: "Already a member",
+                          content: (
+                            <ActionForm
+                              action={linkGuest}
+                              submitLabel="Link account"
+                              success="Linked."
+                              className="space-y-4"
+                            >
+                              <input
+                                type="hidden"
+                                name="profileId"
+                                value={guest.id}
+                              />
+                              <Field label="Member">
+                                <select
+                                  name="memberId"
                                   required
-                                  maxLength={120}
-                                  defaultValue={guest.fullName ?? ""}
-                                  autoComplete="off"
+                                  defaultValue=""
                                   className={inputClass}
-                                />
-                              </Field>
-                              <Field label="Mobile number">
-                                <input
-                                  name="phone"
-                                  type="tel"
-                                  inputMode="tel"
-                                  required
-                                  className={inputClass}
-                                />
-                              </Field>
-                            </div>
-                            <NewMembershipFields
-                              plans={planOptions}
-                              today={today}
-                            />
-                            <Checkbox
-                              name="reminderConsent"
-                              label="Payment reminders"
-                              defaultChecked
-                            />
-                          </ActionForm>
-                        ),
-                      },
-                      {
-                        id: "existing",
-                        label: "Already a member",
-                        content: (
-                          <ActionForm
-                            action={linkGuest}
-                            submitLabel="Link account"
-                            success="Linked."
-                            className="space-y-4"
-                          >
-                            <input
-                              type="hidden"
-                              name="profileId"
-                              value={guest.id}
-                            />
-                            <Field label="Member">
-                              <select
-                                name="memberId"
-                                required
-                                defaultValue=""
-                                className={inputClass}
-                              >
-                                <option value="" disabled>
-                                  {unclaimed.length
-                                    ? "Pick a member"
-                                    : "None available"}
-                                </option>
-                                {unclaimed.map((member) => (
-                                  <option key={member.id} value={member.id}>
-                                    {member.memberCode} · {member.fullName} ·{" "}
-                                    {formatMobile(member.phone)}
+                                >
+                                  <option value="" disabled>
+                                    {unclaimed.length
+                                      ? "Pick a member"
+                                      : "None available"}
                                   </option>
-                                ))}
-                              </select>
-                            </Field>
-                          </ActionForm>
-                        ),
-                      },
-                    ]}
-                  />
-                </div>
+                                  {unclaimed.map((member) => (
+                                    <option key={member.id} value={member.id}>
+                                      {member.memberCode} · {member.fullName} ·{" "}
+                                      {formatMobile(member.phone)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                            </ActionForm>
+                          ),
+                        },
+                      ]}
+                    />
+                  </div>
+                </details>
               </li>
             );
           })}

@@ -55,7 +55,7 @@ export function Tabs({ tabs, label }: { tabs: Tab[]; label: string }) {
           id={`${baseId}-${tab.id}`}
           aria-labelledby={`${baseId}-${tab.id}-tab`}
           hidden={tab.id !== current}
-          className="pt-5"
+          className="pt-5 motion-safe:animate-fade"
         >
           {tab.content}
         </div>

@@ -1,12 +1,22 @@
 import { Field, inputClass } from "@/components/ui/field";
 import { methodLabels } from "@/payments/describe";
 
-/** Amount, method, date, receipt and note: shared by record and correct. */
+/**
+ * Amount, method, date, receipt and note: shared by record and correct.
+ * Pass `amount` and `onAmountChange` to set the amount from outside (a plan
+ * picked on the record form); otherwise it starts at `defaults.amount`.
+ */
 export function PaymentFields({
   today,
   defaults = {},
+  amount,
+  onAmountChange,
+  onPaidOnChange,
 }: {
   today: string;
+  amount?: string;
+  onAmountChange?: (value: string) => void;
+  onPaidOnChange?: (value: string) => void;
   defaults?: {
     amount?: string;
     method?: keyof typeof methodLabels;
@@ -23,7 +33,13 @@ export function PaymentFields({
             name="amount"
             inputMode="decimal"
             required
-            defaultValue={defaults.amount}
+            {...(onAmountChange
+              ? {
+                  value: amount ?? "",
+                  onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+                    onAmountChange(event.target.value),
+                }
+              : { defaultValue: defaults.amount })}
             className={inputClass}
           />
         </Field>
@@ -34,6 +50,7 @@ export function PaymentFields({
             required
             max={today}
             defaultValue={defaults.paidOn ?? today}
+            onChange={(event) => onPaidOnChange?.(event.target.value)}
             className={inputClass}
           />
         </Field>

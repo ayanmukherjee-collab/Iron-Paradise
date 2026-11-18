@@ -37,7 +37,9 @@ export function Disclosure({
           className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
         />
       </summary>
-      <div className="border-t border-line p-4 sm:p-6">{children}</div>
+      <div className="details-body border-t border-line p-4 sm:p-6">
+        {children}
+      </div>
     </details>
   );
 }

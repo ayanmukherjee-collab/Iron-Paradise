@@ -62,13 +62,16 @@ function SettingsView({ plans, quietDays, hours }: SettingsData) {
 
       <section>
         <h2 className="px-1 section-title">Plans</h2>
+        <p className="mt-1 px-1 text-sm text-muted">
+          Shown as quick picks when recording a payment.
+        </p>
 
         <ul className="mt-3 list-card">
           {plans.map((plan) => (
             <li key={plan.id} className="list-row">
               <Row
                 title={plan.name}
-                detail={`${formatPaise(plan.defaultFeePaise)} a month · ${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"}`}
+                detail={`${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"} · ${formatPaise(plan.defaultFeePaise)}/mo`}
                 badge={plan.isActive ? undefined : "Not offered"}
               >
                 <ActionForm
@@ -92,34 +95,24 @@ function SettingsView({ plans, quietDays, hours }: SettingsData) {
               </Row>
             </li>
           ))}
-          <li className="list-row">
-            <details className="group -mx-5 sm:-mx-6">
-              <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 font-medium transition-colors hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
-                <span className="flex size-8 items-center justify-center rounded-badge bg-ink text-white">
-                  <NavIconSvg icon="plus" className="size-4" />
-                </span>
-                New plan
-              </summary>
-              <div className="px-5 pt-1 pb-5 sm:px-6">
-                <ActionForm
-                  action={savePlan}
-                  submitLabel="Create plan"
-                  success="Plan added."
-                  className="space-y-4"
-                >
-                  <input type="hidden" name="planId" value="" />
-                  <PlanFields name="" months={1} fee={null} />
-                </ActionForm>
-              </div>
-            </details>
-          </li>
+          <AddRow label="New plan">
+            <ActionForm
+              action={savePlan}
+              submitLabel="Create plan"
+              success="Plan added."
+              className="space-y-4"
+            >
+              <input type="hidden" name="planId" value="" />
+              <PlanFields name="" months={1} fee={null} />
+            </ActionForm>
+          </AddRow>
         </ul>
       </section>
 
       <section>
         <h2 className="px-1 section-title">Opening hours</h2>
         <p className="mt-1 px-1 text-sm text-muted">
-          Check-ins are refused outside these. Members see them on their phones.
+          Check-ins are refused outside these.
         </p>
         <ul className="mt-3 list-card">
           {WEEK.map((day) => (
@@ -141,66 +134,52 @@ function SettingsView({ plans, quietDays, hours }: SettingsData) {
       <section>
         <h2 className="px-1 section-title">Closures</h2>
         <p className="mt-1 px-1 text-sm text-muted">
-          Holidays and short days. To close today, use the tiles on Home.
+          Holidays and short days. To close today, use Home.
         </p>
         <ul className="mt-3 list-card">
           {hours.closures.map((closure) => (
             <ClosureItem key={closure.id} closure={closure} />
           ))}
-          <li className="list-row">
-            <details className="group -mx-5 sm:-mx-6">
-              <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 font-medium transition-colors hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
-                <span className="flex size-8 items-center justify-center rounded-badge bg-ink text-white">
-                  <NavIconSvg icon="plus" className="size-4" />
-                </span>
-                New closure
-              </summary>
-              <div className="px-5 pt-1 pb-5 sm:px-6">
-                <ActionForm
-                  action={saveClosure}
-                  submitLabel="Save closure"
-                  className="space-y-4"
-                >
-                  <Field label="Day">
-                    <input
-                      name="date"
-                      type="date"
-                      required
-                      min={today}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <fieldset>
-                    <legend className="text-sm font-medium">Closed for</legend>
-                    <div className="mt-1.5 grid grid-cols-3 gap-2">
-                      {CLOSE_PARTS.map(({ value, label }) => (
-                        <label
-                          key={value}
-                          className="flex min-h-12 cursor-pointer items-center justify-center rounded-control bg-white text-sm font-medium ring-1 ring-line transition-colors has-checked:bg-ink has-checked:text-white has-checked:ring-ink"
-                        >
-                          <input
-                            type="radio"
-                            name="part"
-                            value={value}
-                            defaultChecked={value === "day"}
-                            className="sr-only"
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                  <Field label="Reason" hint="Optional. Members see it.">
-                    <input
-                      name="reason"
-                      maxLength={80}
-                      className={inputClass}
-                    />
-                  </Field>
-                </ActionForm>
-              </div>
-            </details>
-          </li>
+          <AddRow label="New closure">
+            <ActionForm
+              action={saveClosure}
+              submitLabel="Save closure"
+              className="space-y-4"
+            >
+              <Field label="Day">
+                <input
+                  name="date"
+                  type="date"
+                  required
+                  min={today}
+                  className={inputClass}
+                />
+              </Field>
+              <fieldset>
+                <legend className="text-sm font-medium">Closed for</legend>
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  {CLOSE_PARTS.map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className="flex min-h-12 cursor-pointer items-center justify-center rounded-control bg-white text-sm font-medium ring-1 ring-line transition-colors has-checked:bg-ink has-checked:text-white has-checked:ring-ink"
+                    >
+                      <input
+                        type="radio"
+                        name="part"
+                        value={value}
+                        defaultChecked={value === "day"}
+                        className="sr-only"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <Field label="Reason" hint="Optional. Members see it.">
+                <input name="reason" maxLength={80} className={inputClass} />
+              </Field>
+            </ActionForm>
+          </AddRow>
         </ul>
       </section>
 
@@ -285,7 +264,7 @@ function Row({
 }) {
   return (
     <details className="group -mx-5 sm:-mx-6">
-      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-5 py-3 transition-colors hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-5 py-3 transition-colors select-none hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate font-medium">{title}</span>
@@ -295,16 +274,43 @@ function Row({
               </span>
             )}
           </span>
-          <span className="block text-sm text-muted">{detail}</span>
+          <span className="block truncate text-sm text-muted">{detail}</span>
         </span>
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-control text-muted ring-1 ring-line group-open:bg-ink group-open:text-white group-open:ring-ink">
-          <NavIconSvg icon="gear" className="size-4 group-open:hidden" />
-          <NavIconSvg icon="close" className="hidden size-4 group-open:block" />
-          <span className="sr-only">Edit</span>
-        </span>
+        <NavIconSvg
+          icon="chevronDown"
+          className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+        />
+        <span className="sr-only">Edit</span>
       </summary>
-      <div className="px-5 pt-1 pb-5 sm:px-6">{children}</div>
+      <div className="details-body border-t border-line px-5 pt-4 pb-5 sm:px-6">
+        {children}
+      </div>
     </details>
+  );
+}
+
+/** The last row of a list: a + that opens the form for a new entry. */
+function AddRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="list-row">
+      <details className="group -mx-5 sm:-mx-6">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 font-medium transition-colors select-none hover:bg-canvas/50 sm:px-6 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-7 items-center justify-center rounded-full bg-ink text-white transition-transform duration-200 group-open:rotate-45">
+            <NavIconSvg icon="plus" className="size-4" />
+          </span>
+          {label}
+        </summary>
+        <div className="details-body border-t border-line px-5 pt-4 pb-5 sm:px-6">
+          {children}
+        </div>
+      </details>
+    </li>
   );
 }
 
@@ -503,7 +509,7 @@ function ClosureItem({ closure }: { closure: ClosureRow }) {
         icon="trash"
         label="Remove this closure"
         confirm
-        className="flex size-9 shrink-0 items-center justify-center rounded-control text-muted ring-1 ring-line transition-colors hover:bg-ink hover:text-white"
+        className="-mr-2 flex size-10 shrink-0 items-center justify-center rounded-control text-muted transition-colors hover:bg-ink hover:text-white"
       />
     </li>
   );

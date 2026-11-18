@@ -64,7 +64,7 @@ export function Dial({
           strokeLinecap="round"
           pathLength={100}
           strokeDasharray={`${shown * 100} 100`}
-          className={`transition-[stroke-dasharray] duration-700 ${tone === "dark" ? "stroke-white" : "stroke-ink"}`}
+          className={`draw-ring ${tone === "dark" ? "stroke-white" : "stroke-ink"}`}
         />
       </svg>
       <span aria-hidden="true" className="relative leading-none">
@@ -96,7 +96,7 @@ export function Meter({
       className={`block h-1.5 overflow-hidden rounded-full ${tone === "dark" ? "bg-white/12" : "bg-ink/[0.07]"} ${className}`}
     >
       <span
-        className={`block h-full rounded-full transition-[width] duration-700 ${tone === "dark" ? "bg-white" : "bg-ink"}`}
+        className={`grow-x block h-full rounded-full ${tone === "dark" ? "bg-white" : "bg-ink"}`}
         style={{ width: `${part > 0 ? Math.max(part * 100, 3) : 0}%` }}
       />
     </span>
@@ -136,7 +136,7 @@ export function SegmentBar({
           visible.map((segment) => (
             <span
               key={segment.key}
-              className={`block h-full first:rounded-l-full last:rounded-r-full ${segment.fill}`}
+              className={`grow-x block h-full first:rounded-l-full last:rounded-r-full ${segment.fill}`}
               style={{ width: `${(segment.value / total) * 100}%` }}
             />
           ))}
@@ -188,7 +188,7 @@ export function Columns({
       {values.map((value, index) => (
         <span
           key={index}
-          className={`min-h-[3px] flex-1 rounded-[2px] ${
+          className={`grow-y min-h-[3px] flex-1 rounded-[2px] ${
             index === highlight
               ? tone === "dark"
                 ? "bg-white"
@@ -201,7 +201,10 @@ export function Columns({
                   ? "bg-white/10"
                   : "bg-ink/[0.07]"
           }`}
-          style={{ height: `${(value / top) * 100}%` }}
+          style={{
+            height: `${(value / top) * 100}%`,
+            transitionDelay: `${index * 12}ms`,
+          }}
         />
       ))}
     </span>
