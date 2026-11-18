@@ -23,14 +23,18 @@ type GuestsData = {
 
 export function GuestsPage() {
   useTitle("Guests");
-  const state = useLoad(async (): Promise<GuestsData> => {
-    const [guests, unclaimed, plans] = await Promise.all([
-      listWaitingGuests(),
-      listUnclaimedMembers(),
-      listPlans(true),
-    ]);
-    return { guests, unclaimed, plans };
-  }, []);
+  const state = useLoad(
+    async (): Promise<GuestsData> => {
+      const [guests, unclaimed, plans] = await Promise.all([
+        listWaitingGuests(),
+        listUnclaimedMembers(),
+        listPlans(true),
+      ]);
+      return { guests, unclaimed, plans };
+    },
+    [],
+    "guests",
+  );
   return <Loaded state={state}>{(data) => <GuestsView {...data} />}</Loaded>;
 }
 

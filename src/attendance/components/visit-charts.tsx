@@ -19,10 +19,13 @@ const monthOf = (date: IsoDate) => months[Number(date.slice(5, 7)) - 1];
 export function VisitCharts({
   visits,
   today,
+  footnote,
 }: {
   /** Gym dates with a visit, any order. */
   visits: IsoDate[];
   today: IsoDate;
+  /** One quiet line under the charts, e.g. visits from earlier years. */
+  footnote?: string;
 }) {
   const grid = visitGrid(visits, today);
   const weeks = weeklyVisits(visits, today);
@@ -45,6 +48,11 @@ export function VisitCharts({
 
       <VisitGrid grid={grid} />
       <WeeklyBars weeks={weeks} average={average} />
+      {footnote && (
+        <p className="mt-4 border-t border-line pt-4 text-sm text-muted">
+          {footnote}
+        </p>
+      )}
     </section>
   );
 }

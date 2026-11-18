@@ -61,18 +61,24 @@ function StaffHome({ viewer }: { viewer: Viewer }) {
   const today = todayAtGym();
   const thisMonth = today.slice(0, 7);
 
-  const state = useLoad(async () => {
-    const [members, guests, visits, batches, collectedPaise, controls] =
-      await Promise.all([
-        listMembers(viewer),
-        canManage ? listWaitingGuests() : Promise.resolve([]),
-        listVisitsOn(today),
-        getBatches(),
-        seesFees ? getCollected(`${thisMonth}-01`, today) : Promise.resolve(0),
-        canPublish ? getTodayControls() : Promise.resolve(null),
-      ]);
-    return { members, guests, visits, batches, collectedPaise, controls };
-  }, [viewer.userId, viewer.role]);
+  const state = useLoad(
+    async () => {
+      const [members, guests, visits, batches, collectedPaise, controls] =
+        await Promise.all([
+          listMembers(viewer),
+          canManage ? listWaitingGuests() : Promise.resolve([]),
+          listVisitsOn(today),
+          getBatches(),
+          seesFees
+            ? getCollected(`${thisMonth}-01`, today)
+            : Promise.resolve(0),
+          canPublish ? getTodayControls() : Promise.resolve(null),
+        ]);
+      return { members, guests, visits, batches, collectedPaise, controls };
+    },
+    [viewer.userId, viewer.role],
+    "staff-home",
+  );
 
   const firstName = (viewer.fullName || "").trim().split(/\s+/)[0];
 
@@ -313,15 +319,19 @@ function greeting(): string {
 
 function MemberHome({ viewer }: { viewer: Viewer }) {
   const today = todayAtGym();
-  const state = useLoad(async () => {
-    const membership = await getOwnMembership(viewer);
-    if (!membership) return null;
-    const [payments, attendance] = await Promise.all([
-      getMemberPayments(membership.memberId),
-      getOwnAttendance(membership.memberId),
-    ]);
-    return { membership, payments, attendance };
-  }, [viewer.userId]);
+  const state = useLoad(
+    async () => {
+      const membership = await getOwnMembership(viewer);
+      if (!membership) return null;
+      const [payments, attendance] = await Promise.all([
+        getMemberPayments(membership.memberId),
+        getOwnAttendance(membership.memberId),
+      ]);
+      return { membership, payments, attendance };
+    },
+    [viewer.userId],
+    "member-home",
+  );
 
   return (
     <Loaded state={state}>

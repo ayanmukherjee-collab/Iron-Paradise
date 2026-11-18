@@ -56,15 +56,19 @@ export function AttendancePage() {
   const month = isMonthKey(wanted) && wanted <= thisMonth ? wanted : thisMonth;
   const query = (params.get("q") ?? "").trim().slice(0, 60);
 
-  const state = useLoad(async () => {
-    const [visits, everyone, summary, batches] = await Promise.all([
-      listVisitsOn(today),
-      listMembers(viewer),
-      getMonthSummary(month),
-      getBatches(),
-    ]);
-    return { visits, everyone, summary, batches };
-  }, [viewer.userId, month, today]);
+  const state = useLoad(
+    async () => {
+      const [visits, everyone, summary, batches] = await Promise.all([
+        listVisitsOn(today),
+        listMembers(viewer),
+        getMonthSummary(month),
+        getBatches(),
+      ]);
+      return { visits, everyone, summary, batches };
+    },
+    [viewer.userId, month, today],
+    "attendance",
+  );
 
   return (
     <Loaded state={state}>

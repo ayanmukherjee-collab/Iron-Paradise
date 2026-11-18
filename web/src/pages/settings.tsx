@@ -16,7 +16,7 @@ import {
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
-import { todayAtGym } from "@/lib/dates";
+import { formatDate, todayAtGym } from "@/lib/dates";
 import { formatPaise, paiseToInput } from "@/lib/money";
 import {
   deleteClosure,
@@ -28,29 +28,42 @@ import {
 import { saveGoneQuietDays, savePlan } from "../actions/members";
 import { useViewer, viewerCan } from "../auth/viewer";
 import { getHoursSettings, type ClosureRow } from "../data/attendance";
-import { getGoneQuietDays, listPlans, type Plan } from "../data/members";
+import { nextYearClose } from "@/payments/year-close";
+import {
+  getClosedHistory,
+  getGoneQuietDays,
+  listPlans,
+  type ClosedHistory,
+  type Plan,
+} from "../data/members";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
 
 type SettingsData = {
   plans: Plan[];
   quietDays: number;
   hours: Awaited<ReturnType<typeof getHoursSettings>>;
+  history: ClosedHistory;
 };
 
 export function SettingsPage() {
   useTitle("Settings");
-  const state = useLoad(async (): Promise<SettingsData> => {
-    const [plans, quietDays, hours] = await Promise.all([
-      listPlans(),
-      getGoneQuietDays(),
-      getHoursSettings(),
-    ]);
-    return { plans, quietDays, hours };
-  }, []);
+  const state = useLoad(
+    async (): Promise<SettingsData> => {
+      const [plans, quietDays, hours, history] = await Promise.all([
+        listPlans(),
+        getGoneQuietDays(),
+        getHoursSettings(),
+        getClosedHistory(),
+      ]);
+      return { plans, quietDays, hours, history };
+    },
+    [],
+    "settings",
+  );
   return <Loaded state={state}>{(data) => <SettingsView {...data} />}</Loaded>;
 }
 
-function SettingsView({ plans, quietDays, hours }: SettingsData) {
+function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
   const today = todayAtGym();
   const viewer = useViewer();
 
@@ -243,6 +256,8 @@ function SettingsView({ plans, quietDays, hours }: SettingsData) {
           </li>
         </ul>
       </section>
+
+      <HistorySection history={history} today={today} />
     </div>
   );
 }
@@ -286,6 +301,66 @@ function Row({
         {children}
       </div>
     </details>
+  );
+}
+
+/**
+ * The yearly close: when it runs, and the totals it kept from the years it
+ * cleared out (see supabase/migrations/*_year_close.sql).
+ */
+function HistorySection({
+  history,
+  today,
+}: {
+  history: ClosedHistory;
+  today: string;
+}) {
+  const next = nextYearClose(today);
+  return (
+    <section>
+      <h2 className="px-1 section-title">History</h2>
+      <p className="mt-1 px-1 text-sm text-muted">
+        The last 12 to 24 months stay in full. Older records become yearly
+        totals.
+      </p>
+      <ul className="mt-3 list-card">
+        <li className="list-row">
+          <Row title="Yearly clean-up" detail={`Next ${formatDate(next.on)}`}>
+            <p className="text-sm">
+              Every 1 April, everything before the previous 1 April is added up
+              into totals and then deleted, so the app stays quick as the years
+              pile up. Balances and due dates don&apos;t change.
+            </p>
+            <p className="mt-3 text-sm text-muted">
+              On {formatDate(next.on)}: records before {formatDate(next.cutoff)}
+              .{" "}
+              {history.closedBefore
+                ? `Already cleared: everything before ${formatDate(history.closedBefore)}.`
+                : "Nothing cleared yet."}{" "}
+              The full detail is saved first as CSV files in Supabase, under
+              Storage → archives.
+            </p>
+          </Row>
+        </li>
+        {history.years.map((year) => (
+          <li
+            key={year.label}
+            className="flex min-h-16 items-center gap-3 list-row py-3"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{year.label}</span>
+              <span className="block truncate text-sm text-muted">
+                {year.checkIns.toLocaleString("en-IN")} check-ins ·{" "}
+                {year.joined} joined · {year.payments} payments
+              </span>
+            </span>
+            <span className="shrink-0 font-semibold tabular-nums">
+              {formatPaise(year.collectedPaise)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

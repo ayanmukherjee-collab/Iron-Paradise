@@ -6,7 +6,7 @@ import { Loaded, useLoad, useTitle } from "../data/use-load";
 
 export function AuditPage() {
   useTitle("Audit log");
-  const state = useLoad(() => listAuditEntries(), []);
+  const state = useLoad(() => listAuditEntries(), [], "audit");
   return (
     <Loaded state={state}>
       {(entries) => <AuditView entries={entries} />}

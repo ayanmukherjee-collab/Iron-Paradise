@@ -4,7 +4,7 @@
 // Node's built-in modules under "node:" names, so those stay external.
 //
 //   npm run fn:build
-//   npx supabase functions deploy reminders send-test-push
+//   npx supabase functions deploy reminders send-test-push year-close
 import { builtinModules } from "node:module";
 import { build } from "esbuild";
 
@@ -44,7 +44,7 @@ const nextOnly = {
   },
 };
 
-for (const name of ["reminders", "send-test-push"]) {
+for (const name of ["reminders", "send-test-push", "year-close"]) {
   await build({
     entryPoints: [`supabase/functions-src/${name}.ts`],
     outfile: `supabase/functions/${name}/index.js`,

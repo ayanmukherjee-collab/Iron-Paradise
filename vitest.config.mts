@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "server-only": fileURLToPath(
+        new URL("./src/db/testing/server-only-stub.ts", import.meta.url),
+      ),
       // Shared components import next/* names; the static app's shims back them.
       "next/link": fileURLToPath(
         new URL("./web/src/shims/next-link.tsx", import.meta.url),

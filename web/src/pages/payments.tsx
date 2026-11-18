@@ -13,7 +13,7 @@ import { Loaded, useLoad, useTitle } from "../data/use-load";
 export function PaymentsPage() {
   useTitle("Payments");
   // No month columns: this list never shows them (only the export does).
-  const state = useLoad(() => getPaymentSheet([]), []);
+  const state = useLoad(() => getPaymentSheet([]), [], "payments");
   return (
     <Loaded state={state}>{(rows) => <PaymentsView rows={rows} />}</Loaded>
   );
