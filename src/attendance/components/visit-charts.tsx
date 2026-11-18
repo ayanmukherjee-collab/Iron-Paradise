@@ -75,13 +75,19 @@ function Figure({
 const cell = 16;
 const gap = 4;
 const step = cell + gap;
+// Both charts leave the same margin on each side, so the squares sit in the
+// middle of the card and each week's bar lines up under its column. The
+// margin also holds the day letters and today's ring, which is drawn a
+// little outside its square.
 const gridLeft = 18;
 const gridTop = 16;
+const ringPad = 3;
+const chartWidth = (columns: number) => gridLeft * 2 + columns * step - gap;
 
 /** One square per day: filled for a visit, ringed for today. */
 function VisitGrid({ grid }: { grid: GridDay[][] }) {
-  const width = gridLeft + grid.length * step - gap;
-  const height = gridTop + 7 * step - gap;
+  const width = chartWidth(grid.length);
+  const height = gridTop + 7 * step - gap + ringPad;
   const visited = grid.flat().filter((day) => day.visited).length;
   // A month's name over the first week that starts in it.
   const monthLabels = grid.flatMap((week, i) => {
@@ -129,9 +135,14 @@ function VisitGrid({ grid }: { grid: GridDay[][] }) {
               width={cell}
               height={cell}
               rx={4}
+              style={
+                day.visited
+                  ? { transitionDelay: `${column * 30}ms` }
+                  : undefined
+              }
               className={
                 day.visited
-                  ? "fill-ink"
+                  ? "pop-in fill-ink"
                   : day.future
                     ? "fill-transparent stroke-ink/10"
                     : "fill-ink/[0.07]"
@@ -159,7 +170,7 @@ function VisitGrid({ grid }: { grid: GridDay[][] }) {
             ) : null,
           )}
       </svg>
-      <figcaption className="mt-2 flex items-center justify-end gap-3 text-xs text-muted">
+      <figcaption className="mt-2 flex items-center justify-center gap-3 text-xs text-muted">
         <Key className="bg-ink/[0.07]" label="Missed" />
         <Key className="bg-ink" label="Visited" />
         <Key className="ring-2 ring-blaze ring-inset" label="Today" />
@@ -192,7 +203,7 @@ function WeeklyBars({
   weeks: WeekCount[];
   average: number;
 }) {
-  const width = weeks.length * step - gap;
+  const width = chartWidth(weeks.length);
   const plot = barsHeight - barsTop - barsBottom;
   const top = Math.max(4, ...weeks.map((week) => week.visits));
   const y = (value: number) => barsTop + plot - (value / top) * plot;
@@ -223,8 +234,8 @@ function WeeklyBars({
         </defs>
         {average > 0 && (
           <line
-            x1={0}
-            x2={width}
+            x1={gridLeft}
+            x2={width - gridLeft}
             y1={y(average)}
             y2={y(average)}
             className="stroke-ink/30"
@@ -234,10 +245,11 @@ function WeeklyBars({
         {weeks.map((week, i) => {
           const barTop = y(week.visits);
           const height = barsTop + plot - barTop;
+          const x = gridLeft + i * step;
           return (
             <g key={week.start}>
               <rect
-                x={i * step}
+                x={x}
                 y={barsTop}
                 width={cell}
                 height={plot}
@@ -246,13 +258,14 @@ function WeeklyBars({
               />
               {week.visits > 0 && (
                 <rect
-                  x={i * step}
+                  x={x}
                   y={barTop}
                   width={cell}
                   height={height}
                   rx={4}
                   fill={i === last ? "url(#this-week)" : undefined}
-                  className={i === last ? "stroke-ink" : "fill-ink"}
+                  className={`grow-y ${i === last ? "stroke-ink" : "fill-ink"}`}
+                  style={{ transitionDelay: `${i * 30}ms` }}
                   strokeWidth={i === last ? 1 : undefined}
                 >
                   <title>{`Week of ${week.start}: ${week.visits}`}</title>
@@ -260,7 +273,7 @@ function WeeklyBars({
               )}
               {(i === last || week.visits === top) && week.visits > 0 && (
                 <text
-                  x={i * step + cell / 2}
+                  x={x + cell / 2}
                   y={barTop - 3}
                   textAnchor="middle"
                   className="fill-ink text-[9px] font-semibold"
@@ -270,16 +283,9 @@ function WeeklyBars({
               )}
               {i % 4 === 0 || i === last ? (
                 <text
-                  // The end labels hug the edges so they aren't cut off.
-                  x={
-                    i === 0
-                      ? 0
-                      : i === last
-                        ? i * step + cell
-                        : i * step + cell / 2
-                  }
+                  x={x + cell / 2}
                   y={barsHeight - 3}
-                  textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"}
+                  textAnchor="middle"
                   className="fill-muted text-[8px]"
                 >
                   {i === last

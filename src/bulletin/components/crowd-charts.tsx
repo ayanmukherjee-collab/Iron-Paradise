@@ -64,7 +64,7 @@ export function CrowdZones({
                   width={`${(end - start) * part}%`}
                   height="10"
                   rx="5"
-                  className="fill-ink transition-[width] duration-700"
+                  className="grow-x fill-ink"
                 />
               )}
             </g>

@@ -1,11 +1,14 @@
 // Mirrors src/app/app/members/[id]/page.tsx.
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useParams } from "react-router";
-import { roleLabels } from "@/auth/permissions";
+import { VisitCharts } from "@/attendance/components/visit-charts";
+import { roleLabels, type Role } from "@/auth/permissions";
 import { memberAccountRoles } from "@/auth/roles";
 import { NavIconSvg } from "@/components/nav/nav-icons";
 import { ActionForm } from "@/components/ui/action-form";
+import { useAfterSave } from "@/components/ui/after-save";
 import { BackLink } from "@/components/ui/back-link";
+import { Dialog } from "@/components/ui/dialog";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import Link from "@/components/ui/link";
@@ -96,37 +99,28 @@ function MemberView({
   const canDelete = viewerCan(viewer, "members.delete");
   const today = todayAtGym();
   const inToday = detail.visits.some((visit) => visit.gymDate === today);
-  const visitsThisMonth = detail.visits.filter((visit) =>
-    visit.gymDate.startsWith(today.slice(0, 7)),
-  ).length;
-  const lastVisit = detail.visits[0]?.gymDate ?? null;
   const ledger = payments?.ledger ?? null;
   const owes = (ledger?.owedPaise ?? 0) > 0;
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const actionTabs: Tab[] = [
-    ...(canEditMembership && membership
-      ? [
-          {
-            id: "fee",
-            label: "Change fee",
-            content: <FeeForm detail={detail} />,
-          },
-        ]
-      : []),
     ...(canEdit
       ? [
           {
             id: "details",
-            label: "Edit details",
+            label: "Details",
             content: <DetailsForm detail={detail} />,
           },
         ]
+      : []),
+    ...(canEditMembership && membership
+      ? [{ id: "fee", label: "Fee", content: <FeeForm detail={detail} /> }]
       : []),
     ...(canEditMembership && membership && payments
       ? [
           {
             id: "due",
-            label: "Due date",
+            label: "Due",
             content: <DueDateForm detail={detail} dueOn={payments.dueToMove} />,
           },
         ]
@@ -141,20 +135,34 @@ function MemberView({
         ]
       : []),
   ];
+  const hasActions = actionTabs.length > 0 || canDelete;
+  const showMarkIn = canMark && status !== "inactive" && !inToday;
 
   return (
     <article className="space-y-4">
       <header className="page-header">
         <BackLink href="/app/members" label="Members" className="mb-1" />
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 page-title break-words">{member.fullName}</h1>
-          <StatusBadge status={status} />
+        <div className="flex items-center gap-3">
+          <h1 className="min-w-0 flex-1 page-title break-words">
+            {member.fullName}
+          </h1>
+          {hasActions && (
+            <button
+              type="button"
+              onClick={() => setActionsOpen(true)}
+              aria-label="Account actions"
+              title="Account actions"
+              className="flex size-11 shrink-0 items-center justify-center rounded-control bg-white text-ink shadow-card ring-1 ring-line transition-colors hover:bg-ink hover:text-white"
+            >
+              <NavIconSvg icon="gear" className="size-5" />
+            </button>
+          )}
         </div>
       </header>
 
       {/* Who they are and where they stand, at a glance. */}
       <section className="card p-5 sm:p-6">
-        <div>
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <span className="font-mono text-ink">{member.memberCode}</span>
@@ -170,21 +178,18 @@ function MemberView({
                 {formatMobile(member.phone)}
               </a>
             </p>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-              <NavIconSvg icon="user" className="size-4 shrink-0" />
-              <span className="truncate">
-                {detail.accountEmail
-                  ? `${detail.accountEmail}${detail.accountRole && detail.accountRole !== "member" ? ` · ${roleLabels[detail.accountRole]}` : ""}`
-                  : member.profileId
-                    ? "App account linked"
-                    : "No app account yet"}
-              </span>
+            <p className="mt-1 truncate text-sm text-muted">
+              {detail.accountEmail ??
+                (member.profileId
+                  ? "App account linked"
+                  : "No app account yet")}
             </p>
           </div>
+          <StatusBadge status={status} />
         </div>
 
         <dl
-          className={`mt-5 grid gap-2 ${payments ? "grid-cols-3" : "grid-cols-2"}`}
+          className={`mt-5 grid gap-2 ${payments ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)]" : "grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]"}`}
         >
           {payments && (
             <Stat
@@ -199,7 +204,7 @@ function MemberView({
               }
               note={
                 owes
-                  ? undefined
+                  ? "Owed"
                   : ledger?.nextUnpaid
                     ? `Next ${formatShortDate(ledger.nextUnpaid.dueOn, today)}`
                     : status === "frozen"
@@ -208,17 +213,6 @@ function MemberView({
               }
             />
           )}
-          <Stat
-            label="This month"
-            value={String(visitsThisMonth)}
-            note={
-              inToday
-                ? "In today"
-                : lastVisit
-                  ? `Last ${formatShortDate(lastVisit, today)}`
-                  : "—"
-            }
-          />
           <Stat
             label="Membership"
             value={
@@ -233,10 +227,15 @@ function MemberView({
             note={
               membership
                 ? membership.feePaise
-                  ? "a month"
+                  ? "A month"
                   : `Since ${formatShortDate(membership.startsOn, today)}`
                 : undefined
             }
+          />
+          <TypeStat
+            memberId={member.id}
+            role={detail.accountRole}
+            canChange={canChangeType && !!member.profileId}
           />
         </dl>
 
@@ -254,18 +253,17 @@ function MemberView({
           </p>
         )}
 
-        {((canRecord && ledger) ||
-          (canMark && status !== "inactive" && !inToday)) && (
-          <div className="mt-4 flex flex-wrap gap-2">
+        {((canRecord && ledger) || showMarkIn) && (
+          <div className="mt-4 flex gap-2">
             {canRecord && ledger && (
               <Link
                 href={`/app/members/${member.id}/pay`}
-                className="btn-dark flex-1 sm:flex-none"
+                className="btn-dark flex-1 px-4 whitespace-nowrap sm:flex-none"
               >
                 Record payment
               </Link>
             )}
-            {canMark && status !== "inactive" && !inToday && (
+            {showMarkIn && (
               <ActionForm
                 action={markAttendance}
                 submitLabel="Mark in today"
@@ -301,37 +299,6 @@ function MemberView({
         </section>
       )}
 
-      {actionTabs.length > 0 && (
-        <Disclosure title="Account actions" icon="sliders">
-          <Tabs tabs={actionTabs} label="Account actions" />
-        </Disclosure>
-      )}
-
-      {canChangeType && member.profileId && detail.accountRole && (
-        <section className="card p-4 sm:px-6 sm:py-5">
-          <ActionForm
-            action={changeMemberRole}
-            submitLabel="Save"
-            className="flex flex-wrap items-end gap-3 [&>div]:mt-0"
-          >
-            <input type="hidden" name="memberId" value={member.id} />
-            <Field label="Member type" className="min-w-48 flex-1">
-              <select
-                name="role"
-                defaultValue={detail.accountRole}
-                className={inputClass}
-              >
-                {memberAccountRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {roleLabels[role]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </ActionForm>
-        </section>
-      )}
-
       {canLink && !member.profileId && member.isActive && (
         <Disclosure
           title="Claim link"
@@ -350,50 +317,17 @@ function MemberView({
       )}
 
       {payments && (
-        <Disclosure
-          title="Payment history"
-          summary={
-            payments.history.length === 0
-              ? "—"
-              : `${payments.history.length} ${payments.history.length === 1 ? "payment" : "payments"}`
-          }
-          icon="payments"
-        >
-          <PaymentHistory
-            history={payments.history}
-            canVoid={viewerCan(viewer, "payments.void")}
-            today={today}
-          />
-        </Disclosure>
+        <RecentPayments
+          history={payments.history}
+          canVoid={viewerCan(viewer, "payments.void")}
+          today={today}
+        />
       )}
 
-      <Disclosure
-        title="Visit history"
-        summary={
-          detail.visits.length === 0
-            ? "—"
-            : `Last ${formatShortDate(lastVisit!, today)} · ${visitsThisMonth} this month`
-        }
-        icon="attendance"
-      >
-        {detail.visits.length === 0 ? (
-          <p className="text-muted">No visits recorded yet.</p>
-        ) : (
-          <ul className="list-card">
-            {detail.visits.map((visit) => (
-              <li
-                key={visit.gymDate}
-                className="flex justify-between gap-3 list-row py-3 text-sm"
-              >
-                <span>{formatDate(visit.gymDate)}</span>
-                <span className="text-muted">
-                  {visit.method === "qr" ? "Scanned QR" : "Marked by staff"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Disclosure>
+      <VisitCharts
+        visits={detail.visits.map((visit) => visit.gymDate)}
+        today={today}
+      />
 
       {detail.pastMemberships.length > 0 && (
         <Disclosure
@@ -414,16 +348,215 @@ function MemberView({
         </Disclosure>
       )}
 
-      {canDelete && (
-        <Disclosure
-          title="Delete member"
-          summary="Permanent: removes every record of them"
-          icon="close"
+      {hasActions && (
+        <Dialog
+          open={actionsOpen}
+          onClose={() => setActionsOpen(false)}
+          title="Account actions"
+          headerExtra={canDelete && <DeleteButton detail={detail} />}
         >
-          <DeleteMemberForm detail={detail} />
-        </Disclosure>
+          {actionTabs.length > 0 ? (
+            <Tabs tabs={actionTabs} label="Account actions" />
+          ) : (
+            <p className="text-sm text-muted">
+              Only deleting is open to you here.
+            </p>
+          )}
+        </Dialog>
       )}
     </article>
+  );
+}
+
+/** The latest three payments, with the rest a tap away. */
+function RecentPayments({
+  history,
+  canVoid,
+  today,
+}: {
+  history: MemberPayments["history"];
+  canVoid: boolean;
+  today: string;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all ? history : history.slice(0, 3);
+  return (
+    <section aria-label="Payments" className="card p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-semibold tracking-tight">
+          <NavIconSvg icon="payments" className="size-5" />
+          Payments
+        </h2>
+        {history.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setAll((value) => !value)}
+            className="min-h-10 text-sm font-medium text-muted underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink"
+          >
+            {all ? "Show fewer" : `See all ${history.length}`}
+          </button>
+        )}
+      </div>
+      <div className="mt-4">
+        <PaymentHistory history={shown} canVoid={canVoid} today={today} />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The app account's type, as one of the figures. Staff who may change it
+ * tap the small triangle for a menu; picking a type saves it straight away.
+ */
+function TypeStat({
+  memberId,
+  role,
+  canChange,
+}: {
+  memberId: string;
+  role: Role | null;
+  canChange: boolean;
+}) {
+  const afterSave = useAfterSave();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const choose = async (next: Role) => {
+    setOpen(false);
+    if (next === role) return;
+    setSaving(true);
+    setError(null);
+    const form = new FormData();
+    form.set("memberId", memberId);
+    form.set("role", next);
+    const result = await changeMemberRole(form);
+    setSaving(false);
+    if (result.ok) afterSave(result.data);
+    else setError(result.error);
+  };
+
+  const label = role ? roleLabels[role] : "—";
+  return (
+    <div ref={root} className="relative min-w-0 rounded-tile bg-canvas p-3">
+      <dt className="text-xs text-muted">Type</dt>
+      <dd className="mt-1">
+        {canChange && role ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={`Type: ${label}. Change type`}
+            disabled={saving}
+            onClick={() => setOpen((value) => !value)}
+            className="flex max-w-full items-center gap-1.5 text-base leading-7 font-semibold tracking-tight disabled:opacity-60"
+          >
+            <span className="truncate">{saving ? "Saving…" : label}</span>
+            <svg
+              viewBox="0 0 10 10"
+              aria-hidden="true"
+              className={`size-2.5 shrink-0 fill-current transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+            >
+              <path d="M1 3h8L5 8.5z" />
+            </svg>
+          </button>
+        ) : (
+          <span className="block truncate text-base leading-7 font-semibold tracking-tight">
+            {label}
+          </span>
+        )}
+      </dd>
+      <dd
+        role={error ? "alert" : undefined}
+        className="truncate text-xs text-muted"
+        title={error ?? undefined}
+      >
+        {error ?? (role ? "Account" : "No account")}
+      </dd>
+      {open && (
+        <ul className="absolute top-full right-0 z-30 mt-1 w-44 origin-top-right rounded-tile bg-white p-1.5 shadow-float ring-1 ring-line motion-safe:animate-drop">
+          {memberAccountRoles.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                aria-pressed={option === role}
+                onClick={() => choose(option)}
+                className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-sm font-medium transition-colors hover:bg-canvas"
+              >
+                <span className="flex-1">{roleLabels[option]}</span>
+                {option === role && (
+                  <NavIconSvg icon="check" className="size-4" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The bin in Account actions. Deleting wipes a member's whole history, so
+ * an active member gets a tip to mark them inactive first (one tap, right
+ * there); only an inactive member gets the delete form.
+ */
+function DeleteButton({ detail }: { detail: MemberDetail }) {
+  const [open, setOpen] = useState(false);
+  const { member } = detail;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Delete member"
+        title="Delete member"
+        className="flex size-10 shrink-0 items-center justify-center rounded-control text-muted ring-1 ring-line transition-colors hover:bg-ink hover:text-white"
+      >
+        <NavIconSvg icon="trash" className="size-5" />
+      </button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={member.isActive ? "Mark inactive first" : "Delete member"}
+      >
+        {member.isActive ? (
+          <>
+            <p className="text-sm">
+              {firstName(member.fullName)} is still active. Mark them inactive
+              first: most of the time that&rsquo;s enough. It keeps their
+              payments and visits, and they can be reactivated later.
+            </p>
+            <ActionForm
+              action={deactivateMember}
+              submitLabel="Mark inactive"
+              success="Marked inactive."
+              variant="outline-dark"
+            >
+              <input type="hidden" name="memberId" value={member.id} />
+            </ActionForm>
+          </>
+        ) : (
+          <DeleteMemberForm detail={detail} />
+        )}
+      </Dialog>
+    </>
   );
 }
 
@@ -589,14 +722,6 @@ function DetailsForm({ detail }: { detail: MemberDetail }) {
 
 function DeleteMemberForm({ detail }: { detail: MemberDetail }) {
   const { member } = detail;
-  if (member.isActive) {
-    return (
-      <p className="text-sm text-muted">
-        Mark {firstName(member.fullName)} inactive first (Account actions → Edit
-        details). Most of the time that is enough: it keeps their history.
-      </p>
-    );
-  }
   return (
     <ActionForm
       action={deleteMember}

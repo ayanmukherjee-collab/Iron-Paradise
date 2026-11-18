@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import type { CheckInResult } from "@/attendance/types";
 import { isCheckInCode } from "@/attendance/code";
 import { CheckIn } from "@/attendance/components/check-in";
@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase";
  */
 export function CheckInPage() {
   const viewer = useViewer();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const code = params.get("c");
   const initialCode = isCheckInCode(code) ? code : null;
@@ -46,14 +47,16 @@ export function CheckInPage() {
   );
 
   return (
-    <section className="max-w-prose">
-      <header className="page-header mb-4">
-        <h1 className="page-title">Check in</h1>
-      </header>
+    <section className="mx-auto max-w-sm">
+      {/* No page furniture: the camera is the screen. */}
+      <h1 className="sr-only">Check in</h1>
       <CheckIn
         key={initialCode ?? "scan"}
         initialCode={initialCode}
         checkIn={checkIn}
+        onCancel={() =>
+          window.history.length > 1 ? navigate(-1) : navigate("/app")
+        }
       />
     </section>
   );

@@ -1,7 +1,10 @@
-// Mirrors src/app/app/reminders/page.tsx.
+// Mirrors src/app/app/reminders/page.tsx. Every row is the same shape: a
+// name on one line, one short muted line under it, and one control on the
+// right, so long names or amounts never push a row onto a third line.
+import { useState } from "react";
 import Link from "@/components/ui/link";
 import { NavIconSvg } from "@/components/nav/nav-icons";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDateTime, formatShortDate, type IsoDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { OverdueQueue } from "@/notifications/components/overdue-queue";
 import { WhatsAppButton } from "@/notifications/components/whatsapp-button";
@@ -11,7 +14,7 @@ import {
   stageLabels,
   statusLabels,
 } from "@/notifications/message";
-import type { ReminderStage } from "@/notifications/schedule";
+import type { DueReminder, ReminderStage } from "@/notifications/schedule";
 import {
   getReminderQueue,
   listNotificationLog,
@@ -34,6 +37,9 @@ export function RemindersPage() {
   return <Loaded state={state}>{(data) => <RemindersView {...data} />}</Loaded>;
 }
 
+/** How many sent entries show before "See all". */
+const logPreview = 8;
+
 function RemindersView({
   queue,
   log,
@@ -41,115 +47,97 @@ function RemindersView({
   queue: ReminderQueue;
   log: LogEntry[];
 }) {
+  const [allLog, setAllLog] = useState(false);
   // Which automatic channels the reminder job has keys for (set at build
   // time from the same settings the Edge Function uses).
-  const automatic = new Set([
-    ...(env.vapidPublicKey ? ["push"] : []),
-    ...(env.emailReminders ? ["email"] : []),
-  ]);
+  const automatic = [
+    { label: "Push", on: !!env.vapidPublicKey },
+    { label: "Email", on: !!env.emailReminders },
+  ];
   const overdueToSend = queue.items.filter(
     (item) => item.reminder.stage === "overdue" && !item.whatsAppSentAt,
   );
   const heldBack = queue.heldBack.noConsent + queue.heldBack.muted;
+  const shownLog = allLog ? log : log.slice(0, logPreview);
 
   return (
-    <div className="space-y-5">
-      <header className="page-header flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      <header className="page-header">
         <h1 className="page-title">Reminders</h1>
-        <ul className="flex gap-2" aria-label="Automatic reminders">
-          {(
-            [
-              ["push", "reminders", "Push"],
-              ["email", "mail", "Email"],
-            ] as const
-          ).map(([channel, icon, label]) => {
-            const on = automatic.has(channel);
-            return (
-              <li
-                key={channel}
-                title={`Automatic ${label.toLowerCase()} ${on ? "on" : "not set up"}`}
-                className={`inline-flex items-center gap-1.5 rounded-control px-3 py-2 text-xs font-medium ${on ? "bg-ink text-white" : "bg-white text-muted ring-1 ring-line"}`}
-              >
-                <NavIconSvg icon={icon} className="size-4" />
-                {label}
-                <span
-                  className={`size-1.5 rounded-full ${on ? "bg-white" : "bg-ink/25"}`}
-                />
-                <span className="sr-only">{on ? "on" : "off"}</span>
-              </li>
-            );
-          })}
-        </ul>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+          <span>Automatic:</span>
+          {automatic.map(({ label, on }) => (
+            <span key={label} className="inline-flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full ${on ? "bg-ink" : "bg-ink/20"}`}
+              />
+              {label} {on ? "on" : "off"}
+            </span>
+          ))}
+        </p>
       </header>
 
-      <section className="card-section">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="flex items-center gap-2 section-title">
-            To remind
-            <span className="rounded-badge bg-canvas px-2 py-0.5 text-sm tabular-nums">
-              {queue.items.length}
-            </span>
-          </h2>
-          <OverdueQueue
-            entries={overdueToSend.map((item) => ({
-              membershipId: item.membershipId,
-              fullName: item.fullName,
-              memberCode: item.memberCode,
-              summary: reminderSummary(item.reminder),
-              whatsAppLink: item.whatsAppLink,
-            }))}
-          />
-        </div>
+      <section className="space-y-3">
+        <SectionHeading title="To remind" count={queue.items.length} />
+        <OverdueQueue
+          entries={overdueToSend.map((item) => ({
+            membershipId: item.membershipId,
+            fullName: item.fullName,
+            memberCode: item.memberCode,
+            summary: reminderSummary(item.reminder),
+            whatsAppLink: item.whatsAppLink,
+          }))}
+        />
         {queue.items.length === 0 ? (
-          <p className="mt-6 text-center text-muted">All clear</p>
+          <p className="rounded-card bg-white p-6 text-center text-muted shadow-card">
+            All clear
+          </p>
         ) : (
-          <ul className="mt-6 list-card">
+          <ul className="list-card">
             {queue.items.map((item) => (
-              <QueueRow key={item.membershipId} item={item} />
+              <QueueRow
+                key={item.membershipId}
+                item={item}
+                today={queue.today}
+              />
             ))}
           </ul>
         )}
         {heldBack > 0 && (
-          <p className="mt-4 text-sm text-muted">
-            +{heldBack} hidden ·{" "}
+          <p className="px-1 text-sm text-muted">
+            +{heldBack} not shown:{" "}
             {[
               queue.heldBack.noConsent > 0 &&
-                `${queue.heldBack.noConsent} no consent`,
+                `${queue.heldBack.noConsent} without consent`,
               queue.heldBack.muted > 0 && `${queue.heldBack.muted} muted`,
             ]
               .filter(Boolean)
-              .join(" · ")}
+              .join(", ")}
           </p>
         )}
       </section>
 
-      <section className="card-section">
-        <h2 className="section-title">Sent</h2>
+      <section className="space-y-3">
+        <SectionHeading title="Sent" count={log.length}>
+          {log.length > logPreview && (
+            <button
+              type="button"
+              onClick={() => setAllLog((value) => !value)}
+              className="min-h-10 text-sm font-medium text-muted underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink"
+            >
+              {allLog ? "Show fewer" : `See all ${log.length}`}
+            </button>
+          )}
+        </SectionHeading>
         {log.length === 0 ? (
-          <p className="mt-4 text-center text-muted">Nothing yet</p>
+          <p className="rounded-card bg-white p-6 text-center text-muted shadow-card">
+            Nothing yet
+          </p>
         ) : (
-          <ol className="mt-6 list-card">
-            {log.map((entry) => (
-              <li key={entry.id} className="list-row py-3">
-                <p>
-                  <Link
-                    href={`/app/members/${entry.memberId}`}
-                    className="font-semibold underline decoration-line underline-offset-4 hover:decoration-ink"
-                  >
-                    {entry.fullName}
-                  </Link>{" "}
-                  <span className="font-mono text-sm">{entry.memberCode}</span>{" "}
-                  · {channelLabels[entry.channel]} ·{" "}
-                  {formatPaise(entry.amountPaise)} · {formatDate(entry.dueOn)}
-                </p>
-                <p className="text-sm text-muted">
-                  <strong className="text-ink">
-                    {statusLabels[entry.status]}
-                  </strong>{" "}
-                  · {formatDateTime(entry.at)} · {entry.sentBy ?? "Auto"}
-                  {entry.error && ` · ${entry.error}`}
-                </p>
-              </li>
+          <ol className="list-card">
+            {shownLog.map((entry) => (
+              <LogRow key={entry.id} entry={entry} />
             ))}
           </ol>
         )}
@@ -158,54 +146,126 @@ function RemindersView({
   );
 }
 
-const stageStyles: Record<ReminderStage, string> = {
-  overdue: "bg-ink text-white",
-  due_today: "bg-ink/10 text-ink",
-  due_soon: "bg-white text-ink ring-1 ring-inset ring-ink/20",
+function SectionHeading({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-10 items-center justify-between gap-3 px-1">
+      <h2 className="flex items-center gap-2 section-title">
+        {title}
+        <span className="rounded-badge bg-white px-2 py-0.5 text-sm font-medium text-muted tabular-nums ring-1 ring-line">
+          {count}
+        </span>
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+const stageDots: Record<ReminderStage, string> = {
+  overdue: "bg-ink",
+  due_today: "bg-ink/40",
+  due_soon: "ring-2 ring-inset ring-ink/30",
 };
 
-function QueueRow({ item }: { item: QueueItem }) {
+/** "₹600 · since 2 Nov", "₹600 · today", "₹600 · 21 Nov". */
+function shortSummary(reminder: DueReminder, today: IsoDate): string {
+  const amount = formatPaise(reminder.amountPaise);
+  switch (reminder.stage) {
+    case "overdue":
+      return `${amount} · since ${formatShortDate(reminder.unpaidSince, today)}`;
+    case "due_today":
+      return `${amount} · today`;
+    case "due_soon":
+      return `${amount} · ${formatShortDate(reminder.dueOn, today)}`;
+  }
+}
+
+function QueueRow({ item, today }: { item: QueueItem; today: IsoDate }) {
   const automatic = item.sent.filter((sent) => sent.channel !== "whatsapp");
+  const autoNote = automatic[0]
+    ? `${channelLabels[automatic[0].channel]} ${statusLabels[automatic[0].status].toLowerCase()}`
+    : null;
   return (
-    <li className="flex flex-wrap items-center justify-between gap-4 list-row py-4">
-      <div>
-        <p className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/members/${item.memberId}`}
-            className="text-lg font-semibold underline decoration-line underline-offset-4 hover:decoration-ink"
-          >
-            {item.fullName}
-          </Link>
-          <span className="font-mono text-sm">{item.memberCode}</span>
-          <span
-            className={`rounded-badge px-2 py-1 text-xs font-medium ${stageStyles[item.reminder.stage]}`}
-          >
+    <li className="flex min-h-[4.5rem] items-center gap-3 list-row py-3">
+      <span
+        aria-hidden="true"
+        className={`size-2.5 shrink-0 rounded-full ${stageDots[item.reminder.stage]}`}
+      />
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/app/members/${item.memberId}`}
+          className="block truncate font-semibold hover:underline hover:underline-offset-4"
+        >
+          {item.fullName}
+        </Link>
+        <p
+          className="truncate text-sm text-muted"
+          title={reminderSummary(item.reminder)}
+        >
+          <strong className="font-medium text-ink">
             {stageLabels[item.reminder.stage]}
-          </span>
+          </strong>{" "}
+          · {shortSummary(item.reminder, today)}
+          {autoNote && ` · ${autoNote}`}
         </p>
-        <p className="mt-1">{reminderSummary(item.reminder)}</p>
-        {automatic.length > 0 && (
-          <p className="text-sm text-muted">
-            {automatic
-              .map(
-                (sent) =>
-                  `${channelLabels[sent.channel]} ${statusLabels[sent.status].toLowerCase()} ${formatDateTime(sent.at)}`,
-              )
-              .join(" · ")}
-          </p>
-        )}
       </div>
       {item.whatsAppSentAt ? (
-        <p className="text-sm text-muted">
-          <NavIconSvg icon="check" className="mr-1 inline size-4" />
-          {formatDateTime(item.whatsAppSentAt)}
-        </p>
+        <span
+          title={`WhatsApp sent ${formatDateTime(item.whatsAppSentAt)}`}
+          className="flex h-11 shrink-0 items-center gap-1 rounded-control bg-canvas px-3 text-xs font-medium text-muted"
+        >
+          <NavIconSvg icon="check" className="size-4" />
+          Sent
+        </span>
       ) : (
         <WhatsAppButton
           href={item.whatsAppLink}
           membershipId={item.membershipId}
+          label={`WhatsApp ${item.fullName}`}
+          compact
         />
       )}
+    </li>
+  );
+}
+
+function LogRow({ entry }: { entry: LogEntry }) {
+  const detail = [
+    channelLabels[entry.channel],
+    statusLabels[entry.status],
+    formatDateTime(entry.at),
+    entry.sentBy ?? "Auto",
+    entry.error,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <li className="flex min-h-[4.5rem] items-center gap-3 list-row py-3">
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/app/members/${entry.memberId}`}
+          className="block truncate font-semibold hover:underline hover:underline-offset-4"
+        >
+          {entry.fullName}
+        </Link>
+        <p className="truncate text-sm text-muted" title={detail}>
+          {entry.status === "failed" ? (
+            <strong className="font-medium text-ink">{detail}</strong>
+          ) : (
+            detail
+          )}
+        </p>
+      </div>
+      <span className="shrink-0 text-sm font-semibold tabular-nums">
+        {formatPaise(entry.amountPaise)}
+      </span>
     </li>
   );
 }

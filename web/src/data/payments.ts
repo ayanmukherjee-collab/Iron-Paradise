@@ -238,7 +238,8 @@ export async function getPaymentForm(
     membershipId: row.id,
     feePaise: feeOn(membership.fees, today) ?? 0,
     owedPaise: ledger.owedPaise,
-    periods: payablePeriods(membership, paid ?? [], today),
+    // Two years ahead, so the longest plan (24 months) can be paid in one go.
+    periods: payablePeriods(membership, paid ?? [], today, 24),
     firstPayment: !paid?.length,
   };
 }

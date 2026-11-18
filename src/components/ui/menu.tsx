@@ -62,7 +62,7 @@ export function Menu({
       {open && (
         <div
           id={panelId}
-          className="absolute top-full right-0 z-30 mt-2 w-64 origin-top-right rounded-tile bg-white p-1.5 shadow-float ring-1 ring-line motion-safe:animate-rise"
+          className="absolute top-full right-0 z-30 mt-2 w-64 origin-top-right rounded-tile bg-white p-1.5 shadow-float ring-1 ring-line motion-safe:animate-drop"
         >
           {children(() => setOpen(false))}
         </div>

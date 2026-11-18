@@ -26,6 +26,7 @@ export function OverdueQueue({ entries }: { entries: QueueEntry[] }) {
     if (entries.length === 0) return null;
     return (
       <Button
+        className="w-full sm:w-auto"
         onClick={() => {
           setQueue(entries);
           setPosition(0);

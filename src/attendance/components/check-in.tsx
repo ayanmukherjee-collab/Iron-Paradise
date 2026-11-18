@@ -18,19 +18,23 @@ const unreachable =
 
 /**
  * Member check-in. Opened from a desk QR the code is already in the link and
- * goes straight off; opened from the app it starts the camera. iPhones open
+ * goes straight off; opened from the app the camera is already on, so the
+ * QR button in the nav is one tap to scanning. iPhones open
  * camera-scanned links in Safari, outside the installed app, which is why
  * the in-app scanner exists.
  */
 export function CheckIn({
   initialCode,
   checkIn,
+  onCancel,
 }: {
   initialCode: string | null;
   checkIn: (input: { code: string }) => Promise<ActionResult<CheckInResult>>;
+  /** Where Cancel goes from the first scan; without it, Cancel just stops. */
+  onCancel?: () => void;
 }) {
   const [outcome, setOutcome] = useState<Outcome>(null);
-  const [scanning, setScanning] = useState(false);
+  const [scanning, setScanning] = useState(!initialCode);
   const [pending, startTransition] = useTransition();
   const sentInitial = useRef(false);
   const afterSave = useAfterSave();
@@ -123,7 +127,13 @@ export function CheckIn({
           <p className="text-center text-muted">
             Point the camera at the QR on the front desk.
           </p>
-          <Button variant="outline-dark" onClick={() => setScanning(false)}>
+          <Button
+            variant="outline-dark"
+            className="w-full sm:w-auto"
+            onClick={() =>
+              onCancel && !outcome ? onCancel() : setScanning(false)
+            }
+          >
             Cancel
           </Button>
         </>
