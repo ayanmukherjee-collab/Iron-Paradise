@@ -13,10 +13,12 @@ const fee = (feePaise: number, effectiveFrom: string): FeeChange => ({
   createdAt: new Date(`${effectiveFrom}T00:00:00Z`),
 });
 
-const pay = (amountPaise: number, firstPeriod: number): LedgerPayment => ({
-  id: `payment-${firstPeriod}-${amountPaise}`,
-  amountPaise,
+/** A payment for `months` months from `firstPeriod`. */
+const pay = (firstPeriod: number, months = 1): LedgerPayment => ({
+  id: `payment-${firstPeriod}-${months}`,
   firstPeriod,
+  months,
+  amountPaise: months * 60000,
   createdAt: new Date("2026-01-01T00:00:00Z"),
 });
 
@@ -29,7 +31,7 @@ const membership: MembershipWithFees = {
   freezes: [],
   fees: [fee(60000, "2026-03-12")],
 };
-const paidTwoMonths = [pay(120000, 0)];
+const paidTwoMonths = [pay(0, 2)];
 
 function remind(
   today: string,
@@ -67,14 +69,8 @@ describe("the daily job's three reminders", () => {
   });
 
   it("stops once the fee is paid", () => {
-    expect(remind("2026-05-12", [pay(180000, 0)])).toBeNull();
-    expect(remind("2026-05-15", [pay(180000, 0)])).toBeNull();
-  });
-
-  it("asks only for what is left after a partial payment", () => {
-    expect(
-      remind("2026-05-12", [...paidTwoMonths, pay(20000, 2)])?.amountPaise,
-    ).toBe(40000);
+    expect(remind("2026-05-12", [pay(0, 3)])).toBeNull();
+    expect(remind("2026-05-15", [pay(0, 3)])).toBeNull();
   });
 
   it("sends nothing to free members", () => {
@@ -132,7 +128,7 @@ describe("a late payment never moves the due date", () => {
     freezes: [],
     fees: [fee(60000, "2026-01-06")],
   };
-  const janAndFeb = [pay(60000, 0), pay(60000, 1)];
+  const janAndFeb = [pay(0), pay(1)];
 
   it("keeps the next due date on the 6th", () => {
     const ledger = buildLedger(joinedJan6, janAndFeb, "2026-02-08");

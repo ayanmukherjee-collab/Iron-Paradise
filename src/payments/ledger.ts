@@ -5,10 +5,13 @@
 // A membership has numbered periods: period 0 falls due on the billing start
 // (the first payment's day, or the joining day until then), period n on that
 // date n months later (moved by staff's due changes, pushed back by
-// freezes). Each
-// period owes the agreed fee in force on its due date. A payment fills its
-// first period up to that fee, then flows on to the next, so a short payment
-// is partial and a large one is an advance, with no special cases.
+// freezes). Each period owes the agreed fee in force on its due date.
+//
+// A payment is the money staff took and how many months it pays for (one
+// of the plans). It pays for exactly those months, from its first period on,
+// whatever the amount: the amount is a record of money received, for the
+// totals and charts, and never decides what is paid. So there are no part-
+// paid months, and nothing is ever worked out from a fee.
 import { addDays, type IsoDate } from "@/lib/dates";
 import {
   dueDates,
@@ -24,18 +27,20 @@ export const dueSoonDays = 3;
 export interface LedgerPayment {
   id: string;
   firstPeriod: number;
+  /** How many months, from firstPeriod on, this payment pays for. */
+  months: number;
   amountPaise: number;
   /** Orders payments that start on the same period. */
   createdAt: Date;
 }
 
-export type PeriodStatus =
-  "paid" | "partial" | "due" | "overdue" | "upcoming" | "free";
+export type PeriodStatus = "paid" | "due" | "overdue" | "upcoming" | "free";
 
 export interface PeriodState {
   index: number;
   dueOn: IsoDate;
   feePaise: number;
+  /** The fee when a payment covers this month, else 0. */
   paidPaise: number;
   status: PeriodStatus;
 }
@@ -51,12 +56,15 @@ export interface Ledger {
   periods: PeriodState[];
   /** Unpaid fees on periods already due. */
   owedPaise: number;
-  /** Money with no period left to fill (e.g. during an open-ended freeze). */
-  creditPaise: number;
+  /**
+   * Months paid for that have no date yet (an open-ended freeze holds them);
+   * they are paid as soon as the freeze ends.
+   */
+  creditMonths: number;
   /** The earliest period not yet paid in full; what to collect next. */
   nextUnpaid: PeriodState | null;
   standing: Standing;
-  /** The periods each payment went towards, by payment id. */
+  /** The periods each payment pays for, by payment id. */
   coverage: Map<string, Coverage>;
 }
 
@@ -119,7 +127,6 @@ function statusOf(
 ): PeriodStatus {
   if (period.feePaise === 0) return "free";
   if (period.paidPaise >= period.feePaise) return "paid";
-  if (period.paidPaise > 0) return "partial";
   if (period.dueOn < today) return "overdue";
   if (period.dueOn <= horizon) return "due";
   return "upcoming";
@@ -152,27 +159,22 @@ export function buildLedger(
       a.createdAt.getTime() - b.createdAt.getTime(),
   );
 
-  let creditPaise = 0;
+  // Months paid for that can't be dated yet, counted once each.
+  const undated = new Set<number>();
   let lastPaid = -1;
   const filled = new Map<string, { first: number; last: number }>();
   for (const payment of ordered) {
-    let remaining = payment.amountPaise;
-    let index = payment.firstPeriod;
-    while (remaining > 0) {
+    for (let i = 0; i < payment.months; i++) {
+      const index = payment.firstPeriod + i;
       const period = periodAt(index);
       if (!period) {
-        creditPaise += remaining;
-        break;
+        undated.add(index);
+        continue;
       }
-      const take = Math.min(remaining, period.feePaise - period.paidPaise);
-      if (take > 0) {
-        period.paidPaise += take;
-        remaining -= take;
-        lastPaid = Math.max(lastPaid, index);
-        const span = filled.get(payment.id);
-        filled.set(payment.id, { first: span?.first ?? index, last: index });
-      }
-      index++;
+      period.paidPaise = period.feePaise;
+      lastPaid = Math.max(lastPaid, index);
+      const span = filled.get(payment.id);
+      filled.set(payment.id, { first: span?.first ?? index, last: index });
     }
   }
 
@@ -182,7 +184,7 @@ export function buildLedger(
     const period = periodAt(index);
     if (!period) break;
     periods.push({ ...period, status: statusOf(period, today, horizon) });
-    if (period.dueOn > horizon && index >= lastPaid) break;
+    if (period.dueOn > horizon && index > lastPaid) break;
   }
 
   const owedPaise = periods
@@ -197,7 +199,7 @@ export function buildLedger(
   return {
     periods,
     owedPaise,
-    creditPaise,
+    creditMonths: undated.size,
     nextUnpaid:
       periods.find((period) => period.paidPaise < period.feePaise) ?? null,
     standing: standingOf(periods, membership, today, horizon),
@@ -235,9 +237,9 @@ export function reschedulablePeriod(ledger: Ledger, today: IsoDate): number {
 }
 
 /**
- * Periods a new payment can start from: anything not yet paid in full, then
- * future periods, so staff can take an advance. Oldest first, because money
- * usually settles the oldest debt.
+ * Periods a new payment can start from: anything not yet paid, then future
+ * periods, so staff can take an advance. Oldest first, because money usually
+ * settles the oldest debt.
  */
 export function payablePeriods(
   membership: MembershipWithFees,

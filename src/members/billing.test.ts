@@ -276,7 +276,7 @@ describe("agreed fees", () => {
     expect(feeOn(fees, "2026-03-20")).toBe(55000);
   });
 
-  it("applies a change from the next due date, never to months already due", () => {
+  it("applies a change from this month on, never to earlier months", () => {
     const membership: MembershipFacts = {
       startsOn: "2026-03-12",
       billingStartsOn: "2026-03-12",
@@ -285,8 +285,24 @@ describe("agreed fees", () => {
       freezes: [],
       fees: [fee(60000, "2026-03-12")],
     };
-    expect(feeChangeEffectiveFrom(membership, "2026-04-20")).toBe("2026-05-12");
+    // In the month that fell due on 12 Apr: from 12 Apr.
+    expect(feeChangeEffectiveFrom(membership, "2026-04-20")).toBe("2026-04-12");
     expect(feeChangeEffectiveFrom(membership, "2026-05-12")).toBe("2026-05-12");
+    // Before the first due date: from today.
+    expect(feeChangeEffectiveFrom(membership, "2026-03-01")).toBe("2026-03-01");
+  });
+
+  it("lets the newest edit win over an older change dated later", () => {
+    const fees = [
+      fee(60000, "2026-03-12", "2026-03-12T10:00:00Z"),
+      // Saved in April under the old rule, to start on 12 May.
+      fee(80000, "2026-05-12", "2026-04-20T10:00:00Z"),
+      // Saved later, applying from this month.
+      fee(70000, "2026-04-12", "2026-04-25T10:00:00Z"),
+    ];
+    expect(feeOn(fees, "2026-04-12")).toBe(70000);
+    expect(feeOn(fees, "2026-05-12")).toBe(70000);
+    expect(feeOn(fees, "2026-03-20")).toBe(60000);
   });
 });
 

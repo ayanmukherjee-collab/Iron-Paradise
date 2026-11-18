@@ -70,6 +70,30 @@ export const logWhatsAppReminder = guardedAction({
   },
 });
 
+/**
+ * The bell on the Reminders screen: sends push and email now to every
+ * member the screen lists as due. Runs the same job as the daily run, in the
+ * reminders Edge Function (it holds the push and email keys), so nobody gets
+ * the same reminder twice however often it is pressed.
+ */
+export const sendRemindersNow = guardedAction({
+  permission: "reminders.send",
+  input: z.object({}),
+  run: async () => {
+    const { data, error } = await supabase.functions.invoke<{
+      ok: boolean;
+      message: string;
+    }>("reminders", { method: "POST" });
+    if (error || !data) {
+      throw new Refusal(
+        "Couldn't send reminders right now. Try again in a few minutes.",
+      );
+    }
+    if (!data.ok) throw new Refusal(data.message);
+    return { message: data.message };
+  },
+});
+
 export const savePushSubscription = guardedAction({
   permission: "self.view",
   input: pushSubscription,

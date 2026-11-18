@@ -93,7 +93,7 @@ async function addMember(
     );
   }
   // March and April paid; May's fee falls due on the 12th.
-  await pay(memberId, membershipId, 120000, 0);
+  await pay(memberId, membershipId, 120000, 0, 2);
   if (profileId) {
     await t.client.query(
       "insert into public.push_subscriptions (profile_id, endpoint, p256dh, auth) values ($1, $2, $3, $4)",
@@ -113,11 +113,12 @@ async function pay(
   membershipId: string,
   amountPaise: number,
   firstPeriod: number,
+  months = 1,
 ) {
   await t.client.query(
-    `insert into public.payments (member_id, membership_id, first_period, amount_paise, method, paid_on, recorded_by)
-     values ($1, $2, $3, $4, 'cash', '2026-03-12', $5)`,
-    [memberId, membershipId, firstPeriod, amountPaise, owner],
+    `insert into public.payments (member_id, membership_id, first_period, months, amount_paise, method, paid_on, recorded_by)
+     values ($1, $2, $3, $4, $5, 'cash', '2026-03-12', $6)`,
+    [memberId, membershipId, firstPeriod, months, amountPaise, owner],
   );
 }
 
@@ -278,6 +279,38 @@ describe("the daily reminder run", () => {
     });
     expect(result).toMatchObject({ sent: 0, deferred: 1 });
     expect(await logRows()).toEqual([]);
+  });
+
+  it("reminds old overdue fees from the bell, logged as the staff member, only once", async () => {
+    const sent: Sent[] = [];
+    // Email: an earlier test made the push service forget Alice's phone.
+    const channels = [fakeChannel("email", sent)];
+    // Ten days late: past the daily run's overdue window.
+    const may22 = new Date("2026-05-22T03:30:00Z");
+    expect(await runReminders(t.db, channels, { now: may22 })).toMatchObject({
+      due: 0,
+    });
+
+    const result = await runReminders(t.db, channels, {
+      now: may22,
+      mode: "staff",
+      sentBy: owner,
+    });
+    const again = await runReminders(t.db, channels, {
+      now: may22,
+      mode: "staff",
+      sentBy: owner,
+    });
+
+    expect(sent.map((s) => [s.name, s.title])).toEqual([
+      ["Alice", "Gym fee overdue"],
+    ]);
+    expect(result).toMatchObject({ due: 1, sent: 1 });
+    expect(again).toMatchObject({ sent: 0, alreadySent: 1 });
+    const rows = await t.client.query<{ sent_by: string }>(
+      "select sent_by from public.notifications",
+    );
+    expect(rows.rows).toEqual([{ sent_by: owner }]);
   });
 
   it("stops once the fee is paid", async () => {

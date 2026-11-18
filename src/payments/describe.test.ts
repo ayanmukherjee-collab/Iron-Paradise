@@ -13,29 +13,39 @@ const membership: MembershipWithFees = {
   ],
 };
 
-function messageFor(amountPaise: number, startsAt = 0) {
+function messageFor(amountPaise: number, months: number, startsAt = 0) {
   const ledger = buildLedger(
     membership,
-    [{ id: "new", amountPaise, firstPeriod: startsAt, createdAt: new Date() }],
+    [
+      {
+        id: "new",
+        firstPeriod: startsAt,
+        months,
+        amountPaise,
+        createdAt: new Date(),
+      },
+    ],
     "2026-03-20",
   );
   return describeRecordedPayment(ledger, "new", amountPaise);
 }
 
 describe("the message after recording a payment", () => {
-  it("names the single month a full fee paid for", () => {
-    expect(messageFor(60000)).toBe("Recorded ₹600 for 12 Mar 2026.");
-  });
-
-  it("says how much is still due after a partial payment", () => {
-    expect(messageFor(40000)).toBe(
-      "Recorded ₹400 for 12 Mar 2026. ₹200 is still due for 12 Mar 2026.",
+  it("names the month paid for and the next due date", () => {
+    expect(messageFor(60000, 1)).toBe(
+      "Recorded ₹600 for 12 Mar 2026. Next due 12 Apr 2026.",
     );
   });
 
-  it("gives the range an advance covers", () => {
-    expect(messageFor(180000)).toBe(
-      "Recorded ₹1,800, covering 12 Mar 2026 to 12 May 2026.",
+  it("takes the amount as given: a smaller sum still pays the month", () => {
+    expect(messageFor(40000, 1)).toBe(
+      "Recorded ₹400 for 12 Mar 2026. Next due 12 Apr 2026.",
+    );
+  });
+
+  it("gives the range a longer plan covers", () => {
+    expect(messageFor(170000, 3)).toBe(
+      "Recorded ₹1,700, covering 12 Mar 2026 to 12 May 2026. Next due 12 Jun 2026.",
     );
   });
 });

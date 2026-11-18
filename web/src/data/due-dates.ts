@@ -46,7 +46,7 @@ export async function moveDueDate(
 
   let period: number;
   if (firstPayment) {
-    if (ledger.creditPaise > 0 || ledger.periods.some((p) => p.paidPaise > 0))
+    if (ledger.creditMonths > 0 || ledger.periods.some((p) => p.paidPaise > 0))
       throw new Refusal("Due from is only for the first payment.");
     period = 0;
   } else {

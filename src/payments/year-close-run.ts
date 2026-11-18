@@ -4,16 +4,13 @@ import { sql } from "drizzle-orm";
 import {
   attendance,
   members,
-  memberships,
   paymentVoids,
   payments,
   profiles,
 } from "@/db/schema";
 import type { Database } from "@/db/user-context";
 import { formatDateTime, type IsoDate } from "@/lib/dates";
-import { loadFacts, type MembershipRow } from "@/members/facts";
 import { ledgerTable, toCsv } from "@/payments/export";
-import type { MembershipWithFees } from "@/payments/ledger";
 import {
   planCarries,
   yearCloseCutoff,
@@ -35,7 +32,8 @@ export interface YearCloseResult {
 
 /**
  * The yearly close, start to finish, as the database owner: plan each
- * membership's carried-forward entries with the ledger code, hand the old
+ * membership's carried-forward entries (one per unbroken run of paid
+ * months), hand the old
  * rows to `archive` (which must succeed), then let private.close_year check
  * the plan, write the totals and delete, in the same transaction.
  */
@@ -60,28 +58,12 @@ export async function runYearClose(
       };
     }
 
-    const membershipRows: MembershipRow[] = await tx
-      .select({
-        id: memberships.id,
-        memberId: memberships.memberId,
-        startsOn: memberships.startsOn,
-        billingStartsOn: memberships.billingStartsOn,
-        dueChanges: memberships.dueChanges,
-        endedOn: memberships.endedOn,
-        planId: memberships.planId,
-      })
-      .from(memberships);
-    const facts = await loadFacts(tx, membershipRows, true, "all");
-    const withFees = new Map<string, MembershipWithFees>();
-    for (const [id, fact] of facts) {
-      if (fact.fees) withFees.set(id, { ...fact, fees: fact.fees });
-    }
-
     const paymentRows = await tx
       .select({
         id: payments.id,
         membershipId: payments.membershipId,
         firstPeriod: payments.firstPeriod,
+        months: payments.months,
         amountPaise: payments.amountPaise,
         paidOn: payments.paidOn,
         createdAt: payments.createdAt,
@@ -94,13 +76,14 @@ export async function runYearClose(
       id: row.id,
       membershipId: row.membershipId,
       firstPeriod: row.firstPeriod,
+      months: row.months,
       amountPaise: row.amountPaise,
       paidOn: row.paidOn,
       createdAt: row.createdAt,
       voided: row.voidedAt !== null,
       replacesPaymentId: row.replacesPaymentId,
     }));
-    const plans = planCarries(withFees, closePayments, cutoff, today);
+    const plans = planCarries(closePayments, cutoff);
 
     // The full detail of what's about to go, saved first.
     const files = await archiveFiles(tx, cutoff);

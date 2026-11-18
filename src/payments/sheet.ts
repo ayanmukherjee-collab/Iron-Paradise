@@ -30,7 +30,6 @@ export interface MembershipLedger {
 // whichever needs attention most.
 const urgency: CellStatus[] = [
   "overdue",
-  "partial",
   "due",
   "upcoming",
   "paid",

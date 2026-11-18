@@ -10,7 +10,11 @@ import {
 } from "@/notifications/candidates";
 import type { Channel, Recipient } from "@/notifications/channels/types";
 import { reminderMessage } from "@/notifications/message";
-import { reminderFor, type DueReminder } from "@/notifications/schedule";
+import {
+  reminderFor,
+  type DueReminder,
+  type ReminderMode,
+} from "@/notifications/schedule";
 import type { PushTarget } from "@/notifications/web-push";
 
 /**
@@ -41,13 +45,23 @@ export interface JobResult {
  * Runs on the server's own database connection, not as a user: there is no
  * signed-in person behind a scheduled job. The cron route that calls it
  * checks a shared secret first.
+ *
+ * `mode: "staff"` is the bell on the Reminders screen: it reminds everyone
+ * the staff queue lists (any overdue fee, however old) instead of only the
+ * daily windows, and logs who pressed it in `sentBy`.
  */
 export async function runReminders(
   db: Database,
   channels: Channel[],
-  options: { now?: Date; budget?: number } = {},
+  options: {
+    now?: Date;
+    budget?: number;
+    mode?: ReminderMode;
+    sentBy?: string;
+  } = {},
 ): Promise<JobResult> {
   const today = todayAtGym(options.now);
+  const mode = options.mode ?? "automatic";
   let budget = options.budget ?? defaultSendBudget;
   const result: JobResult = {
     today,
@@ -82,7 +96,7 @@ export async function runReminders(
 
   for (const candidate of candidates) {
     if (!mayRemind(candidate)) continue;
-    const reminder = reminderFor(candidate.ledger, today, "automatic");
+    const reminder = reminderFor(candidate.ledger, today, mode);
     if (!reminder) continue;
 
     const recipient = toRecipient(candidate, targets);
@@ -98,6 +112,7 @@ export async function runReminders(
       const outcome = await sendOnce(db, channel, candidate, recipient, {
         reminder,
         today,
+        sentBy: options.sentBy ?? null,
       });
       if (outcome === "already") {
         result.alreadySent++;
@@ -130,7 +145,11 @@ async function sendOnce(
   channel: Channel,
   candidate: ReminderCandidate,
   recipient: Recipient,
-  { reminder, today }: { reminder: DueReminder; today: string },
+  {
+    reminder,
+    today,
+    sentBy,
+  }: { reminder: DueReminder; today: string; sentBy: string | null },
 ): Promise<"sent" | "failed" | "already"> {
   const [claimed] = await db
     .insert(notifications)
@@ -142,6 +161,7 @@ async function sendOnce(
       channel: channel.name,
       dueOn: reminder.dueOn,
       amountPaise: reminder.amountPaise,
+      sentBy,
     })
     .onConflictDoNothing()
     .returning({ id: notifications.id });

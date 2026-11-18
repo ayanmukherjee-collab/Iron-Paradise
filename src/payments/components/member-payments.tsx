@@ -36,10 +36,11 @@ export function MemberPayments({
               {formatDate(ledger.nextUnpaid.dueOn)}
             </p>
           )}
-          {ledger.creditPaise > 0 && (
+          {ledger.creditMonths > 0 && (
             <p className="text-muted">
-              {formatPaise(ledger.creditPaise)} credit waiting for the next due
-              date
+              {ledger.creditMonths}{" "}
+              {ledger.creditMonths === 1 ? "month" : "months"} paid, starting
+              when the freeze ends
             </p>
           )}
         </div>

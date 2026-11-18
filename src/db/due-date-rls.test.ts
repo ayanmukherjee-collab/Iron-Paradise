@@ -215,7 +215,7 @@ describe("the first payment can start dues on any day", () => {
     );
     await pay(member, "2026-03-30");
     expect(await dueDates(member.membershipId)).toEqual({
-      periods: ["0 2026-05-01 paid"],
+      periods: ["0 2026-05-01 paid", "1 2026-06-01 upcoming"],
       owedPaise: 0,
     });
   });

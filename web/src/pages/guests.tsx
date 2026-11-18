@@ -8,29 +8,23 @@ import { formatDateTime, formatShortDate, todayAtGym } from "@/lib/dates";
 import { NewMembershipFields } from "@/members/components/new-membership-fields";
 import { formatMobile } from "@/members/phone";
 import { convertGuest, linkGuest } from "../actions/members";
-import {
-  listPlans,
-  listUnclaimedMembers,
-  listWaitingGuests,
-} from "../data/members";
+import { listUnclaimedMembers, listWaitingGuests } from "../data/members";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
 
 type GuestsData = {
   guests: Awaited<ReturnType<typeof listWaitingGuests>>;
   unclaimed: Awaited<ReturnType<typeof listUnclaimedMembers>>;
-  plans: Awaited<ReturnType<typeof listPlans>>;
 };
 
 export function GuestsPage() {
   useTitle("Guests");
   const state = useLoad(
     async (): Promise<GuestsData> => {
-      const [guests, unclaimed, plans] = await Promise.all([
+      const [guests, unclaimed] = await Promise.all([
         listWaitingGuests(),
         listUnclaimedMembers(),
-        listPlans(true),
       ]);
-      return { guests, unclaimed, plans };
+      return { guests, unclaimed };
     },
     [],
     "guests",
@@ -38,12 +32,7 @@ export function GuestsPage() {
   return <Loaded state={state}>{(data) => <GuestsView {...data} />}</Loaded>;
 }
 
-function GuestsView({ guests, unclaimed, plans }: GuestsData) {
-  const planOptions = plans.map(({ id, name, defaultFeePaise }) => ({
-    id,
-    name,
-    defaultFeePaise,
-  }));
+function GuestsView({ guests, unclaimed }: GuestsData) {
   const today = todayAtGym();
 
   return (
@@ -135,10 +124,7 @@ function GuestsView({ guests, unclaimed, plans }: GuestsData) {
                                   />
                                 </Field>
                               </div>
-                              <NewMembershipFields
-                                plans={planOptions}
-                                today={today}
-                              />
+                              <NewMembershipFields today={today} />
                               <Checkbox
                                 name="reminderConsent"
                                 label="Payment reminders"

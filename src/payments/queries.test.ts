@@ -98,7 +98,10 @@ async function freeze(membership: string, from: string, to: string | null) {
 }
 
 let recorded = 0;
-/** Records a payment; each one is stamped a minute after the last. */
+/**
+ * Records a payment for `months` months; each one is stamped a minute after
+ * the last.
+ */
 async function pay(
   name: string,
   membership: string,
@@ -106,14 +109,16 @@ async function pay(
   amountPaise: number,
   paidOn: string,
   recordedAt = new Date(Date.UTC(2026, 0, 1, 0, recorded++)),
+  months = 1,
 ) {
   const result = await t.client.query<{ id: string }>(
-    `insert into public.payments (member_id, membership_id, first_period, amount_paise, method, paid_on, recorded_by, created_at)
-     values ($1, $2, $3, $4, 'cash', $5, $6, $7) returning id`,
+    `insert into public.payments (member_id, membership_id, first_period, months, amount_paise, method, paid_on, recorded_by, created_at)
+     values ($1, $2, $3, $4, $5, 'cash', $6, $7, $8) returning id`,
     [
       ids[name].member,
       membership,
       firstPeriod,
+      months,
       amountPaise,
       paidOn,
       owner,
@@ -201,9 +206,9 @@ beforeAll(async () => {
   // Owes on an old membership; the new one is paid up.
   await addMember("Gita");
   const old = await addMembership("Gita", monthsAgo(20), 50000, monthsAgo(10));
-  await pay("Gita", old, 0, 100000, monthsAgo(20));
+  await pay("Gita", old, 0, 100000, monthsAgo(20), undefined, 2);
   const gita = await addMembership("Gita", monthsAgo(2), 55000);
-  await pay("Gita", gita, 0, 165000, monthsAgo(2));
+  await pay("Gita", gita, 0, 165000, monthsAgo(2), undefined, 3);
 
   // A month's freeze, and a raise half-way.
   await addMember("Hari");

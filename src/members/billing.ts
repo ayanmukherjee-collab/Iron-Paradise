@@ -220,10 +220,11 @@ export function activeFreeze(freezes: Freeze[], today: IsoDate): Freeze | null {
 }
 
 /**
- * The agreed fee on `date`: the newest change effective by then. A later
- * correction for the same date wins over an earlier entry. Before the first
- * fee took effect, the first fee: dues can start before the joining day
- * when staff move them there.
+ * The agreed fee on `date`: of the changes in effect by then, the one saved
+ * last. So the newest edit always wins from the day it applies, even over an
+ * older change that was dated later. Before the first fee took effect, the
+ * first fee: dues can start before the joining day when staff move them
+ * there.
  */
 export function feeOn(fees: FeeChange[], date: IsoDate): number | null {
   let current: FeeChange | null = null;
@@ -240,9 +241,9 @@ export function feeOn(fees: FeeChange[], date: IsoDate): number | null {
     if (fee.effectiveFrom > date) continue;
     if (
       !current ||
-      fee.effectiveFrom > current.effectiveFrom ||
-      (fee.effectiveFrom === current.effectiveFrom &&
-        fee.createdAt > current.createdAt)
+      fee.createdAt > current.createdAt ||
+      (fee.createdAt.getTime() === current.createdAt.getTime() &&
+        fee.effectiveFrom > current.effectiveFrom)
     ) {
       current = fee;
     }
@@ -251,14 +252,24 @@ export function feeOn(fees: FeeChange[], date: IsoDate): number | null {
 }
 
 /**
- * When a fee change takes effect: the next due date, so months already due
- * keep the fee agreed for them. During an open-ended freeze, from today.
+ * When a fee change takes effect: straight away, for the month the member
+ * is in now. That is the latest due date on or before today, so this
+ * month's fee (if it isn't paid yet) and every later one use the new fee,
+ * while earlier months keep the fee agreed for them. Before the first due
+ * date, or with no date to go by, from today.
  */
 export function feeChangeEffectiveFrom(
   membership: MembershipFacts,
   today: IsoDate,
 ): IsoDate {
-  return nextDueDate(membership, today) ?? today;
+  const dueOn = dueDates(membership);
+  let current: IsoDate | null = null;
+  for (let period = 0; period < maxPeriods; period++) {
+    const due = dueOn(period);
+    if (due === null || due > today) break;
+    current = due;
+  }
+  return current ?? today;
 }
 
 export function membershipStatus(

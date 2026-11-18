@@ -15,10 +15,16 @@ const fee = (feePaise: number, effectiveFrom: string): FeeChange => ({
 });
 
 let order = 0;
-const pay = (amountPaise: number, firstPeriod: number): LedgerPayment => ({
+/** A payment for `months` months from `firstPeriod`; the amount is a record. */
+const pay = (
+  firstPeriod: number,
+  months = 1,
+  amountPaise = 1000,
+): LedgerPayment => ({
   id: `payment-${order}`,
-  amountPaise,
   firstPeriod,
+  months,
+  amountPaise,
   createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, order++)),
 });
 
@@ -57,7 +63,7 @@ describe("periods follow the joining date", () => {
   });
 
   it("calls a period due from three days before until its due date", () => {
-    const paidUp = [pay(60000, 0)];
+    const paidUp = [pay(0)];
     expect(buildLedger(membership(), paidUp, "2026-04-08").standing).toBe(
       "paid",
     );
@@ -96,11 +102,7 @@ describe("periods follow the first payment once there is one", () => {
   });
 
   it("puts the first payment on period 0 and the next fee on the 8th", () => {
-    const ledger = buildLedger(
-      joinedJan6PaidJan8,
-      [pay(60000, 0)],
-      "2026-01-08",
-    );
+    const ledger = buildLedger(joinedJan6PaidJan8, [pay(0)], "2026-01-08");
     expect(summary(ledger)).toEqual([
       "2026-01-08 60000/60000 paid",
       "2026-02-08 0/60000 upcoming",
@@ -110,7 +112,7 @@ describe("periods follow the first payment once there is one", () => {
   });
 
   it("is not due on the 6th of later months", () => {
-    const paid = [pay(60000, 0)];
+    const paid = [pay(0)];
     expect(buildLedger(joinedJan6PaidJan8, paid, "2026-02-06").standing).toBe(
       "due",
     );
@@ -126,45 +128,33 @@ describe("periods follow the first payment once there is one", () => {
   });
 });
 
-describe("payments fill periods in order", () => {
-  it("marks a short payment as partial", () => {
-    const ledger = buildLedger(membership(), [pay(30000, 0)], "2026-03-20");
+describe("a payment pays for whole months", () => {
+  it("pays for one month whatever the amount", () => {
+    const ledger = buildLedger(membership(), [pay(0, 1, 30000)], "2026-03-20");
     expect(ledger.periods[0]).toMatchObject({
-      paidPaise: 30000,
-      status: "partial",
+      paidPaise: 60000,
+      status: "paid",
     });
-    expect(ledger.owedPaise).toBe(30000);
-    expect(ledger.nextUnpaid?.dueOn).toBe("2026-03-12");
-    expect(ledger.standing).toBe("overdue");
+    expect(ledger.owedPaise).toBe(0);
+    expect(ledger.nextUnpaid?.dueOn).toBe("2026-04-12");
+    expect(ledger.standing).toBe("paid");
   });
 
-  it("carries an advance across later periods, even ones not yet due", () => {
-    const ledger = buildLedger(membership(), [pay(200000, 0)], "2026-03-20");
+  it("pays ahead for later months, even ones not yet due", () => {
+    const ledger = buildLedger(membership(), [pay(0, 3, 150000)], "2026-03-20");
     expect(summary(ledger)).toEqual([
       "2026-03-12 60000/60000 paid",
       "2026-04-12 60000/60000 paid",
       "2026-05-12 60000/60000 paid",
-      "2026-06-12 20000/60000 partial",
+      "2026-06-12 0/60000 upcoming",
     ]);
     expect(ledger.owedPaise).toBe(0);
     expect(ledger.standing).toBe("paid");
     expect(ledger.nextUnpaid?.dueOn).toBe("2026-06-12");
   });
 
-  it("tops up a partial period before moving on", () => {
-    const ledger = buildLedger(
-      membership(),
-      [pay(30000, 0), pay(60000, 0)],
-      "2026-04-01",
-    );
-    expect(summary(ledger).slice(0, 2)).toEqual([
-      "2026-03-12 60000/60000 paid",
-      "2026-04-12 30000/60000 partial",
-    ]);
-  });
-
   it("starts where the payment says, leaving older debt in place", () => {
-    const ledger = buildLedger(membership(), [pay(60000, 1)], "2026-04-20");
+    const ledger = buildLedger(membership(), [pay(1)], "2026-04-20");
     expect(summary(ledger).slice(0, 2)).toEqual([
       "2026-03-12 0/60000 overdue",
       "2026-04-12 60000/60000 paid",
@@ -172,21 +162,17 @@ describe("payments fill periods in order", () => {
     expect(ledger.nextUnpaid?.dueOn).toBe("2026-03-12");
   });
 
-  it("skips periods that are already paid", () => {
-    const ledger = buildLedger(
-      membership(),
-      [pay(60000, 0), pay(60000, 0)],
-      "2026-03-20",
-    );
+  it("pays a month once, however many payments cover it", () => {
+    const ledger = buildLedger(membership(), [pay(0), pay(0)], "2026-03-20");
     expect(ledger.periods[1]).toMatchObject({
       dueOn: "2026-04-12",
-      status: "paid",
+      status: "upcoming",
     });
   });
 
   it("does not depend on the order payments are listed in", () => {
-    const first = pay(30000, 0);
-    const second = pay(90000, 0);
+    const first = pay(0, 1);
+    const second = pay(1, 3);
     expect(
       summary(buildLedger(membership(), [second, first], "2026-05-01")),
     ).toEqual(
@@ -201,7 +187,7 @@ describe("fees are per member and change from a due date", () => {
       membership({
         fees: [fee(60000, "2026-03-12"), fee(50000, "2026-05-12")],
       }),
-      [pay(170000, 0)],
+      [pay(0, 3)],
       "2026-05-20",
     );
     expect(summary(ledger)).toEqual([
@@ -234,13 +220,14 @@ describe("fees are per member and change from a due date", () => {
     expect(ledger.standing).toBe("overdue");
   });
 
-  it("holds money paid by a free member as credit", () => {
+  it("lets a free member's payment count for nothing owed", () => {
     const ledger = buildLedger(
       membership({ fees: [fee(0, "2026-03-12")] }),
-      [pay(10000, 0)],
+      [pay(0)],
       "2026-04-01",
     );
-    expect(ledger.creditPaise).toBe(10000);
+    expect(ledger.owedPaise).toBe(0);
+    expect(ledger.standing).toBe("free");
   });
 });
 
@@ -250,7 +237,7 @@ describe("freezes and leaving", () => {
   it("moves due dates back by the length of a freeze", () => {
     const ledger = buildLedger(
       membership({ freezes: [tenDays] }),
-      [pay(60000, 0)],
+      [pay(0)],
       "2026-04-20",
     );
     expect(ledger.periods[1]).toMatchObject({
@@ -262,18 +249,19 @@ describe("freezes and leaving", () => {
   it("charges nothing while an open-ended freeze holds", () => {
     const ledger = buildLedger(
       membership({ freezes: [{ startsOn: "2026-04-01", endsOn: null }] }),
-      [pay(120000, 0)],
+      [pay(0, 2)],
       "2026-09-01",
     );
     expect(summary(ledger)).toEqual(["2026-03-12 60000/60000 paid"]);
-    expect(ledger.creditPaise).toBe(60000);
+    // The second month is paid as soon as the freeze ends.
+    expect(ledger.creditMonths).toBe(1);
     expect(ledger.standing).toBe("paid");
   });
 
   it("stops billing when a membership ends, keeping earlier debt", () => {
     const ledger = buildLedger(
       membership({ endedOn: "2026-05-12" }),
-      [pay(60000, 0)],
+      [pay(0)],
       "2026-09-01",
     );
     expect(ledger.periods.map((p) => p.dueOn)).toEqual([
@@ -288,21 +276,21 @@ describe("choosing where a payment starts", () => {
   it("offers unpaid periods first, then future ones for advances", () => {
     const periods = payablePeriods(
       membership(),
-      [pay(60000, 0), pay(30000, 1)],
+      [pay(0), pay(2)],
       "2026-04-20",
       2,
     );
-    expect(periods.map((p) => `${p.index} ${p.dueOn} ${p.paidPaise}`)).toEqual([
-      "1 2026-04-12 30000",
-      "2 2026-05-12 0",
-      "3 2026-06-12 0",
-      "4 2026-07-12 0",
+    expect(periods.map((p) => `${p.index} ${p.dueOn}`)).toEqual([
+      "1 2026-04-12",
+      "3 2026-06-12",
+      "4 2026-07-12",
+      "5 2026-08-12",
     ]);
   });
 
-  it("records which periods each payment went towards", () => {
-    const first = pay(30000, 0);
-    const second = pay(90000, 0);
+  it("records which periods each payment pays for", () => {
+    const first = pay(0, 1);
+    const second = pay(0, 2);
     const { coverage } = buildLedger(
       membership(),
       [first, second],
@@ -323,15 +311,13 @@ describe("which month a due-date change moves", () => {
   const moved = (payments: LedgerPayment[], m = membership()) =>
     reschedulablePeriod(buildLedger(m, payments, today), today);
 
-  it("moves the oldest month not paid in full, owed months included", () => {
+  it("moves the oldest month not paid, owed months included", () => {
     // March paid; April and May owed: April moves (with May after it).
-    expect(moved([pay(60000, 0)])).toBe(1);
-    // Part of April paid: April still moves.
-    expect(moved([pay(60000, 0), pay(30000, 1)])).toBe(1);
+    expect(moved([pay(0)])).toBe(1);
   });
 
   it("moves the month after everything paid ahead", () => {
-    expect(moved([pay(60000 * 5, 0)])).toBe(5);
+    expect(moved([pay(0, 5)])).toBe(5);
   });
 
   it("moves the next month that falls due for a free member", () => {
@@ -351,7 +337,7 @@ describe("periods follow a moved due date", () => {
     const m = membership({
       dueChanges: [{ fromPeriod: 1, dueOn: "2026-04-20" }],
     });
-    const ledger = buildLedger(m, [pay(60000, 0)], "2026-04-25");
+    const ledger = buildLedger(m, [pay(0)], "2026-04-25");
     expect(
       ledger.periods.map((p) => `${p.index} ${p.dueOn} ${p.status}`),
     ).toEqual([

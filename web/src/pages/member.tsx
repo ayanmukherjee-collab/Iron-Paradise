@@ -41,12 +41,7 @@ import {
 } from "../actions/members";
 import { changeMemberRole } from "../actions/team";
 import { useViewer, viewerCan, type Viewer } from "../auth/viewer";
-import {
-  getMemberDetail,
-  listPlans,
-  type MemberDetail,
-  type Plan,
-} from "../data/members";
+import { getMemberDetail, type MemberDetail } from "../data/members";
 import { getMemberPayments, type MemberPayments } from "../data/payments";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
 import { NotFound } from "./not-found";
@@ -63,11 +58,7 @@ export function MemberPage() {
         viewerCan(viewer, "payments.viewSheet") ? getMemberPayments(id) : null,
       ]);
       if (!detail) return null;
-      const plans =
-        viewerCan(viewer, "members.edit") && detail.status === "inactive"
-          ? await listPlans(true)
-          : [];
-      return { detail, payments, plans };
+      return { detail, payments };
     },
     [id, viewer.userId],
     "member",
@@ -86,12 +77,10 @@ function MemberView({
   viewer,
   detail,
   payments,
-  plans,
 }: {
   viewer: Viewer;
   detail: MemberDetail;
   payments: MemberPayments | null;
-  plans: Plan[];
 }) {
   const { member, membership, status } = detail;
   const canEdit = viewerCan(viewer, "members.edit");
@@ -251,9 +240,11 @@ function MemberView({
               : " →"}
           </p>
         )}
-        {(ledger?.creditPaise ?? 0) > 0 && (
+        {(ledger?.creditMonths ?? 0) > 0 && (
           <p className="mt-3 callout text-sm">
-            {formatPaise(ledger!.creditPaise)} credit
+            {ledger!.creditMonths}{" "}
+            {ledger!.creditMonths === 1 ? "month" : "months"} paid, starting
+            when the freeze ends
           </p>
         )}
 
@@ -291,14 +282,7 @@ function MemberView({
             className="mt-5 max-w-lg space-y-4"
           >
             <input type="hidden" name="memberId" value={member.id} />
-            <NewMembershipFields
-              plans={plans.map(({ id, name, defaultFeePaise }) => ({
-                id,
-                name,
-                defaultFeePaise,
-              }))}
-              today={today}
-            />
+            <NewMembershipFields today={today} />
           </ActionForm>
         </section>
       )}

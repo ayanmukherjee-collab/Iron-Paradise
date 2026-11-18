@@ -149,7 +149,7 @@ describe("record_payment and correct_payment", () => {
   ) {
     return one<{ id: string }>(
       userId,
-      sql`select public.record_payment(${memberId}, ${membershipId}, 0::smallint, 60000, 'cash', '2026-03-12', null, null, ${dueChanges === null ? null : JSON.stringify(dueChanges)}::jsonb) as id`,
+      sql`select public.record_payment(${memberId}, ${membershipId}, 0::smallint, 1::smallint, 60000, 'cash', '2026-03-12', null, null, ${dueChanges === null ? null : JSON.stringify(dueChanges)}::jsonb) as id`,
     );
   }
 

@@ -1,9 +1,10 @@
 // Mirrors src/app/app/reminders/page.tsx. Every row is the same shape: a
 // name on one line, one short muted line under it, and one control on the
 // right, so long names or amounts never push a row onto a third line.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "@/components/ui/link";
 import { NavIconSvg } from "@/components/nav/nav-icons";
+import { iconButton } from "@/components/ui/viz";
 import { formatDateTime, formatShortDate, type IsoDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { OverdueQueue } from "@/notifications/components/overdue-queue";
@@ -22,7 +23,9 @@ import {
   type QueueItem,
   type ReminderQueue,
 } from "../data/reminders";
+import { refreshData } from "../data/refresh";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
+import { sendRemindersNow } from "../actions/notifications";
 import { env } from "../lib/env";
 
 export function RemindersPage() {
@@ -67,7 +70,13 @@ function RemindersView({
   return (
     <div className="space-y-6">
       <header className="page-header">
-        <h1 className="page-title">Reminders</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="page-title">Reminders</h1>
+          <SendAllBell
+            count={queue.items.length}
+            canSend={automatic.some(({ on }) => on)}
+          />
+        </div>
         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <span>Automatic:</span>
           {automatic.map(({ label, on }) => (
@@ -146,6 +155,132 @@ function RemindersView({
           </ol>
         )}
       </section>
+    </div>
+  );
+}
+
+type BellState =
+  | { step: "closed" }
+  | { step: "confirm" }
+  | { step: "sending" }
+  | { step: "done"; ok: boolean; message: string };
+
+/**
+ * The bell: sends push and email now to everyone listed under "To remind".
+ * One tap opens a small confirm under it; the answer replaces the confirm.
+ * The job never sends the same reminder twice, so a second press only
+ * reaches members added since.
+ */
+function SendAllBell({ count, canSend }: { count: number; canSend: boolean }) {
+  const [state, setState] = useState<BellState>({ step: "closed" });
+  const wrapper = useRef<HTMLDivElement>(null);
+  const open = state.step !== "closed";
+
+  useEffect(() => {
+    if (!open || state.step === "sending") return;
+    const close = (event: Event) => {
+      if (
+        event instanceof KeyboardEvent
+          ? event.key === "Escape"
+          : !wrapper.current?.contains(event.target as Node)
+      ) {
+        setState({ step: "closed" });
+      }
+    };
+    document.addEventListener("keydown", close);
+    document.addEventListener("pointerdown", close);
+    return () => {
+      document.removeEventListener("keydown", close);
+      document.removeEventListener("pointerdown", close);
+    };
+  }, [open, state.step]);
+
+  const disabled = !canSend || count === 0;
+  const title = !canSend
+    ? "Push and email aren't set up"
+    : count === 0
+      ? "No one to remind"
+      : "Remind everyone by push and email";
+
+  async function send() {
+    setState({ step: "sending" });
+    const result = await sendRemindersNow({});
+    setState(
+      result.ok
+        ? { step: "done", ok: true, message: result.data.message }
+        : { step: "done", ok: false, message: result.error },
+    );
+    if (result.ok) refreshData();
+  }
+
+  return (
+    <div ref={wrapper} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={title}
+        title={title}
+        aria-expanded={open}
+        onClick={() =>
+          setState(open ? { step: "closed" } : { step: "confirm" })
+        }
+        className={`${iconButton} bg-ink text-white hover:bg-graphite disabled:bg-ink/20 disabled:active:scale-100`}
+      >
+        <NavIconSvg
+          icon="reminders"
+          className={`size-5 ${state.step === "sending" ? "motion-safe:animate-pulse" : ""}`}
+        />
+      </button>
+      {open && (
+        <div
+          role={state.step === "done" ? "status" : "dialog"}
+          aria-label="Send reminders"
+          className="absolute top-full right-0 z-20 mt-2 w-72 rounded-card bg-white p-4 text-sm shadow-card ring-1 ring-line"
+        >
+          {state.step === "done" ? (
+            <>
+              <p className={state.ok ? "text-ink" : "font-medium text-ink"}>
+                {state.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => setState({ step: "closed" })}
+                className="mt-3 min-h-10 font-medium text-muted underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                Close
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Remind {count === 1 ? "1 member" : `all ${count}`}?
+              </p>
+              <p className="mt-1 text-muted">
+                Sends the app notification and email to everyone under To
+                remind. Nobody gets the same reminder twice.
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={state.step === "sending"}
+                  onClick={() => setState({ step: "closed" })}
+                  className="min-h-10 rounded-control px-3 font-medium text-muted hover:text-ink"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={state.step === "sending"}
+                  onClick={send}
+                  className="min-h-10 rounded-control bg-ink px-4 font-semibold text-white hover:bg-graphite disabled:bg-ink/60"
+                >
+                  {state.step === "sending" ? "Sending…" : "Send"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

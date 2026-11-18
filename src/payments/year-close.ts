@@ -1,23 +1,14 @@
 // The yearly close (supabase/migrations/*_year_close.sql): which payments go
-// and what replaces them. Pure, so the money rule can be tested exhaustively.
+// and what replaces them. Pure, so the rule can be tested exhaustively.
 //
-// A membership's balance comes from every payment since it began, so old
-// payments can only go if something carries their money forward without
-// changing a single month. One carried-forward entry starting at the oldest
-// payment's first period does that whenever the old payments filled their
-// months in an unbroken run, which is nearly always. Each candidate is
-// checked by building the ledger both ways; if anything differs (someone
-// once paid a later month and left an earlier one short, say), the entries
-// are kept one per first period instead. Payments with the same first
-// period always add up to the same ledger (see countedTotals), so that
-// fallback is exact.
+// A membership's dues come from every payment since it began, so old
+// payments can only go if something keeps the months they paid for. Each
+// payment pays for a run of months; the old payments' runs are merged into
+// unbroken stretches, and each stretch becomes one carried-forward entry
+// for exactly those months, holding the money of the payments inside it.
+// The same months stay paid, so every ledger comes out the same.
 import type { IsoDate } from "@/lib/dates";
-import {
-  buildLedger,
-  type Ledger,
-  type LedgerPayment,
-  type MembershipWithFees,
-} from "@/payments/ledger";
+import type { Ledger } from "@/payments/ledger";
 
 /** The financial year starts on 1 April. */
 const yearStartMonth = 4;
@@ -50,6 +41,7 @@ export interface ClosePayment {
   id: string;
   membershipId: string;
   firstPeriod: number;
+  months: number;
   amountPaise: number;
   paidOn: IsoDate;
   createdAt: Date;
@@ -62,19 +54,19 @@ export interface CarryPlan {
   /** Every payment (counted or voided) the close deletes. */
   deleteIds: string[];
   /** What replaces the counted ones; empty when all of them were voided. */
-  carry: { firstPeriod: number; amountPaise: number }[];
+  carry: CarryEntry[];
 }
 
-/**
- * The plan for every membership with payments dated before `cutoff`.
- * `memberships` must hold every membership those payments belong to, with
- * fees; one without (it shouldn't happen) is kept one entry per period.
- */
+export interface CarryEntry {
+  firstPeriod: number;
+  months: number;
+  amountPaise: number;
+}
+
+/** The plan for every membership with payments dated before `cutoff`. */
 export function planCarries(
-  memberships: Map<string, MembershipWithFees>,
   payments: ClosePayment[],
   cutoff: IsoDate,
-  today: IsoDate,
 ): CarryPlan[] {
   const byMembership = new Map<string, ClosePayment[]>();
   for (const payment of payments) {
@@ -104,87 +96,49 @@ export function planCarries(
     }
     const leaving = old.filter((payment) => !staying.has(payment.id));
     if (leaving.length === 0) continue;
-    const leavingIds = new Set(leaving.map((payment) => payment.id));
-    const counted = all.filter((payment) => !payment.voided);
-    const countedLeaving = counted.filter((p) => leavingIds.has(p.id));
-    const countedStaying = counted.filter((p) => !leavingIds.has(p.id));
+    const countedLeaving = leaving.filter((payment) => !payment.voided);
 
     plans.push({
       membershipId,
       deleteIds: leaving.map((payment) => payment.id),
-      carry: countedLeaving.length
-        ? chooseCarry(
-            memberships.get(membershipId),
-            countedLeaving,
-            countedStaying,
-            today,
-          )
-        : [],
+      carry: stretches(countedLeaving),
     });
   }
   return plans;
 }
 
-function chooseCarry(
-  membership: MembershipWithFees | undefined,
-  leaving: ClosePayment[],
-  staying: ClosePayment[],
-  today: IsoDate,
-): CarryPlan["carry"] {
-  const perPeriod = new Map<number, number>();
-  for (const payment of leaving) {
-    perPeriod.set(
-      payment.firstPeriod,
-      (perPeriod.get(payment.firstPeriod) ?? 0) + payment.amountPaise,
-    );
+/**
+ * The payments' months merged into unbroken stretches, oldest first, each
+ * with the money of the payments that start in it. Every payment's months
+ * fall inside one stretch, so the money adds up exactly.
+ */
+export function stretches(paid: ClosePayment[]): CarryEntry[] {
+  const ordered = [...paid].sort(
+    (a, b) => a.firstPeriod - b.firstPeriod || b.months - a.months,
+  );
+  const out: CarryEntry[] = [];
+  for (const payment of ordered) {
+    const last = out.at(-1);
+    const end = payment.firstPeriod + payment.months;
+    if (last && payment.firstPeriod <= last.firstPeriod + last.months) {
+      last.months = Math.max(last.months, end - last.firstPeriod);
+      last.amountPaise += payment.amountPaise;
+    } else {
+      out.push({
+        firstPeriod: payment.firstPeriod,
+        months: payment.months,
+        amountPaise: payment.amountPaise,
+      });
+    }
   }
-  const grouped = [...perPeriod]
-    .sort(([a], [b]) => a - b)
-    .map(([firstPeriod, amountPaise]) => ({ firstPeriod, amountPaise }));
-  if (grouped.length === 1 || !membership) return grouped;
-
-  const single = [
-    {
-      firstPeriod: grouped[0].firstPeriod,
-      amountPaise: grouped.reduce((sum, entry) => sum + entry.amountPaise, 0),
-    },
-  ];
-  const earliest = new Date(
-    Math.min(...leaving.map((payment) => payment.createdAt.getTime())),
-  );
-  const asLedger = (entries: CarryPlan["carry"]): LedgerPayment[] => [
-    ...entries.map((entry, i) => ({
-      id: `carried-${i}`,
-      firstPeriod: entry.firstPeriod,
-      amountPaise: entry.amountPaise,
-      createdAt: earliest,
-    })),
-    ...staying.map(toLedgerPayment),
-  ];
-
-  const before = buildLedger(
-    membership,
-    [...leaving, ...staying].map(toLedgerPayment),
-    today,
-  );
-  const after = buildLedger(membership, asLedger(single), today);
-  return sameLedger(before, after) ? single : grouped;
+  return out;
 }
 
-function toLedgerPayment(payment: ClosePayment): LedgerPayment {
-  return {
-    id: payment.id,
-    firstPeriod: payment.firstPeriod,
-    amountPaise: payment.amountPaise,
-    createdAt: payment.createdAt,
-  };
-}
-
-/** Same months, same money in each, same balance: coverage aside. */
+/** Same months, same fees, same paid months, same balance: coverage aside. */
 export function sameLedger(a: Ledger, b: Ledger): boolean {
   if (
     a.owedPaise !== b.owedPaise ||
-    a.creditPaise !== b.creditPaise ||
+    a.creditMonths !== b.creditMonths ||
     a.standing !== b.standing ||
     a.periods.length !== b.periods.length
   ) {

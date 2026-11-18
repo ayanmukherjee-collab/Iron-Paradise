@@ -345,9 +345,7 @@ describe("linking a waiting guest", () => {
 describe("plans and settings belong to the owner", () => {
   it("lets the owner add a plan and change the gone-quiet window", async () => {
     await as(owner, (tx) =>
-      tx
-        .insert(plans)
-        .values({ name: "Monthly", durationMonths: 1, defaultFeePaise: 60000 }),
+      tx.insert(plans).values({ name: "Monthly", durationMonths: 1 }),
     );
     await as(owner, (tx) => tx.update(gymSettings).set({ goneQuietDays: 45 }));
     const [settings] = await as(manager, (tx) => tx.select().from(gymSettings));
@@ -358,9 +356,7 @@ describe("plans and settings belong to the owner", () => {
     expect(
       await rejectionMessage(
         as(manager, (tx) =>
-          tx
-            .insert(plans)
-            .values({ name: "Cheap", durationMonths: 1, defaultFeePaise: 1 }),
+          tx.insert(plans).values({ name: "Quarterly", durationMonths: 3 }),
         ),
       ),
     ).toMatch(/row-level security/);

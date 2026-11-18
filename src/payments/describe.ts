@@ -7,7 +7,6 @@ import type { CellStatus } from "@/payments/sheet";
 
 export const cellLabels: Record<CellStatus, string> = {
   paid: "Paid",
-  partial: "Partial",
   due: "Due",
   overdue: "Overdue",
   upcoming: "Upcoming",
@@ -25,12 +24,9 @@ export const standingLabels: Record<Standing, string> = {
 
 export const methodLabels = { cash: "Cash", upi: "UPI", other: "Other" };
 
-/** "12 Mar 2026 · ₹600 due" or "12 Mar 2026 · ₹300 of ₹600 paid". */
+/** "12 Mar 2026 · ₹600", the month and its fee. */
 export function describePeriod(period: PeriodState): string {
-  const when = formatDate(period.dueOn);
-  if (period.paidPaise === 0)
-    return `${when} · ${formatPaise(period.feePaise)}`;
-  return `${when} · ${formatPaise(period.paidPaise)} of ${formatPaise(period.feePaise)} paid`;
+  return `${formatDate(period.dueOn)} · ${formatPaise(period.feePaise)}`;
 }
 
 /** The line staff see after recording a payment: what it actually covered. */
@@ -42,17 +38,14 @@ export function describeRecordedPayment(
   const recorded = `Recorded ${formatPaise(amountPaise)}`;
   const span = ledger.coverage.get(paymentId);
   if (!span) {
-    return `${recorded}. Nothing is due for it yet, so it is held as credit.`;
+    return `${recorded}. Its months start once the freeze ends.`;
   }
 
   const { first, last } = span;
-  const shortBy = last.feePaise - last.paidPaise;
-  const short =
-    shortBy > 0
-      ? ` ${formatPaise(shortBy)} is still due for ${formatDate(last.dueOn)}.`
-      : "";
+  const next = ledger.periods.find((period) => period.index > last.index);
+  const nextDue = next ? ` Next due ${formatDate(next.dueOn)}.` : "";
   if (first.index === last.index) {
-    return `${recorded} for ${formatDate(first.dueOn)}.${short}`;
+    return `${recorded} for ${formatDate(first.dueOn)}.${nextDue}`;
   }
-  return `${recorded}, covering ${formatDate(first.dueOn)} to ${formatDate(last.dueOn)}.${short}`;
+  return `${recorded}, covering ${formatDate(first.dueOn)} to ${formatDate(last.dueOn)}.${nextDue}`;
 }

@@ -43,14 +43,14 @@ const membership: MembershipWithFees = {
     { feePaise: 80000, effectiveFrom: "2025-06-10", createdAt: new Date(1) },
   ],
 };
-const memberships = new Map([["m1", membership]]);
 const today = "2026-11-18";
 const cutoff = yearCloseCutoff(today); // 2025-04-01
 
 let sequence = 0;
+/** A payment for `months` months from `firstPeriod`, ₹500 a month paid. */
 function pay(
   firstPeriod: number,
-  amountPaise: number,
+  months: number,
   paidOn: string,
   extra: Partial<ClosePayment> = {},
 ): ClosePayment {
@@ -59,7 +59,8 @@ function pay(
     id: `p${sequence}`,
     membershipId: "m1",
     firstPeriod,
-    amountPaise,
+    months,
+    amountPaise: months * 50000,
     paidOn,
     createdAt: new Date(Date.parse(`${paidOn}T10:00:00Z`) + sequence),
     voided: false,
@@ -70,12 +71,13 @@ function pay(
 
 /** The ledger after applying a plan, the way the database will. */
 function ledgerAfter(payments: ClosePayment[]) {
-  const [plan] = planCarries(memberships, payments, cutoff, today);
+  const [plan] = planCarries(payments, cutoff);
   const gone = new Set(plan?.deleteIds ?? []);
   const remaining: LedgerPayment[] = [
     ...(plan?.carry ?? []).map((entry, i) => ({
       id: `c${i}`,
       firstPeriod: entry.firstPeriod,
+      months: entry.months,
       amountPaise: entry.amountPaise,
       createdAt: new Date(0),
     })),
@@ -91,35 +93,43 @@ const ledgerOf = (payments: ClosePayment[]) =>
     today,
   );
 
+const money = (payments: ClosePayment[]) =>
+  payments.reduce((sum, p) => sum + p.amountPaise, 0);
+
 describe("planCarries", () => {
   it("merges an unbroken run of old payments into one entry", () => {
     const payments = [
-      pay(0, 60000, "2025-01-10"),
-      pay(1, 60000, "2025-02-11"),
-      pay(2, 60000, "2025-03-10"),
-      pay(3, 60000, "2025-04-10"),
-      pay(4, 60000, "2025-05-12"),
+      pay(0, 1, "2025-01-10"),
+      pay(1, 1, "2025-02-11"),
+      pay(2, 1, "2025-03-10"),
+      pay(3, 1, "2025-04-10"),
+      pay(4, 1, "2025-05-12"),
     ];
     const { plan, ledger } = ledgerAfter(payments);
     expect(plan.deleteIds).toEqual(["p1", "p2", "p3"]);
-    expect(plan.carry).toEqual([{ firstPeriod: 0, amountPaise: 180000 }]);
+    expect(plan.carry).toEqual([
+      { firstPeriod: 0, months: 3, amountPaise: 150000 },
+    ]);
     expect(sameLedger(ledger, ledgerOf(payments))).toBe(true);
   });
 
-  it("keeps one entry per first period when merging would move money", () => {
+  it("keeps a separate entry for each run, so an unpaid month stays unpaid", () => {
     sequence = 100;
-    // Paid March in full but only part of February: merging would let the
-    // March money top February up and leave March short.
-    const payments = [
-      pay(0, 60000, "2025-01-10"),
-      pay(1, 20000, "2025-02-11"),
-      pay(2, 60000, "2025-03-10"),
-    ];
+    const payments = [pay(0, 1, "2025-01-10"), pay(2, 1, "2025-03-10")];
     const { plan, ledger } = ledgerAfter(payments);
     expect(plan.carry).toEqual([
-      { firstPeriod: 0, amountPaise: 60000 },
-      { firstPeriod: 1, amountPaise: 20000 },
-      { firstPeriod: 2, amountPaise: 60000 },
+      { firstPeriod: 0, months: 1, amountPaise: 50000 },
+      { firstPeriod: 2, months: 1, amountPaise: 50000 },
+    ]);
+    expect(sameLedger(ledger, ledgerOf(payments))).toBe(true);
+  });
+
+  it("merges overlapping payments, money and all", () => {
+    sequence = 150;
+    const payments = [pay(0, 3, "2025-01-10"), pay(1, 1, "2025-02-11")];
+    const { plan, ledger } = ledgerAfter(payments);
+    expect(plan.carry).toEqual([
+      { firstPeriod: 0, months: 3, amountPaise: 200000 },
     ]);
     expect(sameLedger(ledger, ledgerOf(payments))).toBe(true);
   });
@@ -127,26 +137,28 @@ describe("planCarries", () => {
   it("drops voided payments without carrying them", () => {
     sequence = 200;
     const payments = [
-      pay(0, 60000, "2025-01-10"),
-      pay(1, 99900, "2025-02-11", { voided: true }),
+      pay(0, 1, "2025-01-10"),
+      pay(1, 2, "2025-02-11", { voided: true }),
     ];
     const { plan, ledger } = ledgerAfter(payments);
     expect(plan.deleteIds.sort()).toEqual(["p201", "p202"]);
-    expect(plan.carry).toEqual([{ firstPeriod: 0, amountPaise: 60000 }]);
+    expect(plan.carry).toEqual([
+      { firstPeriod: 0, months: 1, amountPaise: 50000 },
+    ]);
     expect(sameLedger(ledger, ledgerOf(payments))).toBe(true);
   });
 
   it("keeps the whole chain behind a correction that stays", () => {
     sequence = 300;
-    const first = pay(1, 50000, "2025-02-11", { voided: true });
-    const second = pay(1, 55000, "2025-02-12", {
+    const first = pay(1, 1, "2025-02-11", { voided: true });
+    const second = pay(1, 1, "2025-02-12", {
       voided: true,
       replacesPaymentId: first.id,
     });
-    const third = pay(1, 60000, "2025-05-01", {
+    const third = pay(1, 1, "2025-05-01", {
       replacesPaymentId: second.id,
     });
-    const payments = [pay(0, 60000, "2025-01-10"), first, second, third];
+    const payments = [pay(0, 1, "2025-01-10"), first, second, third];
     const { plan, ledger } = ledgerAfter(payments);
     // Only the plain January payment goes; the chain of corrections stays.
     expect(plan.deleteIds).toEqual(["p304"]);
@@ -155,12 +167,10 @@ describe("planCarries", () => {
 
   it("leaves memberships with nothing old alone", () => {
     sequence = 400;
-    expect(
-      planCarries(memberships, [pay(5, 80000, "2025-06-10")], cutoff, today),
-    ).toEqual([]);
+    expect(planCarries([pay(5, 1, "2025-06-10")], cutoff)).toEqual([]);
   });
 
-  it("never changes a ledger, over many random payment histories", () => {
+  it("never changes a ledger or loses money, over many random histories", () => {
     let seed = 7;
     const random = () => {
       seed = (seed * 1103515245 + 12345) % 2 ** 31;
@@ -175,15 +185,23 @@ describe("planCarries", () => {
         const paidOn = new Date(day).toISOString().slice(0, 10);
         payments.push(
           pay(
-            Math.floor(random() * 6),
-            [20000, 60000, 80000, 120000, 240000][Math.floor(random() * 5)],
+            Math.floor(random() * 8),
+            [1, 1, 3, 6, 12][Math.floor(random() * 5)],
             paidOn,
             { voided: random() < 0.1 },
           ),
         );
       }
-      const { ledger } = ledgerAfter(payments);
+      const { plan, ledger } = ledgerAfter(payments);
       expect(sameLedger(ledger, ledgerOf(payments))).toBe(true);
+      if (plan) {
+        const leaving = payments.filter(
+          (p) => plan.deleteIds.includes(p.id) && !p.voided,
+        );
+        expect(
+          plan.carry.reduce((sum, entry) => sum + entry.amountPaise, 0),
+        ).toBe(money(leaving));
+      }
     }
   });
 });

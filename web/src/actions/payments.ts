@@ -4,6 +4,7 @@ import { todayAtGym } from "@/lib/dates";
 import { describeRecordedPayment } from "@/payments/describe";
 import {
   duesFrom,
+  months,
   paymentDetails,
   period,
   voidReason,
@@ -19,6 +20,7 @@ export const recordPayment = guardedAction({
     memberId: z.uuid(),
     membershipId: z.uuid(),
     firstPeriod: period,
+    months,
     ...paymentDetails,
     duesFrom,
   }),
@@ -37,6 +39,7 @@ export const recordPayment = guardedAction({
       member_id: input.memberId,
       membership_id: input.membershipId,
       first_period: input.firstPeriod,
+      months: input.months,
       amount_paise: input.amount,
       method: input.method,
       paid_on: input.paidOn,

@@ -100,9 +100,9 @@ export const members = pgTable("members", {
 export const plans = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
+  // How long a payment for this plan pays for. Plans carry no price: the
+  // amount is whatever the member actually paid.
   durationMonths: smallint("duration_months").notNull(),
-  // A default that pre-fills new memberships; members pay their own agreed fee.
-  defaultFeePaise: integer("default_fee_paise").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   ...timestamps,
 });
@@ -206,9 +206,11 @@ export const payments = pgTable("payments", {
   membershipId: uuid("membership_id")
     .notNull()
     .references(() => memberships.id),
-  // The first period this payment pays towards (0 = due on the joining day).
-  // Money beyond that period's fee flows on to the next (brief §4.4).
+  // The first period this payment pays for (0 = the first due date).
   firstPeriod: smallint("first_period").notNull(),
+  // How many months it pays for, from firstPeriod on (one of the plans).
+  // The amount is what was received; it never decides what is paid.
+  months: smallint("months").notNull().default(1),
   amountPaise: integer("amount_paise").notNull(),
   method: paymentMethod("method").notNull(),
   paidOn: date("paid_on").notNull(),

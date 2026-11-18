@@ -88,6 +88,7 @@ function somePayments(r: Random): LedgerPayment[] {
       id: `payment-${i}`,
       // Small range, so several payments often start on the same period.
       firstPeriod: r.int(0, 20),
+      months: r.pick([1, 1, 3, 6, 12]),
       amountPaise: r.pick([10000, 30000, 60000, 80000, 120000, 240000]),
       createdAt: new Date(Date.UTC(2024, 0, 1) + r.int(0, 1e9)),
     });
@@ -151,18 +152,23 @@ function shown(ledger: Ledger) {
   return rest;
 }
 
-/** As countedTotals returns them: one sum per first period. */
+/**
+ * As countedTotals returns them: one row per first period, paying for as
+ * many months as the longest payment starting there, the money summed.
+ */
 function summed(payments: LedgerPayment[]): LedgerPayment[] {
-  const totals = new Map<number, number>();
+  const totals = new Map<number, { months: number; amountPaise: number }>();
   for (const payment of payments) {
-    totals.set(
-      payment.firstPeriod,
-      (totals.get(payment.firstPeriod) ?? 0) + payment.amountPaise,
-    );
+    const total = totals.get(payment.firstPeriod);
+    totals.set(payment.firstPeriod, {
+      months: Math.max(total?.months ?? 0, payment.months),
+      amountPaise: (total?.amountPaise ?? 0) + payment.amountPaise,
+    });
   }
-  return [...totals].map(([firstPeriod, amountPaise]) => ({
+  return [...totals].map(([firstPeriod, { months, amountPaise }]) => ({
     id: `from-period-${firstPeriod}`,
     firstPeriod,
+    months,
     amountPaise,
     createdAt: new Date(0),
   }));
@@ -228,7 +234,7 @@ describe("due dates", () => {
 });
 
 describe("ledgers for lists", () => {
-  it("summing payments per first period changes nothing a list shows", () => {
+  it("grouping payments per first period changes nothing a list shows", () => {
     const r = random(3);
     for (let i = 0; i < 1500; i++) {
       const membership = someMembership(r);
