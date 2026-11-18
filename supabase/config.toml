@@ -445,3 +445,8 @@ entrypoint = "./functions/reminders/index.js"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-test-push/index.js"
+
+[functions.year-close]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/year-close/index.js"

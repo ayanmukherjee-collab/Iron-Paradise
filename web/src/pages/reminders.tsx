@@ -27,13 +27,17 @@ import { env } from "../lib/env";
 
 export function RemindersPage() {
   useTitle("Reminders");
-  const state = useLoad(async () => {
-    const [queue, log] = await Promise.all([
-      getReminderQueue(),
-      listNotificationLog(),
-    ]);
-    return { queue, log };
-  }, []);
+  const state = useLoad(
+    async () => {
+      const [queue, log] = await Promise.all([
+        getReminderQueue(),
+        listNotificationLog(),
+      ]);
+      return { queue, log };
+    },
+    [],
+    "reminders",
+  );
   return <Loaded state={state}>{(data) => <RemindersView {...data} />}</Loaded>;
 }
 

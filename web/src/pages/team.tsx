@@ -15,7 +15,7 @@ const staffRoles = ["trainer", "manager", "owner"] as const;
 
 export function TeamPage() {
   useTitle("Team");
-  const state = useLoad(() => listTeam(), []);
+  const state = useLoad(() => listTeam(), [], "team");
   return (
     <Loaded state={state}>{(people) => <TeamView people={people} />}</Loaded>
   );

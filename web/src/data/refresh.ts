@@ -10,6 +10,11 @@ export function refreshData(): void {
   for (const listener of listeners) listener();
 }
 
+/** How many saves there have been; cached data is tied to one value. */
+export function currentRefreshVersion(): number {
+  return version;
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);

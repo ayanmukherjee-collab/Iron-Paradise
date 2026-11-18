@@ -55,19 +55,23 @@ export function MemberPage() {
   const { id = "" } = useParams();
   const viewer = useViewer();
   useTitle("Member");
-  const state = useLoad(async () => {
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-    const [detail, payments] = await Promise.all([
-      getMemberDetail(viewer, id),
-      viewerCan(viewer, "payments.viewSheet") ? getMemberPayments(id) : null,
-    ]);
-    if (!detail) return null;
-    const plans =
-      viewerCan(viewer, "members.edit") && detail.status === "inactive"
-        ? await listPlans(true)
-        : [];
-    return { detail, payments, plans };
-  }, [id, viewer.userId]);
+  const state = useLoad(
+    async () => {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+      const [detail, payments] = await Promise.all([
+        getMemberDetail(viewer, id),
+        viewerCan(viewer, "payments.viewSheet") ? getMemberPayments(id) : null,
+      ]);
+      if (!detail) return null;
+      const plans =
+        viewerCan(viewer, "members.edit") && detail.status === "inactive"
+          ? await listPlans(true)
+          : [];
+      return { detail, payments, plans };
+    },
+    [id, viewer.userId],
+    "member",
+  );
 
   return (
     <Loaded state={state}>
@@ -318,6 +322,7 @@ function MemberView({
 
       {payments && (
         <RecentPayments
+          earlier={detail.earlier.payments}
           history={payments.history}
           canVoid={viewerCan(viewer, "payments.void")}
           today={today}
@@ -327,6 +332,11 @@ function MemberView({
       <VisitCharts
         visits={detail.visits.map((visit) => visit.gymDate)}
         today={today}
+        footnote={
+          detail.earlier.visits
+            ? `Earlier years: ${detail.earlier.visits.count.toLocaleString("en-IN")} ${detail.earlier.visits.count === 1 ? "visit" : "visits"}${detail.earlier.visits.lastOn ? `, last on ${formatDate(detail.earlier.visits.lastOn)}` : ""}`
+            : undefined
+        }
       />
 
       {detail.pastMemberships.length > 0 && (
@@ -370,10 +380,12 @@ function MemberView({
 
 /** The latest three payments, with the rest a tap away. */
 function RecentPayments({
+  earlier,
   history,
   canVoid,
   today,
 }: {
+  earlier: MemberDetail["earlier"]["payments"];
   history: MemberPayments["history"];
   canVoid: boolean;
   today: string;
@@ -400,6 +412,12 @@ function RecentPayments({
       <div className="mt-4">
         <PaymentHistory history={shown} canVoid={canVoid} today={today} />
       </div>
+      {earlier && (
+        <p className="mt-4 text-sm text-muted">
+          Earlier years: {formatPaise(earlier.paidPaise)} over {earlier.count}{" "}
+          {earlier.count === 1 ? "payment" : "payments"}
+        </p>
+      )}
     </section>
   );
 }

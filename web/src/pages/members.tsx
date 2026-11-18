@@ -73,7 +73,7 @@ export function MembersPage() {
       ? (wanted as FilterKey)
       : "current";
 
-  const state = useLoad(() => listMembers(viewer), [viewer.userId]);
+  const state = useLoad(() => listMembers(viewer), [viewer.userId], "members");
   const everyone = state.status === "ready" ? state.data : [];
   const today = todayAtGym();
   const shown = everyone

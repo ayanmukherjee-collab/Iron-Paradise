@@ -216,6 +216,10 @@ export const payments = pgTable("payments", {
   slipPath: text("slip_path"),
   note: text("note"),
   replacesPaymentId: uuid("replaces_payment_id"),
+  // Written only by the yearly close (private.close_year): one entry that
+  // stands in for a membership's payments older than the cut-off. It counts
+  // towards the ledger but is not money taken that day.
+  carriedForward: boolean("carried_forward").notNull().default(false),
   recordedBy: uuid("recorded_by").notNull().default(currentUser),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

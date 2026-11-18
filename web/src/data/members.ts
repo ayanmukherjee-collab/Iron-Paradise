@@ -32,6 +32,75 @@ export async function getGoneQuietDays(): Promise<number> {
   return row?.gone_quiet_days ?? 30;
 }
 
+export interface YearTotals {
+  /** "2025–26": the financial year, April to March. */
+  label: string;
+  collectedPaise: number;
+  payments: number;
+  checkIns: number;
+  joined: number;
+}
+
+export interface ClosedHistory {
+  /** Everything before this day lives only in the totals. */
+  closedBefore: IsoDate | null;
+  lastClosedAt: Date | null;
+  years: YearTotals[];
+}
+
+/** What the yearly closes kept, a row per financial year, newest first. */
+export async function getClosedHistory(): Promise<ClosedHistory> {
+  const [closes, money, visits] = await Promise.all([
+    table("year_closes")
+      .select("cutoff, closed_at")
+      .order("cutoff", { ascending: false })
+      .limit(1)
+      .then(dataOf),
+    table("monthly_payment_totals")
+      .select("month, collected_paise, payments")
+      .then(dataOf),
+    table("monthly_visit_totals")
+      .select("month, check_ins, joined")
+      .then(dataOf),
+  ]);
+  const years = new Map<string, YearTotals>();
+  const yearOf = (month: string) => {
+    const year = Number(month.slice(0, 4));
+    const start = Number(month.slice(5, 7)) >= 4 ? year : year - 1;
+    const label = `${start}–${String(start + 1).slice(2)}`;
+    let entry = years.get(label);
+    if (!entry) {
+      entry = { label, collectedPaise: 0, payments: 0, checkIns: 0, joined: 0 };
+      years.set(label, entry);
+    }
+    return entry;
+  };
+  for (const row of money as {
+    month: string;
+    collected_paise: number | string;
+    payments: number;
+  }[]) {
+    const entry = yearOf(row.month);
+    entry.collectedPaise += Number(row.collected_paise);
+    entry.payments += row.payments;
+  }
+  for (const row of visits as {
+    month: string;
+    check_ins: number;
+    joined: number;
+  }[]) {
+    const entry = yearOf(row.month);
+    entry.checkIns += row.check_ins;
+    entry.joined += row.joined;
+  }
+  const last = (closes as { cutoff: IsoDate; closed_at: string }[])[0];
+  return {
+    closedBefore: last?.cutoff ?? null,
+    lastClosedAt: last ? date(last.closed_at) : null,
+    years: [...years.values()].sort((a, b) => b.label.localeCompare(a.label)),
+  };
+}
+
 interface MemberListRow {
   id: string;
   memberCode: string;
@@ -168,6 +237,11 @@ export interface MemberDetail {
   pastMemberships: (MembershipRow & { planName: string | null })[];
   visits: { gymDate: IsoDate; method: "qr" | "manual" }[];
   claimLink: { state: ClaimLinkState; expiresAt: Date | null };
+  /** Summed by a yearly close; null where there is none (or no access). */
+  earlier: {
+    visits: { count: number; lastOn: IsoDate | null } | null;
+    payments: { count: number; paidPaise: number } | null;
+  };
 }
 
 /** One member with everything the detail page shows, or null. */
@@ -179,36 +253,57 @@ export async function getMemberDetail(
   const canSeeClaims = can(viewer.role, "guests.link");
   const today = todayAtGym();
 
-  const [found, history, visits, claim] = await Promise.all([
-    table("members")
-      .select(
-        "id, memberCode:member_code, fullName:full_name, phone, isActive:is_active, profileId:profile_id, reminderConsentAt:reminder_consent_at, remindersMuted:reminders_muted, createdAt:created_at, profiles!members_profile_id_fkey(email, role)",
-      )
-      .eq("id", memberId)
-      .maybeSingle()
-      .then(dataOf),
-    table("memberships")
-      .select(`${membershipColumns}, plans(name)`)
-      .eq("member_id", memberId)
-      .order("starts_on", { ascending: false })
-      .then(dataOf),
-    table("attendance")
-      .select("gymDate:gym_date, method")
-      .eq("member_id", memberId)
-      // Enough for the attendance charts: the last thirteen weeks.
-      .gte("gym_date", visitWindowStart(today))
-      .order("gym_date", { ascending: false })
-      .then(dataOf),
-    canSeeClaims
-      ? table("claim_tokens")
-          .select("used_at, revoked_at, expires_at")
-          .eq("member_id", memberId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .then(dataOf)
-      : Promise.resolve([]),
-  ]);
+  const [found, history, visits, claim, earlierVisits, earlierPaid] =
+    await Promise.all([
+      table("members")
+        .select(
+          "id, memberCode:member_code, fullName:full_name, phone, isActive:is_active, profileId:profile_id, reminderConsentAt:reminder_consent_at, remindersMuted:reminders_muted, createdAt:created_at, profiles!members_profile_id_fkey(email, role)",
+        )
+        .eq("id", memberId)
+        .maybeSingle()
+        .then(dataOf),
+      table("memberships")
+        .select(`${membershipColumns}, plans(name)`)
+        .eq("member_id", memberId)
+        .order("starts_on", { ascending: false })
+        .then(dataOf),
+      table("attendance")
+        .select("gymDate:gym_date, method")
+        .eq("member_id", memberId)
+        // Enough for the attendance charts: the last thirteen weeks.
+        .gte("gym_date", visitWindowStart(today))
+        .order("gym_date", { ascending: false })
+        .then(dataOf),
+      canSeeClaims
+        ? table("claim_tokens")
+            .select("used_at, revoked_at, expires_at")
+            .eq("member_id", memberId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .then(dataOf)
+        : Promise.resolve([]),
+      table("member_visit_totals")
+        .select("visits, last_visit_on")
+        .eq("member_id", memberId)
+        .maybeSingle()
+        .then(dataOf),
+      canSeeFees
+        ? table("member_payment_totals")
+            .select("paid_paise, payments")
+            .eq("member_id", memberId)
+            .maybeSingle()
+            .then(dataOf)
+        : Promise.resolve(null),
+    ]);
   if (!found) return null;
+  const visitTotals = earlierVisits as {
+    visits: number;
+    last_visit_on: IsoDate | null;
+  } | null;
+  const paidTotals = earlierPaid as {
+    paid_paise: number | string;
+    payments: number;
+  } | null;
   const raw = found as Record<string, unknown> & {
     profiles: { email: string | null; role: Role } | null;
   };
@@ -291,6 +386,17 @@ export async function getMemberDetail(
         : null,
     pastMemberships: rows.filter((row) => row.endedOn !== null),
     visits: visits as MemberDetail["visits"],
+    earlier: {
+      visits: visitTotals?.visits
+        ? { count: visitTotals.visits, lastOn: visitTotals.last_visit_on }
+        : null,
+      payments: paidTotals?.payments
+        ? {
+            count: paidTotals.payments,
+            paidPaise: Number(paidTotals.paid_paise),
+          }
+        : null,
+    },
     claimLink: claimLinkState(
       token
         ? {
