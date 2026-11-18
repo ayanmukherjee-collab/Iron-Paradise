@@ -62,15 +62,17 @@ const sections: Section[] = [
     icon: "team",
   },
   {
-    href: "/app/audit",
-    label: "Audit",
+    href: "/app/analytics",
+    label: "Analytics",
     permission: "audit.view",
-    icon: "audit",
+    icon: "chart",
   },
   {
     href: "/app/settings",
     label: "Settings",
-    permission: "plans.edit",
+    // Every staff account: notifications for all, closures for managers, the
+    // rest for the owner (the page shows only what the viewer may change).
+    permission: "members.view",
     icon: "settings",
   },
 ];

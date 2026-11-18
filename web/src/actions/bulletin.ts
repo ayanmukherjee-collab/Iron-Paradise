@@ -2,13 +2,7 @@
 // straight from the database (public.bulletin), so a save is just the write:
 // nothing to rebuild or publish to KV afterwards.
 import { z } from "zod";
-import {
-  closedBatches,
-  closureFor,
-  splitBatches,
-  toMinutes,
-  type Batch,
-} from "@/bulletin/hours";
+import { closureFor, toMinutes, type Batch } from "@/bulletin/hours";
 import {
   clockTime,
   DAY_KEYS,
@@ -18,21 +12,12 @@ import {
 import { todayAtGym, type IsoDate } from "@/lib/dates";
 import { checkbox, isoDate } from "@/members/schemas";
 import { dataOf, Refusal } from "../data/action";
-import { table } from "../data/db";
+import { supabase, table } from "../data/db";
 import { guardedAction } from "../data/guarded";
 
 export function weekdayKey(date: IsoDate) {
   return DAY_KEYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
-
-/** Kept for the Settings button; there is nothing left to publish. */
-export const publishBulletinNow = guardedAction({
-  permission: "bulletin.publish",
-  input: z.object({}),
-  run: async () => ({
-    message: "Up to date. Members see changes as soon as they're saved.",
-  }),
-});
 
 // ---- Closures ------------------------------------------------------------
 
@@ -92,31 +77,6 @@ async function writeClosure(
         }),
   );
 }
-
-export const toggleClosedToday = guardedAction({
-  permission: "bulletin.publish",
-  input: z.object({ part }),
-  run: async ({ part }, viewer) => {
-    const today = todayAtGym();
-    const { usual, closure } = await dayState(today);
-    if (!usual.length) throw new Refusal("The gym doesn't open today.");
-    const shut = closedBatches(usual, closure);
-    const has = splitBatches(usual);
-    const allShut =
-      (!has.morning || shut.morning) && (!has.evening || shut.evening);
-    const next =
-      part === "day"
-        ? { morning: !allShut, evening: !allShut }
-        : { ...shut, [part]: !shut[part] };
-    await writeClosure(
-      viewer.userId,
-      today,
-      usual,
-      next,
-      closure?.reason ?? "",
-    );
-  },
-});
 
 export const saveClosure = guardedAction({
   permission: "bulletin.publish",
@@ -288,21 +248,47 @@ export const saveAnnouncement = guardedAction({
       throw new Refusal("The last day can't be in the past.");
     }
     const expires_at = expiresOn ? endOfGymDay(expiresOn) : null;
-    dataOf(
-      announcementId
-        ? await table("announcements")
-            .update({ title, body, pinned, expires_at })
-            .eq("id", announcementId)
-        : await table("announcements").insert({
-            title,
-            body,
-            pinned,
-            expires_at,
-            created_by: viewer.userId,
-          }),
-    );
+    if (announcementId) {
+      dataOf(
+        await table("announcements")
+          .update({ title, body, pinned, expires_at })
+          .eq("id", announcementId),
+      );
+      return { message: "Saved." };
+    }
+    const posted = dataOf(
+      await table("announcements")
+        .insert({
+          title,
+          body,
+          pinned,
+          expires_at,
+          created_by: viewer.userId,
+        })
+        .select("id")
+        .single(),
+    ) as { id: string };
+    return { message: `Posted. ${await notifyMembers(posted.id)}` };
   },
 });
+
+/**
+ * Sends a new notice to members' phones (the notice-push Edge Function,
+ * which holds the signing key). The notice is saved either way, so a
+ * failure here only changes what staff are told.
+ */
+async function notifyMembers(announcementId: string): Promise<string> {
+  try {
+    const { data, error } = await supabase.functions.invoke<{
+      ok: boolean;
+      message: string;
+    }>("notice-push", { method: "POST", body: { announcementId } });
+    if (error || !data) return "Couldn't send notifications right now.";
+    return data.ok ? data.message : `Not sent: ${data.message}`;
+  } catch {
+    return "Couldn't send notifications right now.";
+  }
+}
 
 export const pinAnnouncement = guardedAction({
   permission: "bulletin.publish",

@@ -25,6 +25,7 @@ export function ActionForm<T>({
   variant = "dark",
   icon,
   className = "",
+  onSaved,
   children,
 }: {
   action: (form: FormData) => Promise<ActionResult<T>>;
@@ -35,13 +36,18 @@ export function ActionForm<T>({
   /** Shows only this icon on the button; submitLabel becomes its name. */
   icon?: NavIcon;
   className?: string;
+  /** Runs after a successful save, e.g. to close the dialog it sits in. */
+  onSaved?: () => void;
   children?: ReactNode;
 }) {
   const afterSave = useAfterSave();
   const [result, submit, saving] = useActionState(
     async (_previous: ActionResult<T> | null, form: FormData) => {
       const result = await action(form);
-      if (result.ok) afterSave(result.data);
+      if (result.ok) {
+        afterSave(result.data);
+        onSaved?.();
+      }
       return result;
     },
     null,

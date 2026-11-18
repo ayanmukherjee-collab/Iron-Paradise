@@ -11,6 +11,7 @@ export type NavIcon =
   | "reminders"
   | "team"
   | "audit"
+  | "chart"
   | "settings"
   | "signOut"
   | "plus"
@@ -24,6 +25,7 @@ export type NavIcon =
   | "sun"
   | "user"
   | "filter"
+  | "funnel"
   | "download"
   | "search"
   | "moon"
@@ -109,6 +111,12 @@ const paths: Record<NavIcon, ReactNode> = {
       <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4" />
     </>
   ),
+  chart: (
+    <>
+      <path d="M4.5 4.5v13a2 2 0 0 0 2 2h13" />
+      <path d="M8.5 15.5v-3M12.5 15.5v-7M16.5 15.5v-5" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -151,6 +159,7 @@ const paths: Record<NavIcon, ReactNode> = {
       <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
     </>
   ),
+  funnel: <path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" />,
   filter: (
     <>
       <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />

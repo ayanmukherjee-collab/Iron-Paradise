@@ -17,7 +17,7 @@ export interface NavItem {
 /**
  * Phone and tablet navigation: a floating white pill on the bottom edge.
  * The current tab grows into a dark pill that shows its name; the others
- * are icons only. Pages that don't fit (Team, Audit, Settings) and sign-out
+ * are icons only. Pages that don't fit (Team, Analytics, Settings) and sign-out
  * live behind "More". Hidden on wide screens, where the sidebar takes over.
  */
 export function BottomNav({

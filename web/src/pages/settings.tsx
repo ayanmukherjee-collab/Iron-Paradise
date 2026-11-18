@@ -14,13 +14,15 @@ import {
   type TimeRange,
 } from "@/bulletin/types";
 import { NavIconSvg } from "@/components/nav/nav-icons";
+import { useState } from "react";
 import { ActionForm } from "@/components/ui/action-form";
+import { Dialog } from "@/components/ui/dialog";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import { formatDate, todayAtGym } from "@/lib/dates";
 import { formatPaise, paiseToInput } from "@/lib/money";
+import { PushToggle } from "@/notifications/components/push-toggle";
 import {
   deleteClosure,
-  publishBulletinNow,
   saveClosure,
   saveCrowdSettings,
   saveDayHours,
@@ -37,27 +39,36 @@ import {
   type Plan,
 } from "../data/members";
 import { Loaded, useLoad, useTitle } from "../data/use-load";
+import { env } from "../lib/env";
 
 type SettingsData = {
   plans: Plan[];
   quietDays: number;
-  hours: Awaited<ReturnType<typeof getHoursSettings>>;
-  history: ClosedHistory;
+  hours: Awaited<ReturnType<typeof getHoursSettings>> | null;
+  history: ClosedHistory | null;
 };
 
+/**
+ * Every staff account has Settings: notifications for everyone, closures
+ * for the owner and managers, and the gym's setup for the owner. Only what
+ * the viewer may change is loaded and shown.
+ */
 export function SettingsPage() {
   useTitle("Settings");
+  const viewer = useViewer();
+  const isOwner = viewerCan(viewer, "plans.edit");
+  const canClose = viewerCan(viewer, "bulletin.publish");
   const state = useLoad(
     async (): Promise<SettingsData> => {
       const [plans, quietDays, hours, history] = await Promise.all([
-        listPlans(),
-        getGoneQuietDays(),
-        getHoursSettings(),
-        getClosedHistory(),
+        isOwner ? listPlans() : Promise.resolve([]),
+        isOwner ? getGoneQuietDays() : Promise.resolve(30),
+        canClose ? getHoursSettings() : Promise.resolve(null),
+        isOwner ? getClosedHistory() : Promise.resolve(null),
       ]);
       return { plans, quietDays, hours, history };
     },
-    [],
+    [viewer.userId, viewer.role],
     "settings",
   );
   return <Loaded state={state}>{(data) => <SettingsView {...data} />}</Loaded>;
@@ -66,6 +77,7 @@ export function SettingsPage() {
 function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
   const today = todayAtGym();
   const viewer = useViewer();
+  const isOwner = viewerCan(viewer, "plans.edit");
 
   return (
     <div className="space-y-6">
@@ -73,192 +85,227 @@ function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
         <h1 className="page-title">Settings</h1>
       </header>
 
-      <section>
-        <h2 className="px-1 section-title">Plans</h2>
-        <p className="mt-1 px-1 text-sm text-muted">
-          Shown as quick picks when recording a payment.
-        </p>
+      {env.vapidPublicKey && (
+        <section>
+          <h2 className="px-1 section-title">Notifications</h2>
+          <p className="mt-1 px-1 text-sm text-muted">
+            On this phone. Each phone is turned on separately.
+          </p>
+          <div className="mt-3 flex items-center gap-3 card p-4 sm:px-6">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-canvas">
+              <NavIconSvg icon="reminders" className="size-5" />
+            </span>
+            <PushToggle vapidPublicKey={env.vapidPublicKey} compact />
+          </div>
+        </section>
+      )}
 
-        <ul className="mt-3 list-card">
-          {plans.map((plan) => (
-            <li key={plan.id} className="list-row">
-              <Row
-                title={plan.name}
-                detail={`${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"} · ${formatPaise(plan.defaultFeePaise)}/mo`}
-                badge={plan.isActive ? undefined : "Not offered"}
-              >
+      {hours && <ClosuresSection closures={hours.closures} today={today} />}
+
+      {isOwner && hours && (
+        <>
+          <section>
+            <h2 className="px-1 section-title">Plans</h2>
+            <p className="mt-1 px-1 text-sm text-muted">
+              Shown as quick picks when recording a payment.
+            </p>
+
+            <ul className="mt-3 list-card">
+              {plans.map((plan) => (
+                <li key={plan.id} className="list-row">
+                  <Row
+                    title={plan.name}
+                    detail={`${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"} · ${formatPaise(plan.defaultFeePaise)}/mo`}
+                    badge={plan.isActive ? undefined : "Not offered"}
+                  >
+                    <ActionForm
+                      action={savePlan}
+                      submitLabel="Save plan"
+                      success="Saved."
+                      className="space-y-4"
+                    >
+                      <input type="hidden" name="planId" value={plan.id} />
+                      <PlanFields
+                        name={plan.name}
+                        months={plan.durationMonths}
+                        fee={plan.defaultFeePaise}
+                      />
+                      <Checkbox
+                        name="isActive"
+                        label="Offered"
+                        defaultChecked={plan.isActive}
+                      />
+                    </ActionForm>
+                  </Row>
+                </li>
+              ))}
+              <AddRow label="New plan">
                 <ActionForm
                   action={savePlan}
-                  submitLabel="Save plan"
-                  success="Saved."
+                  submitLabel="Create plan"
+                  success="Plan added."
                   className="space-y-4"
                 >
-                  <input type="hidden" name="planId" value={plan.id} />
-                  <PlanFields
-                    name={plan.name}
-                    months={plan.durationMonths}
-                    fee={plan.defaultFeePaise}
-                  />
-                  <Checkbox
-                    name="isActive"
-                    label="Offered"
-                    defaultChecked={plan.isActive}
-                  />
+                  <input type="hidden" name="planId" value="" />
+                  <PlanFields name="" months={1} fee={null} />
                 </ActionForm>
-              </Row>
-            </li>
-          ))}
-          <AddRow label="New plan">
-            <ActionForm
-              action={savePlan}
-              submitLabel="Create plan"
-              success="Plan added."
-              className="space-y-4"
-            >
-              <input type="hidden" name="planId" value="" />
-              <PlanFields name="" months={1} fee={null} />
-            </ActionForm>
-          </AddRow>
-        </ul>
-      </section>
+              </AddRow>
+            </ul>
+          </section>
 
-      <section>
-        <h2 className="px-1 section-title">Opening hours</h2>
-        <p className="mt-1 px-1 text-sm text-muted">
-          Check-ins are refused outside these.
-        </p>
-        <ul className="mt-3 list-card">
-          {WEEK.map((day) => (
-            <li key={day} className="list-row">
-              <Row
-                title={DAY_NAMES[day]}
-                detail={daySummary(hours.weekly[day])}
-              >
-                <DayHoursForm
-                  day={day}
-                  batches={splitBatches(hours.weekly[day])}
-                />
-              </Row>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <section>
+            <h2 className="px-1 section-title">Opening hours</h2>
+            <p className="mt-1 px-1 text-sm text-muted">
+              Check-ins are refused outside these.
+            </p>
+            <ul className="mt-3 list-card">
+              {WEEK.map((day) => (
+                <li key={day} className="list-row">
+                  <Row
+                    title={DAY_NAMES[day]}
+                    detail={daySummary(hours.weekly[day])}
+                  >
+                    <DayHoursForm
+                      day={day}
+                      batches={splitBatches(hours.weekly[day])}
+                    />
+                  </Row>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-      <section>
-        <h2 className="px-1 section-title">Closures</h2>
-        <p className="mt-1 px-1 text-sm text-muted">
-          Holidays and short days. To close today, use Home.
-        </p>
-        <ul className="mt-3 list-card">
-          {hours.closures.map((closure) => (
-            <ClosureItem key={closure.id} closure={closure} />
-          ))}
-          <AddRow label="New closure">
-            <ActionForm
-              action={saveClosure}
-              submitLabel="Save closure"
-              className="space-y-4"
-            >
-              <Field label="Day">
-                <input
-                  name="date"
-                  type="date"
-                  required
-                  min={today}
-                  className={inputClass}
-                />
-              </Field>
-              <fieldset>
-                <legend className="text-sm font-medium">Closed for</legend>
-                <div className="mt-1.5 grid grid-cols-3 gap-2">
-                  {CLOSE_PARTS.map(({ value, label }) => (
-                    <label
-                      key={value}
-                      className="flex min-h-12 cursor-pointer items-center justify-center rounded-control bg-white text-sm font-medium ring-1 ring-line transition-colors has-checked:bg-ink has-checked:text-white has-checked:ring-ink"
-                    >
+          <section>
+            <h2 className="px-1 section-title">Gym rules</h2>
+            <ul className="mt-3 list-card">
+              <li className="list-row">
+                <Row
+                  title="Gone quiet"
+                  detail={`After ${quietDays} days with no visit or payment`}
+                >
+                  <ActionForm
+                    action={saveGoneQuietDays}
+                    submitLabel="Save"
+                    success="Saved."
+                    className="max-w-xs"
+                  >
+                    <Field label="Days">
                       <input
-                        type="radio"
-                        name="part"
-                        value={value}
-                        defaultChecked={value === "day"}
-                        className="sr-only"
+                        name="days"
+                        type="number"
+                        min={7}
+                        max={180}
+                        required
+                        defaultValue={quietDays}
+                        className={inputClass}
                       />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <Field label="Reason" hint="Optional. Members see it.">
-                <input name="reason" maxLength={80} className={inputClass} />
-              </Field>
-            </ActionForm>
-          </AddRow>
-        </ul>
-      </section>
+                    </Field>
+                  </ActionForm>
+                </Row>
+              </li>
+            </ul>
+          </section>
+        </>
+      )}
 
-      <section>
-        <h2 className="px-1 section-title">Gym rules</h2>
-        <ul className="mt-3 list-card">
-          <li className="list-row">
-            <Row
-              title="Gone quiet"
-              detail={`After ${quietDays} days with no visit or payment`}
-            >
-              <ActionForm
-                action={saveGoneQuietDays}
-                submitLabel="Save"
-                success="Saved."
-                className="max-w-xs"
-              >
-                <Field label="Days">
-                  <input
-                    name="days"
-                    type="number"
-                    min={7}
-                    max={180}
-                    required
-                    defaultValue={quietDays}
-                    className={inputClass}
-                  />
-                </Field>
-              </ActionForm>
-            </Row>
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="px-1 section-title">Members&apos; app</h2>
-        <ul className="mt-3 list-card">
-          {viewerCan(viewer, "checkin.settings") && (
+      {hours && viewerCan(viewer, "checkin.settings") && (
+        <section>
+          <h2 className="px-1 section-title">Members&apos; app</h2>
+          <ul className="mt-3 list-card">
             <li className="list-row">
               <Row title="Crowd meter" detail={crowdSummary(hours.crowd)}>
                 <CrowdForm crowd={hours.crowd} />
               </Row>
             </li>
-          )}
-          <li className="list-row">
-            <Row
-              title="Bulletin"
-              detail="Hours and notices on members' phones. Every save updates it."
-            >
-              <p className="mb-4 text-sm text-muted">
-                Use this only if members see something out of date a few minutes
-                after a save. It sends what&apos;s saved now.
-              </p>
-              <ActionForm
-                action={publishBulletinNow}
-                submitLabel="Publish now"
-                pendingLabel="Publishing…"
-                variant="outline-dark"
-              />
-            </Row>
-          </li>
-        </ul>
-      </section>
+          </ul>
+        </section>
+      )}
 
-      <HistorySection history={history} today={today} />
+      {history && <HistorySection history={history} today={today} />}
     </div>
+  );
+}
+
+/**
+ * Closures in one list: today's and later ones, each with a remove button,
+ * and a Close gym row that opens the form in a dialog.
+ */
+function ClosuresSection({
+  closures,
+  today,
+}: {
+  closures: ClosureRow[];
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section>
+      <h2 className="px-1 section-title">Closures</h2>
+      <ul className="mt-3 list-card">
+        {closures
+          .filter((closure) => closure.date >= today)
+          .map((closure) => (
+            <ClosureItem key={closure.id} closure={closure} today={today} />
+          ))}
+        <li className="list-row">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="-mx-5 flex min-h-14 w-[calc(100%+2.5rem)] items-center gap-3 px-5 text-left font-medium transition-colors hover:bg-canvas/50 sm:-mx-6 sm:w-[calc(100%+3rem)] sm:px-6"
+          >
+            <span className="flex size-7 items-center justify-center rounded-full bg-ink text-white">
+              <NavIconSvg icon="power" className="size-4" />
+            </span>
+            Close gym
+          </button>
+        </li>
+      </ul>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Close gym">
+        {/* Mounted only while open, so it starts fresh each time. */}
+        {open && (
+          <ActionForm
+            action={saveClosure}
+            submitLabel="Close gym"
+            onSaved={() => setOpen(false)}
+            className="space-y-4"
+          >
+            <Field label="Day">
+              <input
+                name="date"
+                type="date"
+                required
+                min={today}
+                defaultValue={today}
+                className={inputClass}
+              />
+            </Field>
+            <fieldset>
+              <legend className="text-sm font-medium">Closed for</legend>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {CLOSE_PARTS.map(({ value, label }) => (
+                  <label
+                    key={value}
+                    className="flex min-h-12 cursor-pointer items-center justify-center rounded-control bg-white text-sm font-medium ring-1 ring-line transition-colors has-checked:bg-ink has-checked:text-white has-checked:ring-ink"
+                  >
+                    <input
+                      type="radio"
+                      name="part"
+                      value={value}
+                      defaultChecked={value === "day"}
+                      className="sr-only"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <Field label="Reason" hint="Optional. Members see it.">
+              <input name="reason" maxLength={80} className={inputClass} />
+            </Field>
+          </ActionForm>
+        )}
+      </Dialog>
+    </section>
   );
 }
 
@@ -566,14 +613,22 @@ function DayHoursForm({ day, batches }: { day: DayKey; batches: Batches }) {
   );
 }
 
-function ClosureItem({ closure }: { closure: ClosureRow }) {
+function ClosureItem({
+  closure,
+  today,
+}: {
+  closure: ClosureRow;
+  today: string;
+}) {
   const what = closure.hours
     ? `Open ${closure.hours.map(rangeLabel).join(" · ")}`
     : "Closed all day";
   return (
     <li className="flex min-h-16 items-center gap-3 list-row py-3">
       <span className="min-w-0 flex-1">
-        <span className="block font-medium">{dayLabel(closure.date)}</span>
+        <span className="block font-medium">
+          {closure.date === today ? "Today" : dayLabel(closure.date)}
+        </span>
         <span className="block text-sm text-muted">
           {[what, closure.reason].filter(Boolean).join(" · ")}
         </span>
@@ -582,7 +637,7 @@ function ClosureItem({ closure }: { closure: ClosureRow }) {
         action={deleteClosure}
         fields={{ closureId: closure.id }}
         icon="trash"
-        label="Remove this closure"
+        label={closure.date === today ? "Reopen today" : "Remove this closure"}
         confirm
         className="-mr-2 flex size-10 shrink-0 items-center justify-center rounded-control text-muted transition-colors hover:bg-ink hover:text-white"
       />

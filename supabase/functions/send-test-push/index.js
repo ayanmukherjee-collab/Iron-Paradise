@@ -12535,7 +12535,7 @@ function json3(body, status = 200, headers = {}) {
   });
 }
 
-// supabase/functions-src/send-test-push.ts
+// supabase/functions-src/caller.ts
 function cors(request) {
   const origin = request.headers.get("origin");
   const allowed = [
@@ -12562,6 +12562,8 @@ async function userId(request) {
   const user = await response.json();
   return typeof user.id === "string" ? user.id : null;
 }
+
+// supabase/functions-src/send-test-push.ts
 var lastTest = /* @__PURE__ */ new Map();
 serve(async (request) => {
   const headers = cors(request);
@@ -12594,7 +12596,7 @@ serve(async (request) => {
       targets,
       {
         title: "Test notification",
-        body: "Notifications work on this phone. Fee reminders will look like this.",
+        body: "Notifications work on this phone. Notices and fee reminders will look like this.",
         url: "/app",
         tag: "test"
       },

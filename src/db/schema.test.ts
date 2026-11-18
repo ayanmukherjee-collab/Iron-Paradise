@@ -89,6 +89,7 @@ describe("the Drizzle schema matches the migrations", () => {
       "latest_payments",
       "link_guest_to_member",
       "member_activity",
+      "monthly_analytics",
       "own_member_id",
       "own_membership_ids",
       "printed_checkin_code",
