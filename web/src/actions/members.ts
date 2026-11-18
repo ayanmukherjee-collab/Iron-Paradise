@@ -282,24 +282,21 @@ export const savePlan = guardedAction({
     planId: optionalPlanId,
     name: z.string().trim().min(1, "Name the plan").max(60),
     durationMonths: z.coerce.number().int().min(1).max(24),
-    defaultFee: feeRupees,
     isActive: checkbox,
   }),
-  run: async ({ planId, name, durationMonths, defaultFee, isActive }) => {
+  run: async ({ planId, name, durationMonths, isActive }) => {
     dataOf(
       planId
         ? await table("plans")
             .update({
               name,
               duration_months: durationMonths,
-              default_fee_paise: defaultFee,
               is_active: isActive,
             })
             .eq("id", planId)
         : await table("plans").insert({
             name,
             duration_months: durationMonths,
-            default_fee_paise: defaultFee,
           }),
     );
   },

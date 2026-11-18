@@ -428,13 +428,12 @@ export interface Plan {
   id: string;
   name: string;
   durationMonths: number;
-  defaultFeePaise: number;
   isActive: boolean;
 }
 
 export async function listPlans(onlyActive = false): Promise<Plan[]> {
   let query = table("plans").select(
-    "id, name, durationMonths:duration_months, defaultFeePaise:default_fee_paise, isActive:is_active",
+    "id, name, durationMonths:duration_months, isActive:is_active",
   );
   if (onlyActive) query = query.eq("is_active", true);
   return dataOf(await query.order("duration_months").order("name")) as Plan[];

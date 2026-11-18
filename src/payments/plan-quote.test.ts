@@ -4,7 +4,7 @@ import {
   payablePeriods,
   type MembershipWithFees,
 } from "@/payments/ledger";
-import { firstPaymentNextDue, planQuote } from "@/payments/plan-quote";
+import { firstPaymentNextDue, nextDueAfter } from "@/payments/plan-quote";
 
 const membership: MembershipWithFees = {
   startsOn: "2026-01-10",
@@ -17,26 +17,28 @@ const membership: MembershipWithFees = {
   ],
 };
 
-describe("planQuote", () => {
-  it("prices the next three months and moves the due date three months on", () => {
+describe("nextDueAfter", () => {
+  it("moves the due date three months on for a three-month payment", () => {
     const payments = [
-      { id: "a", firstPeriod: 0, amountPaise: 60000, createdAt: new Date(0) },
+      {
+        id: "a",
+        firstPeriod: 0,
+        months: 1,
+        amountPaise: 60000,
+        createdAt: new Date(0),
+      },
     ];
     const periods = payablePeriods(membership, payments, "2026-02-12", 24);
-    const quote = planQuote(periods, periods[0].index, 3)!;
-    expect(quote).toEqual({
-      amountPaise: 180000,
-      lastPaidDueOn: "2026-04-10",
-      nextDueOn: "2026-05-10",
-    });
+    expect(nextDueAfter(periods, periods[0].index, 3)).toBe("2026-05-10");
 
-    // Recording exactly that amount leaves May as the next month to pay.
+    // Recording it, for any amount, leaves May as the next month to pay.
     const after = [
       ...payments,
       {
         id: "b",
         firstPeriod: periods[0].index,
-        amountPaise: quote.amountPaise,
+        months: 3,
+        amountPaise: 150000,
         createdAt: new Date(1),
       },
     ];
@@ -47,18 +49,9 @@ describe("planQuote", () => {
     expect(ledger.owedPaise).toBe(0);
   });
 
-  it("only charges what's left on a part-paid month", () => {
-    const payments = [
-      { id: "a", firstPeriod: 0, amountPaise: 20000, createdAt: new Date(0) },
-    ];
-    const periods = payablePeriods(membership, payments, "2026-01-12", 24);
-    expect(planQuote(periods, 0, 2)?.amountPaise).toBe(40000 + 60000);
-  });
-
-  it("refuses when the list is too short or the start isn't in it", () => {
+  it("says nothing when the list doesn't reach that far", () => {
     const periods = payablePeriods(membership, [], "2026-01-12", 2);
-    expect(planQuote(periods, 0, 12)).toBeNull();
-    expect(planQuote(periods, 99, 1)).toBeNull();
+    expect(nextDueAfter(periods, 0, 12)).toBeNull();
   });
 });
 

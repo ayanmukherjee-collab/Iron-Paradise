@@ -1,14 +1,15 @@
-// Mirrors src/app/app/members/[id]/pay/page.tsx, plus quick record by plan.
+// Record a payment: which plan it pays for (how many months) and the money
+// actually received. Nothing is filled in or worked out from a fee; the
+// amount typed is what every total and chart counts.
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { ActionForm } from "@/components/ui/action-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Field, inputClass } from "@/components/ui/field";
 import { formatDate, todayAtGym } from "@/lib/dates";
-import { formatPaise, paiseToInput } from "@/lib/money";
+import { formatPaise } from "@/lib/money";
 import { PaymentFields } from "@/payments/components/payment-fields";
-import { describePeriod } from "@/payments/describe";
-import { firstPaymentNextDue, planQuote } from "@/payments/plan-quote";
+import { firstPaymentNextDue, nextDueAfter } from "@/payments/plan-quote";
 import { recordPayment } from "../actions/payments";
 import { listPlans, type Plan } from "../data/members";
 import { getPaymentForm, type PaymentFormData } from "../data/payments";
@@ -53,74 +54,31 @@ function PaymentForm({
   const initial =
     form.periods.find((p) => String(p.index) === period) ?? form.periods[0];
   const [firstPeriod, setFirstPeriod] = useState(initial?.index ?? 0);
-  const chosen =
-    form.periods.find((p) => p.index === firstPeriod) ?? form.periods[0];
-  const suggested = chosen ? chosen.feePaise - chosen.paidPaise : 0;
-  const [amount, setAmount] = useState(
-    suggested > 0 ? paiseToInput(suggested) : "",
-  );
+  // Nothing is filled in: staff pick the plan and type what they received.
   const [planId, setPlanId] = useState<string | null>(null);
   const [duesFrom, setDuesFrom] = useState("");
   const [paidOn, setPaidOn] = useState(today);
 
-  // After a save the screen loads fresh figures: start the form over from
-  // them, so the amount just recorded isn't left in the box to send twice.
+  // After a save the screen loads fresh figures: start the form over, so
+  // the payment just recorded isn't left in the boxes to send twice.
   const [loadedForm, setLoadedForm] = useState(form);
+  const [formKey, setFormKey] = useState(0);
   if (loadedForm !== form) {
     setLoadedForm(form);
-    const first = form.periods[0];
-    const left = first ? first.feePaise - first.paidPaise : 0;
-    setFirstPeriod(first?.index ?? 0);
-    setAmount(left > 0 ? paiseToInput(left) : "");
+    setFirstPeriod(form.periods[0]?.index ?? 0);
     setPlanId(null);
     setDuesFrom("");
+    setFormKey((key) => key + 1);
   }
 
-  // Plans only make sense for a paying member; each is priced at this
-  // member's own fee, for as many months as the plan runs.
-  const quotes =
-    form.feePaise > 0
-      ? plans.flatMap((plan) => {
-          const quote = planQuote(
-            form.periods,
-            firstPeriod,
-            plan.durationMonths,
-          );
-          return quote ? [{ plan, quote }] : [];
-        })
-      : [];
-  const picked = quotes.find(({ plan }) => plan.id === planId) ?? null;
+  const picked = plans.find((plan) => plan.id === planId) ?? null;
+  const months = picked?.durationMonths ?? 0;
+  const start = form.periods.find((p) => p.index === firstPeriod);
   const nextDue = picked
     ? form.firstPayment
-      ? firstPaymentNextDue(duesFrom || paidOn, picked.plan.durationMonths)
-      : picked.quote.nextDueOn
+      ? firstPaymentNextDue(duesFrom || paidOn, months)
+      : nextDueAfter(form.periods, firstPeriod, months)
     : null;
-
-  const pickPlan = (id: string | null) => {
-    setPlanId(id);
-    const quote = quotes.find(({ plan }) => plan.id === id)?.quote;
-    setAmount(
-      quote
-        ? paiseToInput(quote.amountPaise)
-        : suggested > 0
-          ? paiseToInput(suggested)
-          : "",
-    );
-  };
-
-  const changePeriod = (index: number) => {
-    setFirstPeriod(index);
-    const next = form.periods.find((p) => p.index === index);
-    const plan = plans.find((p) => p.id === planId);
-    const quote =
-      plan && next ? planQuote(form.periods, index, plan.durationMonths) : null;
-    if (quote) setAmount(paiseToInput(quote.amountPaise));
-    else {
-      setPlanId(null);
-      const left = next ? next.feePaise - next.paidPaise : 0;
-      setAmount(left > 0 ? paiseToInput(left) : "");
-    }
-  };
 
   return (
     <section className="max-w-2xl">
@@ -147,57 +105,70 @@ function PaymentForm({
 
       {form.periods.length === 0 ? (
         <p className="mt-8 text-lg">Nothing to pay</p>
+      ) : plans.length === 0 ? (
+        <p className="mt-8 callout">
+          Add a plan (Monthly, Quarterly…) in Settings first. A payment is
+          recorded against a plan&apos;s length.
+        </p>
       ) : (
         <ActionForm
+          key={formKey}
           action={recordPayment}
           submitLabel="Record payment"
           className="mt-6 space-y-5"
         >
           <input type="hidden" name="memberId" value={form.member.id} />
           <input type="hidden" name="membershipId" value={form.membershipId} />
+          <input type="hidden" name="months" value={months || ""} />
 
-          {quotes.length > 0 && (
-            <fieldset>
-              <legend className="text-sm font-semibold">Quick record</legend>
-              <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {quotes.map(({ plan, quote }) => {
-                  const on = plan.id === planId;
-                  return (
-                    <button
-                      key={plan.id}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => pickPlan(on ? null : plan.id)}
-                      className={`flex min-h-16 min-w-0 flex-col items-start justify-center rounded-control px-4 py-2 text-left ring-1 transition-colors ${on ? "bg-ink text-white ring-ink" : "bg-white ring-line hover:ring-ink/30"}`}
+          <fieldset>
+            <legend className="text-sm font-semibold">Pays for</legend>
+            <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {plans.map((plan) => {
+                const on = plan.id === planId;
+                return (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setPlanId(on ? null : plan.id)}
+                    className={`flex min-h-16 min-w-0 flex-col items-start justify-center rounded-control px-4 py-2 text-left ring-1 transition-colors ${on ? "bg-ink text-white ring-ink" : "bg-white ring-line hover:ring-ink/30"}`}
+                  >
+                    <span className="w-full truncate font-semibold">
+                      {plan.name}
+                    </span>
+                    <span
+                      className={`text-xs tabular-nums ${on ? "text-white/70" : "text-muted"}`}
                     >
-                      <span className="w-full truncate font-semibold">
-                        {plan.name}
-                      </span>
-                      <span
-                        className={`text-xs tabular-nums ${on ? "text-white/70" : "text-muted"}`}
-                      >
-                        {plan.durationMonths}{" "}
-                        {plan.durationMonths === 1 ? "month" : "months"} ·{" "}
-                        {formatPaise(quote.amountPaise)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {picked && (
-                <p className="mt-2 callout text-sm" aria-live="polite">
-                  Pays {picked.plan.durationMonths}{" "}
-                  {picked.plan.durationMonths === 1 ? "month" : "months"}
+                      {plan.durationMonths}{" "}
+                      {plan.durationMonths === 1 ? "month" : "months"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-sm text-muted" aria-live="polite">
+              {picked ? (
+                <>
+                  {start && !form.firstPayment
+                    ? `From ${formatDate(start.dueOn)}`
+                    : "Pays"}{" "}
+                  {months} {months === 1 ? "month" : "months"}
                   {nextDue ? (
                     <>
-                      . Next due <strong>{formatDate(nextDue)}</strong>
+                      . Next due{" "}
+                      <strong className="text-ink">
+                        {formatDate(nextDue)}
+                      </strong>
                     </>
                   ) : null}
                   .
-                </p>
+                </>
+              ) : (
+                "Pick one."
               )}
-            </fieldset>
-          )}
+            </p>
+          </fieldset>
 
           {form.firstPayment ? (
             <>
@@ -218,34 +189,23 @@ function PaymentForm({
               </Field>
             </>
           ) : (
-            <Field
-              label="Pays from"
-              hint="Anything above this month's fee goes to the months after it."
-            >
+            <Field label="Starting from">
               <select
                 name="firstPeriod"
                 value={firstPeriod}
-                onChange={(event) => changePeriod(Number(event.target.value))}
+                onChange={(event) => setFirstPeriod(Number(event.target.value))}
                 className={inputClass}
               >
                 {form.periods.map((option) => (
                   <option key={option.index} value={option.index}>
-                    {describePeriod(option)}
+                    {formatDate(option.dueOn)}
                     {option.status === "overdue" ? " · overdue" : ""}
                   </option>
                 ))}
               </select>
             </Field>
           )}
-          <PaymentFields
-            today={today}
-            amount={amount}
-            onAmountChange={(value) => {
-              setAmount(value);
-              setPlanId(null);
-            }}
-            onPaidOnChange={setPaidOn}
-          />
+          <PaymentFields today={today} onPaidOnChange={setPaidOn} />
         </ActionForm>
       )}
     </section>

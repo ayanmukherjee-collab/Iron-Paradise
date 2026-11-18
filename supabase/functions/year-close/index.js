@@ -13,20 +13,8 @@ var __export = (target, all) => {
 };
 
 // src/lib/dates.ts
-var isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-var dayMs = 864e5;
 var firstFastYear = 1e3;
 var lastFastYear = 9999;
-var monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-function isLeapYear(year) {
-  return year % 4 === 0 && year % 100 !== 0 || year % 400 === 0;
-}
-function daysInMonth(year, month) {
-  return month === 2 && isLeapYear(year) ? 29 : monthLengths[month - 1];
-}
-function isFastDate(year, month, day) {
-  return year >= firstFastYear && year <= lastFastYear && month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month);
-}
 function civilToEpochDay(year, month, day) {
   const y = month <= 2 ? year - 1 : year;
   const era = Math.floor(y / 400);
@@ -35,72 +23,8 @@ function civilToEpochDay(year, month, day) {
   const dayOfEra = yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
   return era * 146097 + dayOfEra - 719468;
 }
-function formatIso(year, month, day) {
-  return `${year}-${month < 10 ? "0" : ""}${month}-${day < 10 ? "0" : ""}${day}`;
-}
 var firstFastDay = civilToEpochDay(firstFastYear, 1, 1);
 var lastFastDay = civilToEpochDay(lastFastYear, 12, 31);
-function toEpochDay(date2) {
-  const match = isoPattern.exec(date2);
-  if (!match) throw new RangeError(`Not a YYYY-MM-DD date: ${date2}`);
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (isFastDate(year, month, day)) return civilToEpochDay(year, month, day);
-  return Date.UTC(year, month - 1, day) / dayMs;
-}
-function fromEpochDay(day) {
-  if (Number.isInteger(day) && day >= firstFastDay && day <= lastFastDay) {
-    const shifted = day + 719468;
-    const era = Math.floor(shifted / 146097);
-    const dayOfEra = shifted - era * 146097;
-    const yearOfEra = Math.floor(
-      (dayOfEra - Math.floor(dayOfEra / 1460) + Math.floor(dayOfEra / 36524) - Math.floor(dayOfEra / 146096)) / 365
-    );
-    const dayOfYear = dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
-    const monthIndex = Math.floor((5 * dayOfYear + 2) / 153);
-    const dayOfMonth = dayOfYear - Math.floor((153 * monthIndex + 2) / 5) + 1;
-    const month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9;
-    const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
-    return formatIso(year, month, dayOfMonth);
-  }
-  return new Date(day * dayMs).toISOString().slice(0, 10);
-}
-function addDays(date2, days) {
-  return fromEpochDay(toEpochDay(date2) + days);
-}
-function daysBetween(from, to) {
-  return toEpochDay(to) - toEpochDay(from);
-}
-function monthsAfter(date2) {
-  if (isoPattern.test(date2)) {
-    const year = Number(date2.slice(0, 4));
-    const month = Number(date2.slice(5, 7));
-    const day = Number(date2.slice(8, 10));
-    if (year >= firstFastYear && month >= 1 && month <= 12 && day >= 1) {
-      const startMonth = year * 12 + month - 1;
-      return (months) => {
-        const monthsSinceYearZero = startMonth + months;
-        const targetYear = Math.floor(monthsSinceYearZero / 12);
-        if (!Number.isInteger(months) || targetYear < firstFastYear || targetYear > lastFastYear)
-          return addMonthsSlowly(date2, months);
-        const targetMonth = monthsSinceYearZero - targetYear * 12 + 1;
-        const lastDay = daysInMonth(targetYear, targetMonth);
-        return formatIso(targetYear, targetMonth, Math.min(day, lastDay));
-      };
-    }
-  }
-  return (months) => addMonthsSlowly(date2, months);
-}
-function addMonthsSlowly(date2, months) {
-  const [year, month, day] = date2.split("-").map(Number);
-  const target = new Date(Date.UTC(year, month - 1 + months, 1));
-  const lastDay = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)
-  ).getUTCDate();
-  target.setUTCDate(Math.min(day, lastDay));
-  return target.toISOString().slice(0, 10);
-}
 var kolkataDate = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kolkata",
   year: "numeric",
@@ -6921,9 +6845,9 @@ var members = pgTable("members", {
 var plans = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
+  // How long a payment for this plan pays for. Plans carry no price: the
+  // amount is whatever the member actually paid.
   durationMonths: smallint("duration_months").notNull(),
-  // A default that pre-fills new memberships; members pay their own agreed fee.
-  defaultFeePaise: integer("default_fee_paise").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   ...timestamps
 });
@@ -6998,9 +6922,11 @@ var payments = pgTable("payments", {
   memberId: uuid("member_id").notNull().references(() => members.id),
   // Always the same member as memberId; a composite foreign key enforces it.
   membershipId: uuid("membership_id").notNull().references(() => memberships.id),
-  // The first period this payment pays towards (0 = due on the joining day).
-  // Money beyond that period's fee flows on to the next (brief §4.4).
+  // The first period this payment pays for (0 = the first due date).
   firstPeriod: smallint("first_period").notNull(),
+  // How many months it pays for, from firstPeriod on (one of the plans).
+  // The amount is what was received; it never decides what is paid.
+  months: smallint("months").notNull().default(1),
   amountPaise: integer("amount_paise").notNull(),
   method: paymentMethod("method").notNull(),
   paidOn: date("paid_on").notNull(),
@@ -7086,64 +7012,6 @@ var auditLog = pgTable("audit_log", {
   after: jsonb("after")
 });
 
-// src/members/facts.ts
-function membershipFilter(column2, rows, scope) {
-  if (scope === "all") return void 0;
-  if (scope) return inArray(column2, scope);
-  return inArray(
-    column2,
-    rows.map((row) => row.id)
-  );
-}
-function byMembership(rows) {
-  const grouped = /* @__PURE__ */ new Map();
-  for (const row of rows) {
-    const list = grouped.get(row.membershipId);
-    if (list) list.push(row);
-    else grouped.set(row.membershipId, [row]);
-  }
-  return grouped;
-}
-async function loadFacts(tx, rows, canSeeFees, scope) {
-  const [feeRows, freezeRows] = rows.length ? await Promise.all([
-    canSeeFees ? tx.select({
-      membershipId: membershipFees.membershipId,
-      feePaise: membershipFees.feePaise,
-      effectiveFrom: membershipFees.effectiveFrom,
-      createdAt: membershipFees.createdAt
-    }).from(membershipFees).where(membershipFilter(membershipFees.membershipId, rows, scope)) : Promise.resolve([]),
-    tx.select({
-      membershipId: membershipFreezes.membershipId,
-      startsOn: membershipFreezes.startsOn,
-      endsOn: membershipFreezes.endsOn
-    }).from(membershipFreezes).where(membershipFilter(membershipFreezes.membershipId, rows, scope))
-  ]) : [[], []];
-  const fees = byMembership(feeRows);
-  const freezes = byMembership(freezeRows);
-  const facts = /* @__PURE__ */ new Map();
-  for (const row of rows) {
-    facts.set(row.id, {
-      startsOn: row.startsOn,
-      billingStartsOn: row.billingStartsOn ?? row.startsOn,
-      dueChanges: row.dueChanges.map((change) => ({
-        fromPeriod: change.from_period,
-        dueOn: change.due_on
-      })),
-      endedOn: row.endedOn,
-      fees: canSeeFees ? (fees.get(row.id) ?? []).map((fee) => ({
-        feePaise: fee.feePaise,
-        effectiveFrom: fee.effectiveFrom,
-        createdAt: fee.createdAt
-      })) : null,
-      freezes: (freezes.get(row.id) ?? []).map((freeze) => ({
-        startsOn: freeze.startsOn,
-        endsOn: freeze.endsOn
-      }))
-    });
-  }
-  return facts;
-}
-
 // src/lib/money.ts
 var rupees = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -7201,148 +7069,6 @@ function toCsv(table) {
 `;
 }
 
-// src/members/billing.ts
-var maxPeriods = 600;
-function freezeLength(freeze) {
-  return daysBetween(freeze.startsOn, freeze.endsOn) + 1;
-}
-function dueDates(schedule) {
-  const { billingStartsOn, dueChanges, freezes } = schedule;
-  const segments = [
-    { fromPeriod: 0, monthsOn: monthsAfter(billingStartsOn) },
-    ...dueChanges.map((change) => ({
-      fromPeriod: change.fromPeriod,
-      monthsOn: monthsAfter(change.dueOn)
-    }))
-  ];
-  const baseOf = segments.length === 1 ? segments[0].monthsOn : (period) => {
-    let segment = segments[0];
-    for (const next of segments) {
-      if (next.fromPeriod > period) break;
-      segment = next;
-    }
-    return segment.monthsOn(period - segment.fromPeriod);
-  };
-  if (freezes.length === 0) return baseOf;
-  const firstDue = dueChanges[0]?.fromPeriod === 0 ? dueChanges[0].dueOn : billingStartsOn;
-  const pending = [...freezes].filter((freeze) => freeze.startsOn >= firstDue).sort((a, b) => a.startsOn.localeCompare(b.startsOn));
-  return (period) => {
-    const base = baseOf(period);
-    let shift = 0;
-    for (const freeze of pending) {
-      const candidate = addDays(base, shift);
-      if (freeze.startsOn > candidate) break;
-      if (freeze.endsOn === null) return null;
-      shift += freezeLength({ ...freeze, endsOn: freeze.endsOn });
-    }
-    return addDays(base, shift);
-  };
-}
-function feeOn(fees, date2) {
-  let current = null;
-  let first = null;
-  for (const fee of fees) {
-    if (!first || fee.effectiveFrom < first.effectiveFrom || fee.effectiveFrom === first.effectiveFrom && fee.createdAt > first.createdAt) {
-      first = fee;
-    }
-    if (fee.effectiveFrom > date2) continue;
-    if (!current || fee.effectiveFrom > current.effectiveFrom || fee.effectiveFrom === current.effectiveFrom && fee.createdAt > current.createdAt) {
-      current = fee;
-    }
-  }
-  return (current ?? first)?.feePaise ?? null;
-}
-
-// src/payments/ledger.ts
-var dueSoonDays = 3;
-function periodSource(membership) {
-  const periods = [];
-  const dueOnFor = dueDates(membership);
-  let exhausted = false;
-  return function periodAt(index) {
-    while (!exhausted && periods.length <= index) {
-      const next = periods.length;
-      const dueOn = next < maxPeriods ? dueOnFor(next) : null;
-      if (dueOn === null || membership.endedOn !== null && dueOn >= membership.endedOn) {
-        exhausted = true;
-        break;
-      }
-      periods.push({
-        index: next,
-        dueOn,
-        feePaise: feeOn(membership.fees, dueOn) ?? 0,
-        paidPaise: 0
-      });
-    }
-    return periods[index] ?? null;
-  };
-}
-function statusOf(period, today, horizon) {
-  if (period.feePaise === 0) return "free";
-  if (period.paidPaise >= period.feePaise) return "paid";
-  if (period.paidPaise > 0) return "partial";
-  if (period.dueOn < today) return "overdue";
-  if (period.dueOn <= horizon) return "due";
-  return "upcoming";
-}
-function standingOf(periods, membership, today, horizon) {
-  const unpaid = (period) => period.feePaise > 0 && period.paidPaise < period.feePaise;
-  if (periods.some((p2) => unpaid(p2) && p2.dueOn < today)) return "overdue";
-  if (periods.some((p2) => unpaid(p2) && p2.dueOn <= horizon)) return "due";
-  if (feeOn(membership.fees, today) === 0) return "free";
-  return "paid";
-}
-function buildLedger(membership, payments2, today) {
-  const periodAt = periodSource(membership);
-  const ordered = [...payments2].sort(
-    (a, b) => a.firstPeriod - b.firstPeriod || a.createdAt.getTime() - b.createdAt.getTime()
-  );
-  let creditPaise = 0;
-  let lastPaid = -1;
-  const filled = /* @__PURE__ */ new Map();
-  for (const payment of ordered) {
-    let remaining = payment.amountPaise;
-    let index = payment.firstPeriod;
-    while (remaining > 0) {
-      const period = periodAt(index);
-      if (!period) {
-        creditPaise += remaining;
-        break;
-      }
-      const take = Math.min(remaining, period.feePaise - period.paidPaise);
-      if (take > 0) {
-        period.paidPaise += take;
-        remaining -= take;
-        lastPaid = Math.max(lastPaid, index);
-        const span = filled.get(payment.id);
-        filled.set(payment.id, { first: span?.first ?? index, last: index });
-      }
-      index++;
-    }
-  }
-  const horizon = addDays(today, dueSoonDays);
-  const periods = [];
-  for (let index = 0; ; index++) {
-    const period = periodAt(index);
-    if (!period) break;
-    periods.push({ ...period, status: statusOf(period, today, horizon) });
-    if (period.dueOn > horizon && index >= lastPaid) break;
-  }
-  const owedPaise = periods.filter((period) => period.dueOn <= today).reduce((sum, period) => sum + period.feePaise - period.paidPaise, 0);
-  const coverage = /* @__PURE__ */ new Map();
-  for (const [id, span] of filled) {
-    coverage.set(id, { first: periods[span.first], last: periods[span.last] });
-  }
-  return {
-    periods,
-    owedPaise,
-    creditPaise,
-    nextUnpaid: periods.find((period) => period.paidPaise < period.feePaise) ?? null,
-    standing: standingOf(periods, membership, today, horizon),
-    coverage
-  };
-}
-
 // src/payments/year-close.ts
 var yearStartMonth = 4;
 function yearCloseCutoff(today) {
@@ -7351,15 +7077,15 @@ function yearCloseCutoff(today) {
   const thisYearStart = month >= yearStartMonth ? year : year - 1;
   return `${thisYearStart - 1}-0${yearStartMonth}-01`;
 }
-function planCarries(memberships2, payments2, cutoff, today) {
-  const byMembership2 = /* @__PURE__ */ new Map();
+function planCarries(payments2, cutoff) {
+  const byMembership = /* @__PURE__ */ new Map();
   for (const payment of payments2) {
-    const list = byMembership2.get(payment.membershipId);
+    const list = byMembership.get(payment.membershipId);
     if (list) list.push(payment);
-    else byMembership2.set(payment.membershipId, [payment]);
+    else byMembership.set(payment.membershipId, [payment]);
   }
   const plans2 = [];
-  for (const [membershipId, all] of byMembership2) {
+  for (const [membershipId, all] of byMembership) {
     const old = all.filter((payment) => payment.paidOn < cutoff);
     if (old.length === 0) continue;
     const byId = new Map(all.map((payment) => [payment.id, payment]));
@@ -7375,75 +7101,35 @@ function planCarries(memberships2, payments2, cutoff, today) {
     }
     const leaving = old.filter((payment) => !staying.has(payment.id));
     if (leaving.length === 0) continue;
-    const leavingIds = new Set(leaving.map((payment) => payment.id));
-    const counted = all.filter((payment) => !payment.voided);
-    const countedLeaving = counted.filter((p2) => leavingIds.has(p2.id));
-    const countedStaying = counted.filter((p2) => !leavingIds.has(p2.id));
+    const countedLeaving = leaving.filter((payment) => !payment.voided);
     plans2.push({
       membershipId,
       deleteIds: leaving.map((payment) => payment.id),
-      carry: countedLeaving.length ? chooseCarry(
-        memberships2.get(membershipId),
-        countedLeaving,
-        countedStaying,
-        today
-      ) : []
+      carry: stretches(countedLeaving)
     });
   }
   return plans2;
 }
-function chooseCarry(membership, leaving, staying, today) {
-  const perPeriod = /* @__PURE__ */ new Map();
-  for (const payment of leaving) {
-    perPeriod.set(
-      payment.firstPeriod,
-      (perPeriod.get(payment.firstPeriod) ?? 0) + payment.amountPaise
-    );
-  }
-  const grouped = [...perPeriod].sort(([a], [b]) => a - b).map(([firstPeriod, amountPaise]) => ({ firstPeriod, amountPaise }));
-  if (grouped.length === 1 || !membership) return grouped;
-  const single = [
-    {
-      firstPeriod: grouped[0].firstPeriod,
-      amountPaise: grouped.reduce((sum, entry) => sum + entry.amountPaise, 0)
+function stretches(paid) {
+  const ordered = [...paid].sort(
+    (a, b) => a.firstPeriod - b.firstPeriod || b.months - a.months
+  );
+  const out = [];
+  for (const payment of ordered) {
+    const last = out.at(-1);
+    const end = payment.firstPeriod + payment.months;
+    if (last && payment.firstPeriod <= last.firstPeriod + last.months) {
+      last.months = Math.max(last.months, end - last.firstPeriod);
+      last.amountPaise += payment.amountPaise;
+    } else {
+      out.push({
+        firstPeriod: payment.firstPeriod,
+        months: payment.months,
+        amountPaise: payment.amountPaise
+      });
     }
-  ];
-  const earliest = new Date(
-    Math.min(...leaving.map((payment) => payment.createdAt.getTime()))
-  );
-  const asLedger = (entries) => [
-    ...entries.map((entry, i) => ({
-      id: `carried-${i}`,
-      firstPeriod: entry.firstPeriod,
-      amountPaise: entry.amountPaise,
-      createdAt: earliest
-    })),
-    ...staying.map(toLedgerPayment)
-  ];
-  const before = buildLedger(
-    membership,
-    [...leaving, ...staying].map(toLedgerPayment),
-    today
-  );
-  const after2 = buildLedger(membership, asLedger(single), today);
-  return sameLedger(before, after2) ? single : grouped;
-}
-function toLedgerPayment(payment) {
-  return {
-    id: payment.id,
-    firstPeriod: payment.firstPeriod,
-    amountPaise: payment.amountPaise,
-    createdAt: payment.createdAt
-  };
-}
-function sameLedger(a, b) {
-  if (a.owedPaise !== b.owedPaise || a.creditPaise !== b.creditPaise || a.standing !== b.standing || a.periods.length !== b.periods.length) {
-    return false;
   }
-  return a.periods.every((period, i) => {
-    const other = b.periods[i];
-    return period.index === other.index && period.dueOn === other.dueOn && period.feePaise === other.feePaise && period.paidPaise === other.paidPaise && period.status === other.status;
-  });
+  return out;
 }
 
 // src/payments/year-close-run.ts
@@ -7463,24 +7149,11 @@ async function runYearClose(db, today, archive) {
         perPeriod: 0
       };
     }
-    const membershipRows = await tx.select({
-      id: memberships.id,
-      memberId: memberships.memberId,
-      startsOn: memberships.startsOn,
-      billingStartsOn: memberships.billingStartsOn,
-      dueChanges: memberships.dueChanges,
-      endedOn: memberships.endedOn,
-      planId: memberships.planId
-    }).from(memberships);
-    const facts = await loadFacts(tx, membershipRows, true, "all");
-    const withFees = /* @__PURE__ */ new Map();
-    for (const [id, fact] of facts) {
-      if (fact.fees) withFees.set(id, { ...fact, fees: fact.fees });
-    }
     const paymentRows = await tx.select({
       id: payments.id,
       membershipId: payments.membershipId,
       firstPeriod: payments.firstPeriod,
+      months: payments.months,
       amountPaise: payments.amountPaise,
       paidOn: payments.paidOn,
       createdAt: payments.createdAt,
@@ -7491,13 +7164,14 @@ async function runYearClose(db, today, archive) {
       id: row.id,
       membershipId: row.membershipId,
       firstPeriod: row.firstPeriod,
+      months: row.months,
       amountPaise: row.amountPaise,
       paidOn: row.paidOn,
       createdAt: row.createdAt,
       voided: row.voidedAt !== null,
       replacesPaymentId: row.replacesPaymentId
     }));
-    const plans2 = planCarries(withFees, closePayments, cutoff, today);
+    const plans2 = planCarries(closePayments, cutoff);
     const files = await archiveFiles(tx, cutoff);
     if (files.files.length) await archive(files);
     const result = rowsOf(

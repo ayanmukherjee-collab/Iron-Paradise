@@ -44,6 +44,13 @@ export const duesFrom = z
   .optional()
   .transform((value) => value || null);
 
+/** How many months a payment pays for: one of the plans (1 to 24). */
+export const months = z.coerce
+  .number("Pick how long this pays for")
+  .int("Pick how long this pays for")
+  .min(1, "Pick how long this pays for")
+  .max(24, "Pick how long this pays for");
+
 export const period = z.coerce
   .number("Pick the month this payment starts from")
   .int()

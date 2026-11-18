@@ -14,9 +14,10 @@ const fee = (feePaise: number, effectiveFrom: string): FeeChange => ({
   createdAt: new Date(`${effectiveFrom}T00:00:00Z`),
 });
 
+/** The ledger after one payment for `months` months from the first due. */
 function withLedger(
   facts: MembershipWithFees,
-  paid: number[],
+  months: number,
   today: string,
 ): MembershipLedger {
   return {
@@ -26,12 +27,17 @@ function withLedger(
     freezes: facts.freezes,
     ledger: buildLedger(
       facts,
-      paid.map((amountPaise, index) => ({
-        id: `payment-${index}`,
-        amountPaise,
-        firstPeriod: 0,
-        createdAt: new Date(index),
-      })),
+      months
+        ? [
+            {
+              id: "payment-0",
+              firstPeriod: 0,
+              months,
+              amountPaise: 1000,
+              createdAt: new Date(0),
+            },
+          ]
+        : [],
       today,
     ),
   };
@@ -73,20 +79,20 @@ describe("month columns", () => {
 });
 
 describe("sheet cells", () => {
-  it("shows paid, partial, overdue and upcoming months", () => {
+  it("shows paid, overdue and upcoming months", () => {
     const row = sheetRow(
-      [withLedger(base, [90000], "2026-05-20")],
+      [withLedger(base, 1, "2026-05-20")],
       ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06"],
     );
     expect(Object.values(row).map((cell) => cell.status)).toEqual([
       "none",
       "paid",
-      "partial",
+      "overdue",
       "overdue",
       "upcoming",
     ]);
     expect(row["2026-04"]).toMatchObject({
-      paidPaise: 30000,
+      paidPaise: 0,
       feePaise: 60000,
       target: { membershipId: "m1", period: 1 },
     });
@@ -99,7 +105,7 @@ describe("sheet cells", () => {
       freezes: [{ startsOn: "2026-04-01", endsOn: null }],
     };
     const row = sheetRow(
-      [withLedger(frozen, [60000], "2026-06-01")],
+      [withLedger(frozen, 1, "2026-06-01")],
       ["2026-03", "2026-04", "2026-05"],
     );
     expect(Object.values(row).map((cell) => cell.status)).toEqual([
@@ -111,7 +117,7 @@ describe("sheet cells", () => {
 
   it("shows free months for free members", () => {
     const row = sheetRow(
-      [withLedger({ ...base, fees: [fee(0, "2026-03-12")] }, [], "2026-04-20")],
+      [withLedger({ ...base, fees: [fee(0, "2026-03-12")] }, 0, "2026-04-20")],
       ["2026-04"],
     );
     expect(row["2026-04"].status).toBe("free");
@@ -128,9 +134,9 @@ describe("sheet cells", () => {
       freezes: [{ startsOn: "2026-02-03", endsOn: "2026-02-28" }],
       fees: [fee(60000, "2026-01-03")],
     };
-    // ₹1,800 pays the 3 Jan due and both March dues.
+    // Three months pay the 3 Jan due and both March dues.
     const row = sheetRow(
-      [withLedger(facts, [180000], "2026-04-10")],
+      [withLedger(facts, 3, "2026-04-10")],
       ["2026-02", "2026-03"],
     );
     expect(row["2026-02"].status).toBe("frozen");

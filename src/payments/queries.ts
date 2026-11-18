@@ -66,6 +66,7 @@ async function countedPayments(
           id: payments.id,
           membershipId: payments.membershipId,
           firstPeriod: payments.firstPeriod,
+          months: payments.months,
           amountPaise: payments.amountPaise,
           createdAt: payments.createdAt,
         })
@@ -92,13 +93,13 @@ async function countedPayments(
 const totalRecordedAt = new Date(0);
 
 /**
- * Counted payments summed per membership and first period, each sum standing
- * in for the payments it adds up. A ledger built from these is the same as
- * one built from every payment, except for `coverage` (which payment went
- * towards which months), which comes back keyed by stand-in ids. That holds
- * because the ledger applies payments in first-period order, and payments
- * that start on the same period fill it, and then the months after it, one
- * after another, so their sum fills exactly the same months.
+ * Counted payments grouped per membership and first period, each group
+ * standing in for the payments in it. A ledger built from these is the same
+ * as one built from every payment, except for `coverage` (which payment paid
+ * for which months), which comes back keyed by stand-in ids. That holds
+ * because payments that start on the same period pay for that period and the
+ * months after it, so together they pay for as many months as the longest
+ * of them.
  *
  * Screens that list everyone use this: one row per membership and starting
  * month instead of one per payment ever recorded, and no ids or timestamps
@@ -114,6 +115,7 @@ async function countedTotals(
         .select({
           membershipId: payments.membershipId,
           firstPeriod: payments.firstPeriod,
+          months: sql<number>`max(${payments.months})`.mapWith(Number),
           amountPaise: sql<number>`sum(${payments.amountPaise})`.mapWith(
             Number,
           ),
@@ -130,10 +132,11 @@ async function countedTotals(
     : [];
 
   const byMembership = new Map<string, LedgerPayment[]>();
-  for (const { membershipId, firstPeriod, amountPaise } of found) {
+  for (const { membershipId, firstPeriod, months, amountPaise } of found) {
     const total: LedgerPayment = {
       id: `from-period-${firstPeriod}`,
       firstPeriod,
+      months,
       amountPaise,
       createdAt: totalRecordedAt,
     };
@@ -444,7 +447,11 @@ export interface PaymentFormData {
   feePaise: number;
   owedPaise: number;
   periods: PeriodState[];
-  /** No payment counts yet: the form offers "Due from". */
+  /**
+   * No payment counts yet and the dues were never set: the form offers "Due
+   * from". (After the switch to paying by months, every member's dues were
+   * set where their old payments left them, so they pay on from there.)
+   */
   firstPayment: boolean;
 }
 
@@ -488,7 +495,7 @@ export async function getPaymentForm(
       feePaise: feeOn(membership.fees, today) ?? 0,
       owedPaise: ledger.owedPaise,
       periods: payablePeriods(membership, paid ?? [], today),
-      firstPayment: !paid?.length,
+      firstPayment: !paid?.length && membership.dueChanges.length === 0,
     };
   });
 }
@@ -543,7 +550,7 @@ export async function moveDueDate(
 
   let period: number;
   if (firstPayment) {
-    if (ledger.creditPaise > 0 || ledger.periods.some((p) => p.paidPaise > 0))
+    if (ledger.creditMonths > 0 || ledger.periods.some((p) => p.paidPaise > 0))
       throw new DueDateError("Due from is only for the first payment.");
     period = 0;
   } else {

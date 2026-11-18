@@ -98,10 +98,11 @@ async function snapshot() {
     id: string;
     membership_id: string;
     first_period: number;
+    months: number;
     amount_paise: number;
     created_at: Date;
   }>(
-    "select p.id, p.membership_id, p.first_period, p.amount_paise, p.created_at from public.payments p where not exists (select 1 from public.payment_voids v where v.payment_id = p.id)",
+    "select p.id, p.membership_id, p.first_period, p.months, p.amount_paise, p.created_at from public.payments p where not exists (select 1 from public.payment_voids v where v.payment_id = p.id)",
   );
   const ledgers = new Map<string, Ledger>();
   for (const [id, fact] of facts) {
@@ -114,6 +115,7 @@ async function snapshot() {
           .map((row) => ({
             id: row.id,
             firstPeriod: row.first_period,
+            months: row.months,
             amountPaise: row.amount_paise,
             createdAt: new Date(row.created_at),
           })),
@@ -143,12 +145,12 @@ beforeAll(async () => {
   await visit(steady.memberId, "2025-03-15");
   await visit(steady.memberId, "2025-05-01");
 
-  // Short in February but paid March: merging would move money, so the
-  // close keeps one entry per first period.
+  // Paid every other month: each payment is its own run of months, so the
+  // close keeps one entry each and the unpaid months stay unpaid.
   gappy = await join("2025-01-10");
   await pay(gappy, 0, 60000, "2025-01-10");
-  await pay(gappy, 1, 20000, "2025-02-11");
-  await pay(gappy, 2, 60000, "2025-03-10");
+  await pay(gappy, 2, 20000, "2025-02-11");
+  await pay(gappy, 4, 60000, "2025-03-10");
 
   ({ ledgers: before, starts: startsBefore } = await snapshot());
   const result = await runYearClose(t.db, today, async (files) => {

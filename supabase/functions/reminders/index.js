@@ -12,17 +12,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/notifications/cron-auth.ts
-import { createHash, timingSafeEqual } from "node:crypto";
-function hasCronSecret(authorization, secret2) {
-  if (!secret2 || !authorization?.startsWith("Bearer ")) return false;
-  const digest = (value2) => createHash("sha256").update(value2).digest();
-  return timingSafeEqual(
-    digest(authorization.slice("Bearer ".length)),
-    digest(secret2)
-  );
-}
-
 // node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
 function is(value2, type) {
@@ -6791,9 +6780,9 @@ var members = pgTable("members", {
 var plans = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
+  // How long a payment for this plan pays for. Plans carry no price: the
+  // amount is whatever the member actually paid.
   durationMonths: smallint("duration_months").notNull(),
-  // A default that pre-fills new memberships; members pay their own agreed fee.
-  defaultFeePaise: integer("default_fee_paise").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   ...timestamps
 });
@@ -6868,9 +6857,11 @@ var payments = pgTable("payments", {
   memberId: uuid("member_id").notNull().references(() => members.id),
   // Always the same member as memberId; a composite foreign key enforces it.
   membershipId: uuid("membership_id").notNull().references(() => memberships.id),
-  // The first period this payment pays towards (0 = due on the joining day).
-  // Money beyond that period's fee flows on to the next (brief §4.4).
+  // The first period this payment pays for (0 = the first due date).
   firstPeriod: smallint("first_period").notNull(),
+  // How many months it pays for, from firstPeriod on (one of the plans).
+  // The amount is what was received; it never decides what is paid.
+  months: smallint("months").notNull().default(1),
   amountPaise: integer("amount_paise").notNull(),
   method: paymentMethod("method").notNull(),
   paidOn: date("paid_on").notNull(),
@@ -6955,6 +6946,17 @@ var auditLog = pgTable("audit_log", {
   before: jsonb("before"),
   after: jsonb("after")
 });
+
+// src/notifications/cron-auth.ts
+import { createHash, timingSafeEqual } from "node:crypto";
+function hasCronSecret(authorization, secret2) {
+  if (!secret2 || !authorization?.startsWith("Bearer ")) return false;
+  const digest = (value2) => createHash("sha256").update(value2).digest();
+  return timingSafeEqual(
+    digest(authorization.slice("Bearer ".length)),
+    digest(secret2)
+  );
+}
 
 // src/lib/dates.ts
 var isoPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -7136,7 +7138,7 @@ function feeOn(fees, date2) {
       first = fee;
     }
     if (fee.effectiveFrom > date2) continue;
-    if (!current || fee.effectiveFrom > current.effectiveFrom || fee.effectiveFrom === current.effectiveFrom && fee.createdAt > current.createdAt) {
+    if (!current || fee.createdAt > current.createdAt || fee.createdAt.getTime() === current.createdAt.getTime() && fee.effectiveFrom > current.effectiveFrom) {
       current = fee;
     }
   }
@@ -7228,7 +7230,6 @@ function periodSource(membership) {
 function statusOf(period, today, horizon) {
   if (period.feePaise === 0) return "free";
   if (period.paidPaise >= period.feePaise) return "paid";
-  if (period.paidPaise > 0) return "partial";
   if (period.dueOn < today) return "overdue";
   if (period.dueOn <= horizon) return "due";
   return "upcoming";
@@ -7245,27 +7246,21 @@ function buildLedger(membership, payments2, today) {
   const ordered = [...payments2].sort(
     (a, b) => a.firstPeriod - b.firstPeriod || a.createdAt.getTime() - b.createdAt.getTime()
   );
-  let creditPaise = 0;
+  const undated = /* @__PURE__ */ new Set();
   let lastPaid = -1;
   const filled = /* @__PURE__ */ new Map();
   for (const payment of ordered) {
-    let remaining = payment.amountPaise;
-    let index = payment.firstPeriod;
-    while (remaining > 0) {
+    for (let i = 0; i < payment.months; i++) {
+      const index = payment.firstPeriod + i;
       const period = periodAt(index);
       if (!period) {
-        creditPaise += remaining;
-        break;
+        undated.add(index);
+        continue;
       }
-      const take = Math.min(remaining, period.feePaise - period.paidPaise);
-      if (take > 0) {
-        period.paidPaise += take;
-        remaining -= take;
-        lastPaid = Math.max(lastPaid, index);
-        const span = filled.get(payment.id);
-        filled.set(payment.id, { first: span?.first ?? index, last: index });
-      }
-      index++;
+      period.paidPaise = period.feePaise;
+      lastPaid = Math.max(lastPaid, index);
+      const span = filled.get(payment.id);
+      filled.set(payment.id, { first: span?.first ?? index, last: index });
     }
   }
   const horizon = addDays(today, dueSoonDays);
@@ -7274,7 +7269,7 @@ function buildLedger(membership, payments2, today) {
     const period = periodAt(index);
     if (!period) break;
     periods.push({ ...period, status: statusOf(period, today, horizon) });
-    if (period.dueOn > horizon && index >= lastPaid) break;
+    if (period.dueOn > horizon && index > lastPaid) break;
   }
   const owedPaise = periods.filter((period) => period.dueOn <= today).reduce((sum2, period) => sum2 + period.feePaise - period.paidPaise, 0);
   const coverage = /* @__PURE__ */ new Map();
@@ -7284,7 +7279,7 @@ function buildLedger(membership, payments2, today) {
   return {
     periods,
     owedPaise,
-    creditPaise,
+    creditMonths: undated.size,
     nextUnpaid: periods.find((period) => period.paidPaise < period.feePaise) ?? null,
     standing: standingOf(periods, membership, today, horizon),
     coverage
@@ -7309,6 +7304,7 @@ async function countedPayments(tx, rows, scope) {
     id: payments.id,
     membershipId: payments.membershipId,
     firstPeriod: payments.firstPeriod,
+    months: payments.months,
     amountPaise: payments.amountPaise,
     createdAt: payments.createdAt
   }).from(payments).leftJoin(paymentVoids, eq(paymentVoids.paymentId, payments.id)).where(
@@ -7330,6 +7326,7 @@ async function countedTotals(tx, rows, scope) {
   const found = rows.length ? await tx.select({
     membershipId: payments.membershipId,
     firstPeriod: payments.firstPeriod,
+    months: sql`max(${payments.months})`.mapWith(Number),
     amountPaise: sql`sum(${payments.amountPaise})`.mapWith(
       Number
     )
@@ -7340,10 +7337,11 @@ async function countedTotals(tx, rows, scope) {
     )
   ).groupBy(payments.membershipId, payments.firstPeriod) : [];
   const byMembership2 = /* @__PURE__ */ new Map();
-  for (const { membershipId, firstPeriod, amountPaise } of found) {
+  for (const { membershipId, firstPeriod, months, amountPaise } of found) {
     const total = {
       id: `from-period-${firstPeriod}`,
       firstPeriod,
+      months,
       amountPaise,
       createdAt: totalRecordedAt
     };
@@ -7542,6 +7540,7 @@ function reminderFor(ledger, today, mode) {
 var defaultSendBudget = 40;
 async function runReminders(db, channels2, options = {}) {
   const today = todayAtGym(options.now);
+  const mode = options.mode ?? "automatic";
   let budget = options.budget ?? defaultSendBudget;
   const result = {
     today,
@@ -7569,7 +7568,7 @@ async function runReminders(db, channels2, options = {}) {
   });
   for (const candidate of candidates) {
     if (!mayRemind(candidate)) continue;
-    const reminder = reminderFor(candidate.ledger, today, "automatic");
+    const reminder = reminderFor(candidate.ledger, today, mode);
     if (!reminder) continue;
     const recipient = toRecipient(candidate, targets);
     const reachable = channels2.filter((channel) => channel.reaches(recipient));
@@ -7582,7 +7581,8 @@ async function runReminders(db, channels2, options = {}) {
       }
       const outcome = await sendOnce(db, channel, candidate, recipient, {
         reminder,
-        today
+        today,
+        sentBy: options.sentBy ?? null
       });
       if (outcome === "already") {
         result.alreadySent++;
@@ -7603,7 +7603,11 @@ function toRecipient(candidate, targets) {
     pushTargets: candidate.profileId ? targets.get(candidate.profileId) ?? [] : []
   };
 }
-async function sendOnce(db, channel, candidate, recipient, { reminder, today }) {
+async function sendOnce(db, channel, candidate, recipient, {
+  reminder,
+  today,
+  sentBy
+}) {
   const [claimed] = await db.insert(notifications).values({
     memberId: candidate.memberId,
     membershipId: candidate.membershipId,
@@ -7611,7 +7615,8 @@ async function sendOnce(db, channel, candidate, recipient, { reminder, today }) 
     stage: reminder.stage,
     channel: channel.name,
     dueOn: reminder.dueOn,
-    amountPaise: reminder.amountPaise
+    amountPaise: reminder.amountPaise,
+    sentBy
   }).onConflictDoNothing().returning({ id: notifications.id });
   if (!claimed) return "already";
   const delivery = await channel.send(recipient, {
@@ -13242,27 +13247,88 @@ function json3(body, status = 200, headers = {}) {
   });
 }
 
+// supabase/functions-src/caller.ts
+function cors(request) {
+  const origin = request.headers.get("origin");
+  const allowed = [
+    new URL(siteUrl()).origin,
+    "http://localhost:5173",
+    "http://localhost:4173"
+  ];
+  return origin && allowed.includes(origin) ? {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin"
+  } : { Vary: "Origin" };
+}
+async function userId(request) {
+  const authorization = request.headers.get("authorization");
+  const url = secret("SUPABASE_URL");
+  const key2 = secret("SUPABASE_ANON_KEY");
+  if (!authorization || !url || !key2) return null;
+  const response = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: authorization, apikey: key2 }
+  });
+  if (!response.ok) return null;
+  const user = await response.json();
+  return typeof user.id === "string" ? user.id : null;
+}
+
 // supabase/functions-src/reminders.ts
 serve(async (request) => {
-  if (request.method !== "POST") return json3({ error: "POST only" }, 405);
+  const headers = cors(request);
+  if (request.method === "OPTIONS")
+    return new Response(null, { status: 204, headers });
+  if (request.method !== "POST")
+    return json3({ error: "POST only" }, 405, headers);
   const cronSecret = secret("CRON_SECRET");
-  if (!cronSecret) {
-    return json3(
-      { error: "Reminders are not set up: CRON_SECRET is missing" },
-      503
-    );
+  const authorization = request.headers.get("authorization");
+  if (cronSecret && hasCronSecret(authorization, cronSecret)) {
+    const { db: db2, close: close3 } = connect2();
+    try {
+      const result = await runReminders(db2, configuredChannels(), {
+        budget: 400
+      });
+      console.log("Reminder run", JSON.stringify(result));
+      return json3(result);
+    } finally {
+      await close3();
+    }
   }
-  if (!hasCronSecret(request.headers.get("authorization"), cronSecret)) {
-    return json3({ error: "Not allowed" }, 401);
+  const reply = (ok, message) => json3({ ok, message }, 200, headers);
+  const channels2 = configuredChannels();
+  if (channels2.length === 0) {
+    return reply(false, "Push and email aren't set up on the server.");
   }
+  const id = await userId(request);
+  if (!id) return reply(false, "Your session ended. Sign in again.");
   const { db, close: close2 } = connect2();
   try {
-    const result = await runReminders(db, configuredChannels(), {
-      budget: 400
+    const [caller] = await db.select({ role: profiles.role, isActive: profiles.isActive }).from(profiles).where(eq(profiles.id, id));
+    if (!caller?.isActive || caller.role !== "owner" && caller.role !== "manager") {
+      return reply(false, "Only the owner and managers can send reminders.");
+    }
+    const result = await runReminders(db, channels2, {
+      budget: 400,
+      mode: "staff",
+      sentBy: id
     });
-    console.log("Reminder run", JSON.stringify(result));
-    return json3(result);
+    console.log("Reminder bell", JSON.stringify(result));
+    return reply(true, bellMessage(result));
   } finally {
     await close2();
   }
 });
+function bellMessage(result) {
+  if (result.due === 0) {
+    return "No one to remind on push or email. Members need the app or an email on their account.";
+  }
+  const parts2 = [
+    `Sent ${result.sent}`,
+    result.alreadySent > 0 && `${result.alreadySent} already sent`,
+    result.failed > 0 && `${result.failed} failed`,
+    result.deferred > 0 && `${result.deferred} left for later`
+  ].filter(Boolean);
+  return `${parts2.join(" \xB7 ")}.`;
+}

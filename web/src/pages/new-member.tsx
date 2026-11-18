@@ -5,22 +5,10 @@ import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import { todayAtGym } from "@/lib/dates";
 import { NewMembershipFields } from "@/members/components/new-membership-fields";
 import { addMember } from "../actions/members";
-import { listPlans } from "../data/members";
-import { Loaded, useLoad, useTitle } from "../data/use-load";
+import { useTitle } from "../data/use-load";
 
 export function NewMemberPage() {
   useTitle("Add member");
-  const state = useLoad(() => listPlans(true), []);
-  return (
-    <Loaded state={state}>{(plans) => <NewMemberForm plans={plans} />}</Loaded>
-  );
-}
-
-function NewMemberForm({
-  plans,
-}: {
-  plans: Awaited<ReturnType<typeof listPlans>>;
-}) {
   return (
     <section className="max-w-lg">
       <header className="page-header">
@@ -55,14 +43,7 @@ function NewMemberForm({
             className={inputClass}
           />
         </Field>
-        <NewMembershipFields
-          plans={plans.map(({ id, name, defaultFeePaise }) => ({
-            id,
-            name,
-            defaultFeePaise,
-          }))}
-          today={todayAtGym()}
-        />
+        <NewMembershipFields today={todayAtGym()} />
         <Checkbox
           name="reminderConsent"
           label="They agree to get payment reminders"

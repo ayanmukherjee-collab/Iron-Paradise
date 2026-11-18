@@ -19,7 +19,7 @@ import { ActionForm } from "@/components/ui/action-form";
 import { Dialog } from "@/components/ui/dialog";
 import { Checkbox, Field, inputClass } from "@/components/ui/field";
 import { formatDate, todayAtGym } from "@/lib/dates";
-import { formatPaise, paiseToInput } from "@/lib/money";
+import { formatPaise } from "@/lib/money";
 import { PushToggle } from "@/notifications/components/push-toggle";
 import {
   deleteClosure,
@@ -107,7 +107,8 @@ function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
           <section>
             <h2 className="px-1 section-title">Plans</h2>
             <p className="mt-1 px-1 text-sm text-muted">
-              Shown as quick picks when recording a payment.
+              How long a payment can be for. Recording a payment needs one, plus
+              the amount received.
             </p>
 
             <ul className="mt-3 list-card">
@@ -115,7 +116,7 @@ function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
                 <li key={plan.id} className="list-row">
                   <Row
                     title={plan.name}
-                    detail={`${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"} · ${formatPaise(plan.defaultFeePaise)}/mo`}
+                    detail={`${plan.durationMonths} ${plan.durationMonths === 1 ? "month" : "months"}`}
                     badge={plan.isActive ? undefined : "Not offered"}
                   >
                     <ActionForm
@@ -128,7 +129,6 @@ function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
                       <PlanFields
                         name={plan.name}
                         months={plan.durationMonths}
-                        fee={plan.defaultFeePaise}
                       />
                       <Checkbox
                         name="isActive"
@@ -147,7 +147,7 @@ function SettingsView({ plans, quietDays, hours, history }: SettingsData) {
                   className="space-y-4"
                 >
                   <input type="hidden" name="planId" value="" />
-                  <PlanFields name="" months={1} fee={null} />
+                  <PlanFields name="" months={1} />
                 </ActionForm>
               </AddRow>
             </ul>
@@ -436,18 +436,10 @@ function AddRow({
   );
 }
 
-function PlanFields({
-  name,
-  months,
-  fee,
-}: {
-  name: string;
-  months: number;
-  fee: number | null;
-}) {
+function PlanFields({ name, months }: { name: string; months: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
-      <Field label="Name" className="col-span-2 sm:col-span-1">
+    <div className="grid grid-cols-[2fr_1fr] gap-3">
+      <Field label="Name">
         <input
           name="name"
           required
@@ -465,16 +457,6 @@ function PlanFields({
           max={24}
           required
           defaultValue={months}
-          className={inputClass}
-        />
-      </Field>
-      <Field label="Fee (₹/month)">
-        <input
-          name="defaultFee"
-          inputMode="decimal"
-          required
-          defaultValue={fee !== null ? paiseToInput(fee) : ""}
-          placeholder="e.g. 600"
           className={inputClass}
         />
       </Field>

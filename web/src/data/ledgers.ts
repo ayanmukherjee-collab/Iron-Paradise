@@ -118,7 +118,7 @@ export async function countedPayments(
   const found = await allRows(() =>
     table("payments")
       .select(
-        "id, membershipId:membership_id, firstPeriod:first_period, amountPaise:amount_paise, createdAt:created_at, payment_voids(payment_id)",
+        "id, membershipId:membership_id, firstPeriod:first_period, months, amountPaise:amount_paise, createdAt:created_at, payment_voids(payment_id)",
       )
       .in(
         "membership_id",
@@ -131,6 +131,7 @@ export async function countedPayments(
       id: string;
       membershipId: string;
       firstPeriod: number;
+      months: number;
       amountPaise: number;
       createdAt: string;
       payment_voids: unknown;
@@ -141,6 +142,7 @@ export async function countedPayments(
     const payment: LedgerPayment = {
       id: row.id,
       firstPeriod: row.firstPeriod,
+      months: row.months,
       amountPaise: row.amountPaise,
       createdAt: date(row.createdAt),
     };
@@ -154,19 +156,25 @@ export async function countedPayments(
 const totalRecordedAt = new Date(0);
 
 /**
- * Counted payments summed per membership and first period, in the database
+ * Counted payments grouped per membership and first period, in the database
  * (see countedTotals in src/payments/queries.ts for why this gives the same
  * ledgers, coverage aside).
  */
 export async function countedTotals(): Promise<Map<string, LedgerPayment[]>> {
   const found = await rpc<
-    { membership_id: string; first_period: number; amount_paise: number }[]
+    {
+      membership_id: string;
+      first_period: number;
+      months: number;
+      amount_paise: number;
+    }[]
   >("counted_payment_totals");
   const byMembership = new Map<string, LedgerPayment[]>();
   for (const row of found) {
     const total: LedgerPayment = {
       id: `from-period-${row.first_period}`,
       firstPeriod: row.first_period,
+      months: row.months,
       amountPaise: Number(row.amount_paise),
       createdAt: totalRecordedAt,
     };

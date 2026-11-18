@@ -15,6 +15,7 @@ interface MembershipRow {
 interface PaymentRow {
   id: string;
   first_period: number;
+  months: number;
   amount_paise: number;
   created_at: string;
   payment_voids: unknown;
@@ -67,7 +68,7 @@ export async function getOwnStanding(userId: string): Promise<OwnStanding> {
       .then(dataOf<{ starts_on: string; ends_on: string | null }[]>),
     table("payments")
       .select(
-        "id, first_period, amount_paise, created_at, payment_voids(payment_id)",
+        "id, first_period, months, amount_paise, created_at, payment_voids(payment_id)",
       )
       .eq("membership_id", membership.id)
       .then(dataOf<PaymentRow[]>),
@@ -82,6 +83,7 @@ export async function getOwnStanding(userId: string): Promise<OwnStanding> {
     .map((payment) => ({
       id: payment.id,
       firstPeriod: payment.first_period,
+      months: payment.months,
       amountPaise: payment.amount_paise,
       createdAt: new Date(payment.created_at),
     }));

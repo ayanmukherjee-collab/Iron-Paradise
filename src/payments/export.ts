@@ -16,8 +16,6 @@ const rupees = (paise: number) => paise / 100;
 function cellText(cell: SheetCell): string {
   const label = cellLabels[cell.status];
   switch (cell.status) {
-    case "partial":
-      return `${label} ${rupees(cell.paidPaise)} of ${rupees(cell.feePaise)}`;
     case "paid":
     case "due":
     case "overdue":

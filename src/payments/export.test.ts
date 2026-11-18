@@ -11,7 +11,7 @@ const row: SheetRow = {
   isActive: true,
   feePaise: 60000,
   standing: "overdue",
-  owedPaise: 30000,
+  owedPaise: 60000,
   lastPayment: { amountPaise: 30000, paidOn: "2026-11-02" },
   paidThisMonthPaise: 30000,
   nextDue: "2026-12-01",
@@ -23,9 +23,9 @@ const row: SheetRow = {
       target: null,
     },
     "2026-11": {
-      status: "partial",
+      status: "overdue",
       feePaise: 60000,
-      paidPaise: 30000,
+      paidPaise: 0,
       target: { membershipId: "m", period: 1 },
     },
   },
@@ -41,9 +41,9 @@ describe("sheet export", () => {
       "9876543210",
       600,
       "Overdue",
-      300,
+      600,
       "Paid 600",
-      "Partial 300 of 600",
+      "Overdue 600",
     ]);
   });
 });
