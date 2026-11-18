@@ -1,4 +1,5 @@
 // Mirrors src/app/app/page.tsx and src/members/components/member-home.tsx.
+import { useEffect, useRef, useState } from "react";
 import Link from "@/components/ui/link";
 import { batchAt, visitBatch } from "@/attendance/batches";
 import { TodayCard } from "@/attendance/components/today-card";
@@ -8,7 +9,7 @@ import {
   AccountSwitchedOff,
   WaitingForGym,
 } from "@/auth/components/waiting-screens";
-import { CloseToday, Notices } from "@/bulletin/components/gym-controls";
+import { Notices } from "@/bulletin/components/gym-controls";
 import { CrowdCard } from "@/bulletin/components/crowd-card";
 import { MemberBulletin } from "@/bulletin/components/member-bulletin";
 import { NavIconSvg } from "@/components/nav/nav-icons";
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/viz";
 import { formatShortDate, formatTime, todayAtGym } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
-import type { MembershipStatus } from "@/members/billing";
 import { MemberCard } from "@/members/components/member-card";
 import { PushToggle } from "@/notifications/components/push-toggle";
 import { MoneyCards, shortMonth } from "@/payments/components/money-cards";
@@ -183,21 +183,8 @@ function StaffHome({ viewer }: { viewer: Viewer }) {
                   />
                 )}
               />
-              {env.vapidPublicKey && (
-                <div
-                  className={`flex items-center gap-3 card p-4 sm:p-5 ${canManage ? "col-span-2" : ""}`}
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-canvas">
-                    <NavIconSvg icon="reminders" className="size-4" />
-                  </span>
-                  <PushToggle vapidPublicKey={env.vapidPublicKey} compact />
-                </div>
-              )}
               {controls && (
-                <>
-                  <CloseToday controls={controls} className="col-span-2" />
-                  <Notices controls={controls} className="col-span-2" />
-                </>
+                <Notices controls={controls} className="col-span-2" />
               )}
             </div>
           );
@@ -339,7 +326,10 @@ function MemberHome({ viewer }: { viewer: Viewer }) {
         if (!loaded) {
           return (
             <section className="max-w-prose">
-              <h1 className="page-title">Your membership</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="page-title">Your membership</h1>
+                <NotificationBell />
+              </div>
               <p className="mt-4 text-lg">
                 We couldn&apos;t find your member record. Ask at the front desk.
               </p>
@@ -356,9 +346,18 @@ function MemberHome({ viewer }: { viewer: Viewer }) {
 
         return (
           <section className="mx-auto max-w-5xl">
-            <header className="page-header">
-              <p className="text-sm text-muted">Your membership</p>
-              <h1 className="mt-0.5 page-title">Hi, {firstName}</h1>
+            <header className="page-header flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-muted">Your membership</p>
+                <h1 className="mt-0.5 page-title">Hi, {firstName}</h1>
+              </div>
+              <NotificationBell
+                feeRemindersOff={
+                  !membership.remindersAllowed &&
+                  membership.status !== "free" &&
+                  membership.status !== "inactive"
+                }
+              />
             </header>
 
             <div className="mt-2 grid gap-4 split:grid-cols-2 split:items-start split:gap-6">
@@ -382,10 +381,6 @@ function MemberHome({ viewer }: { viewer: Viewer }) {
               <div className="space-y-4">
                 <CrowdCard />
                 <MemberBulletin />
-                <FeeReminders
-                  status={membership.status}
-                  allowed={membership.remindersAllowed}
-                />
                 {owedPaise > 0 && (
                   <p className="flex items-center gap-3 card-dark p-4 sm:px-6">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-white/10">
@@ -460,30 +455,64 @@ function CheckInTile({ checkedInAt }: { checkedInAt: Date | null }) {
   );
 }
 
-function FeeReminders({
-  status,
-  allowed,
+/**
+ * A bell at the top of the member's Home: opens a small panel to turn
+ * notifications (notices from the gym and fee reminders) on or off for this
+ * phone.
+ */
+function NotificationBell({
+  feeRemindersOff = false,
 }: {
-  status: MembershipStatus;
-  allowed: boolean;
+  /** The gym hasn't been told this member agrees to fee reminders. */
+  feeRemindersOff?: boolean;
 }) {
-  if (!env.vapidPublicKey || status === "free" || status === "inactive")
-    return null;
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  // A tap outside or Escape closes the panel.
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) =>
+      event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  if (!env.vapidPublicKey) return null;
 
   return (
-    <div className="flex items-center gap-3 card p-4 sm:px-6">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-canvas">
+    <div ref={box} className="relative shrink-0">
+      <button
+        type="button"
+        aria-label="Notifications"
+        aria-expanded={open}
+        aria-controls="notification-panel"
+        title="Notifications"
+        onClick={() => setOpen((was) => !was)}
+        className={`${iconButton} ${open ? "bg-ink text-white" : "bg-white shadow-card hover:bg-canvas"}`}
+      >
         <NavIconSvg icon="reminders" className="size-5" />
-      </span>
-      {allowed ? (
-        <div className="min-w-0 flex-1">
+      </button>
+      {open && (
+        <div
+          id="notification-panel"
+          className="absolute top-full right-0 z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] card p-4 shadow-float"
+        >
           <PushToggle vapidPublicKey={env.vapidPublicKey} compact />
+          <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
+            Notices from the gym
+            {feeRemindersOff
+              ? ". Fee reminders are off; ask at the front desk to turn them on."
+              : " and fee reminders."}
+          </p>
         </div>
-      ) : (
-        <p className="min-w-0 text-sm">
-          <span className="block font-semibold">Fee reminders off</span>
-          <span className="block text-muted">Ask at the front desk</span>
-        </p>
       )}
     </div>
   );

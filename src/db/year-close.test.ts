@@ -8,7 +8,7 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "@/db/testing/test-database";
-import { withUserContext } from "@/db/user-context";
+import { rowsOf, withUserContext } from "@/db/user-context";
 import { loadFacts, type MembershipRow } from "@/members/facts";
 import { buildLedger, type Ledger } from "@/payments/ledger";
 import { runYearClose, type YearCloseFiles } from "@/payments/year-close-run";
@@ -247,6 +247,58 @@ describe("the yearly close", () => {
       "select public.collected('2025-01-01', '2025-03-31')::text as total",
     );
     expect(result.rows[0].total).toBe("0");
+  });
+
+  it("sums the last months for analytics, reading closed months from the totals", async () => {
+    type Month = {
+      month: string;
+      members: number;
+      joined: number;
+      check_ins: number;
+      collected: number;
+      payments: number;
+      cash: number;
+      corrections: number;
+    };
+    const months = (userId: string) =>
+      as(userId, async (tx) =>
+        rowsOf<Month>(
+          await tx.execute(
+            sql`select month::text, members, joined, check_ins,
+                  collected_paise::int as collected, payments,
+                  cash_paise::int as cash, corrections
+                from public.monthly_analytics('2025-05-01', 5)`,
+          ),
+        ),
+      );
+
+    const owners = await months(owner);
+    expect(owners.map((row) => row.month)).toEqual([
+      "2025-01-01",
+      "2025-02-01",
+      "2025-03-01",
+      "2025-04-01",
+      "2025-05-01",
+    ]);
+    expect(owners.map((row) => [row.collected, row.payments])).toEqual([
+      [120000, 2],
+      [80000, 2],
+      [120000, 2],
+      [60000, 1],
+      [0, 0],
+    ]);
+    expect(owners.map((row) => row.cash)).toEqual([
+      120000, 80000, 120000, 60000, 0,
+    ]);
+    expect(owners.map((row) => row.check_ins)).toEqual([0, 1, 1, 0, 1]);
+    expect(owners.map((row) => row.members)).toEqual([2, 2, 2, 2, 2]);
+    expect(owners.every((row) => row.joined === 0)).toBe(true);
+    expect(owners.every((row) => row.corrections === 0)).toBe(true);
+
+    // Trainers can't read money, so every money figure comes back zero.
+    const trainers = await months(trainer);
+    expect(trainers.every((row) => row.collected === 0)).toBe(true);
+    expect(trainers.every((row) => row.payments === 0)).toBe(true);
   });
 
   it("saves the old rows as CSV first", () => {

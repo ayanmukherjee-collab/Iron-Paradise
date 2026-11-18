@@ -12,8 +12,8 @@ import { LandingPage, PrivacyPage, TermsPage } from "./pages/site";
 const AttendancePage = lazy(() =>
   import("./pages/attendance").then((m) => ({ default: m.AttendancePage })),
 );
-const AuditPage = lazy(() =>
-  import("./pages/audit").then((m) => ({ default: m.AuditPage })),
+const AnalyticsPage = lazy(() =>
+  import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })),
 );
 const CheckInPage = lazy(() =>
   import("./pages/check-in").then((m) => ({ default: m.CheckInPage })),
@@ -147,10 +147,15 @@ export const router = createBrowserRouter([
         path: "attendance/setup/printed-qr",
         element: only("desk.manage", <PrintedQrPage />),
       },
-      { path: "audit", element: only("audit.view", <AuditPage />) },
+      {
+        path: "analytics",
+        element: only("audit.view", <AnalyticsPage />),
+      },
+      // The page was called Audit log before; old links still land.
+      { path: "audit", element: <Navigate to="/app/analytics" replace /> },
       { path: "guests", element: only("guests.link", <GuestsPage />) },
       { path: "reminders", element: only("reminders.send", <RemindersPage />) },
-      { path: "settings", element: only("plans.edit", <SettingsPage />) },
+      { path: "settings", element: only("members.view", <SettingsPage />) },
       { path: "team", element: only("roles.change", <TeamPage />) },
       { path: "*", element: page(<NotFound />) },
     ],

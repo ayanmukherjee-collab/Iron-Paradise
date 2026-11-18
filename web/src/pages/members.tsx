@@ -1,4 +1,5 @@
 // Mirrors src/app/app/members/page.tsx.
+import { useEffect, useRef, useState } from "react";
 import { Form, useSearchParams } from "react-router";
 import Link from "@/components/ui/link";
 import { NavIconSvg } from "@/components/nav/nav-icons";
@@ -101,50 +102,53 @@ export function MembersPage() {
         )}
       </header>
 
-      <Form className="relative mt-5" role="search">
-        <input type="hidden" name="filter" value={filter} />
-        <label className="sr-only" htmlFor="member-search">
-          Search members
-        </label>
-        <NavIconSvg
-          icon="search"
-          className="pointer-events-none absolute top-1/2 left-3.5 size-[1.1rem] -translate-y-1/2 text-muted"
+      <div className="relative mt-5">
+        <Form role="search">
+          <input type="hidden" name="filter" value={filter} />
+          <label className="sr-only" htmlFor="member-search">
+            Search members
+          </label>
+          <NavIconSvg
+            icon="search"
+            className="pointer-events-none absolute top-1/2 left-3.5 size-[1.1rem] -translate-y-1/2 text-muted"
+          />
+          <input
+            id="member-search"
+            name="q"
+            type="search"
+            defaultValue={query}
+            placeholder="Name, phone or member ID"
+            className={`${inputBase} pr-14 pl-10`}
+          />
+        </Form>
+        <FilterMenu
+          keys={filterKeys}
+          current={filter}
+          counts={counts}
+          query={query}
         />
-        <input
-          id="member-search"
-          name="q"
-          type="search"
-          defaultValue={query}
-          placeholder="Name, phone or member ID"
-          className={`${inputBase} pl-10`}
-        />
-      </Form>
+      </div>
 
-      <nav
-        aria-label="Filter members"
-        className="-mx-4 mt-3 [scrollbar-width:none] overflow-x-auto px-4 sm:mx-0 sm:px-0"
-      >
-        <ul className="flex gap-2">
-          {filterKeys.map((key) => (
-            <li key={key}>
-              <Link
-                href={{
-                  query: { filter: key, ...(query ? { q: query } : {}) },
-                }}
-                aria-current={key === filter ? "page" : undefined}
-                className="chip"
-              >
-                {filters[key].label}
-                <span
-                  className={`tabular-nums ${key === filter ? "text-white/60" : "text-muted"}`}
-                >
-                  {counts[key]}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {filter !== "current" && (
+        <p className="mt-3 flex items-center gap-2 px-1 text-sm text-muted">
+          Showing
+          <span className="font-semibold text-ink">
+            {filters[filter].label}
+          </span>
+          <span className="tabular-nums">{counts[filter]}</span>
+          <Link
+            href={{
+              pathname: "/app/members",
+              query: query ? { q: query } : {},
+            }}
+            aria-label="Clear the filter"
+            title="Clear the filter"
+            className="ml-auto flex size-8 items-center justify-center rounded-control transition-colors hover:bg-ink hover:text-white"
+          >
+            <NavIconSvg icon="close" className="size-4" />
+          </Link>
+        </p>
+      )}
 
       {state.status !== "ready" ? (
         <div className="mt-4">
@@ -240,5 +244,92 @@ export function MembersPage() {
         </Link>
       )}
     </section>
+  );
+}
+
+/**
+ * The funnel at the right of the search box: opens the list of filters,
+ * each with its count. Dark while a filter other than Current is on.
+ */
+function FilterMenu({
+  keys,
+  current,
+  counts,
+  query,
+}: {
+  keys: FilterKey[];
+  current: FilterKey;
+  counts: Record<FilterKey, number>;
+  query: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const filtered = current !== "current";
+
+  // A tap outside or Escape closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) =>
+      event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={root} className="absolute top-1/2 right-1.5 -translate-y-1/2">
+      <button
+        type="button"
+        aria-label="Filter members"
+        title="Filter"
+        aria-expanded={open}
+        aria-controls="member-filters"
+        onClick={() => setOpen((was) => !was)}
+        className={`flex size-9 items-center justify-center rounded-control transition-colors ${
+          open || filtered
+            ? "bg-ink text-white"
+            : "text-muted hover:bg-canvas hover:text-ink"
+        }`}
+      >
+        <NavIconSvg icon="funnel" className="size-[1.1rem]" />
+      </button>
+      {open && (
+        <nav
+          id="member-filters"
+          aria-label="Filter members"
+          className="absolute top-full right-0 z-30 mt-2 w-60 origin-top-right rounded-tile bg-white p-1.5 shadow-float ring-1 ring-line motion-safe:animate-drop"
+        >
+          <p className="px-3 pt-2 pb-1 text-xs font-medium text-muted">Show</p>
+          <ul>
+            {keys.map((key) => (
+              <li key={key}>
+                <Link
+                  href={{
+                    query: { filter: key, ...(query ? { q: query } : {}) },
+                  }}
+                  aria-current={key === current ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-11 items-center gap-3 rounded-control px-3 text-sm font-medium transition-colors hover:bg-canvas"
+                >
+                  <span className="flex-1">{filters[key].label}</span>
+                  <span className="text-muted tabular-nums">{counts[key]}</span>
+                  <span className="flex size-4 items-center justify-center">
+                    {key === current && (
+                      <NavIconSvg icon="check" className="size-4" />
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+    </div>
   );
 }

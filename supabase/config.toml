@@ -433,8 +433,9 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
 # Edge Functions (built by `npm run fn:build` from supabase/functions-src).
-# Both check who's calling themselves: the reminder run by its CRON_SECRET,
-# the test push by asking Supabase Auth about the caller's token. JWT checks
+# Each checks who's calling itself: the reminder run by its CRON_SECRET,
+# the test push and notice push by asking Supabase Auth about the caller's
+# token. JWT checks
 # at the gateway are off so browsers' CORS preflight (no token) gets through.
 [functions.reminders]
 enabled = true
@@ -445,6 +446,11 @@ entrypoint = "./functions/reminders/index.js"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-test-push/index.js"
+
+[functions.notice-push]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notice-push/index.js"
 
 [functions.year-close]
 enabled = true
